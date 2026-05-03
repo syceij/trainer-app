@@ -18,7 +18,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
       background: C.surface,
       borderTop: `1px solid ${C.border}`,
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      height: 49,
+      minHeight: 49,
       willChange: 'transform',
     }}>
       {TABS.map(({ key, label, Icon }) => {
