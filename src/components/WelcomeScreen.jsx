@@ -38,7 +38,7 @@ export default function WelcomeScreen({ onBuild, onManual, onImport, onSignOut }
         }}
       >
         <img
-          src="/logo.png"
+          src="/welcome%20logo.png"
           alt="Trainer"
           style={{ height: 120, width: 'auto', objectFit: 'contain' }}
         />
