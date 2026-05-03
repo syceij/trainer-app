@@ -66,7 +66,7 @@ function LoadingScreen() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
     }}>
       <motion.img
-        src="/logo.png"
+        src="/loading%20logo.png"
         alt="Trainer"
         animate={{ scale: [0.95, 1.05, 0.95] }}
         transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
