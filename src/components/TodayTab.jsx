@@ -16,10 +16,14 @@ export default function TodayTab({ state }) {
     updateAutoExerciseField, updateImportedExerciseField,
   } = state;
 
-  const [showSummary,      setShowSummary]      = useState(false);
-  const [editWeights,      setEditWeights]      = useState({});
-  const [inlineWeight,     setInlineWeight]     = useState(null);
-  const [customTimerInput, setCustomTimerInput] = useState({}); // exKey → string draft
+  const [showSummary,        setShowSummary]        = useState(false);
+  const [editWeights,        setEditWeights]        = useState({});
+  const [inlineWeight,       setInlineWeight]       = useState(null);
+  const [customTimerInput,   setCustomTimerInput]   = useState({}); // exKey → string draft
+  // Local mirror of rest-timer choices so chips respond immediately without
+  // waiting for the App.jsx state propagation chain (which can silently no-op
+  // if sessionIdx lookup fails for imported programmes).
+  const [restTimerLocal,     setRestTimerLocal]     = useState({}); // exKey → seconds
 
   // ── Timer ──────────────────────────────────────────────────────────────────
   const [activeTimerKey, setActiveTimerKey] = useState(null);
@@ -136,8 +140,10 @@ export default function TodayTab({ state }) {
         // All sets finished — hide timer for this exercise
         if (activeTimerKey === exKey) stopTimer();
       } else {
-        // Start (or restart) the rest timer
-        const restDur = ex.restTimer !== undefined ? ex.restTimer : getDefaultRestDuration(ex);
+        // Start (or restart) the rest timer — prefer local override for instant response
+        const restDur = restTimerLocal[exKey] !== undefined
+          ? restTimerLocal[exKey]
+          : ex.restTimer !== undefined ? ex.restTimer : getDefaultRestDuration(ex);
         if (restDur > 0) startTimer(exKey, restDur);
       }
     }
@@ -215,8 +221,10 @@ export default function TodayTab({ state }) {
         {exercises.map((ex, exIdx) => {
           const weight     = getWeight(ex);
           const showInline = inlineWeight === ex.key;
-          // Effective rest duration for this exercise
-          const restDurVal = ex.restTimer !== undefined ? ex.restTimer : getDefaultRestDuration(ex);
+          // Effective rest duration — local state wins so chips respond immediately
+          const restDurVal = restTimerLocal[ex.key] !== undefined
+            ? restTimerLocal[ex.key]
+            : ex.restTimer !== undefined ? ex.restTimer : getDefaultRestDuration(ex);
 
           return (
             <motion.div
@@ -313,7 +321,9 @@ export default function TodayTab({ state }) {
                                       [ex.key]: isCustomDuration(restDurVal) ? String(restDurVal) : '',
                                     }));
                                   } else {
-                                    // Clear any custom draft and save preset
+                                    // Update local state immediately (instant visual response)
+                                    // then persist to programme in the background
+                                    setRestTimerLocal(o => ({ ...o, [ex.key]: preset.value }));
                                     setCustomTimerInput(d => {
                                       const n = { ...d };
                                       delete n[ex.key];
@@ -355,7 +365,10 @@ export default function TodayTab({ state }) {
                                 const draft = customTimerInput[ex.key];
                                 if (draft !== undefined) {
                                   const val = parseInt(draft, 10);
-                                  if (val > 0) saveRestTimer(exIdx, val);
+                                  if (val > 0) {
+                                    setRestTimerLocal(o => ({ ...o, [ex.key]: val }));
+                                    saveRestTimer(exIdx, val);
+                                  }
                                   setCustomTimerInput(d => {
                                     const n = { ...d };
                                     delete n[ex.key];

@@ -19,42 +19,28 @@ export default function WeightStepper({ label, value, onChange, step = 2.5, min 
         <button
           onClick={dec}
           style={{
-            width: 44,
-            height: 44,
-            background: 'none',
-            color: C.dim,
-            fontSize: 20,
-            fontWeight: 400,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            touchAction: 'manipulation',
+            width: 44, height: 44,
+            background: 'none', border: 'none',
+            color: C.dim, fontSize: 20, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
           }}
         >−</button>
         <span style={{
-          minWidth: 72,
-          textAlign: 'center',
-          fontSize: 15,
-          fontWeight: 700,
-          color: C.text,
-          padding: '0 4px',
+          minWidth: 72, textAlign: 'center',
+          fontSize: 15, fontWeight: 700, color: C.text, padding: '0 4px',
         }}>
           {value} kg
         </span>
         <button
           onClick={inc}
           style={{
-            width: 44,
-            height: 44,
-            background: C.accent,
-            color: '#000',
-            fontSize: 20,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            touchAction: 'manipulation',
+            width: 44, height: 44,
+            background: 'none', border: 'none',
+            color: C.dim, fontSize: 20, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
           }}
         >+</button>
