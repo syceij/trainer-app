@@ -17,8 +17,11 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
       display: 'flex',
       background: C.surface,
       borderTop: `1px solid ${C.border}`,
+      // Explicit calc height so the nav visually covers the home-indicator zone.
+      // box-sizing:border-box is set globally but repeated here for clarity.
+      boxSizing: 'border-box',
+      height: 'calc(49px + env(safe-area-inset-bottom, 0px))',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      minHeight: 49,
       willChange: 'transform',
     }}>
       {TABS.map(({ key, label, Icon }) => {

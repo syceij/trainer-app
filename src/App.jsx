@@ -948,7 +948,7 @@ function AppShell({ state }) {
               // PT tab owns its own scroll (messages area) and its own bottom bar,
               // so skip the global paddingBottom that reserves space for the nav.
               overflowY:     activeTab === 'pt' ? 'hidden' : 'auto',
-              paddingBottom: activeTab === 'pt' ? 0       : 83,
+              paddingBottom: activeTab === 'pt' ? 0       : 'calc(49px + env(safe-area-inset-bottom, 0px))',
               WebkitOverflowScrolling: 'touch',
             }}
           >
