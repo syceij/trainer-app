@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Dumbbell, Eye, EyeOff, Loader } from 'lucide-react';
+import { Eye, EyeOff, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase.js';
 import { upsertProfile } from '../lib/db.js';
 import { C, spring, springSoft } from '../tokens.js';
@@ -13,17 +13,9 @@ function Logo() {
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ ...spring, delay: 0.05 }}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}
+      style={{ marginBottom: 40 }}
     >
-      <div style={{
-        width: 44, height: 44, background: C.accent, borderRadius: 12,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <Dumbbell size={24} color="#000" strokeWidth={2.5} />
-      </div>
-      <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>
-        Trainer
-      </span>
+      <img src="/logo.png" alt="Trainer" style={{ height: 70, width: 'auto', objectFit: 'contain', display: 'block' }} />
     </motion.div>
   );
 }
