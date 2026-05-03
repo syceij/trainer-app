@@ -1,0 +1,198 @@
+import { motion } from 'framer-motion';
+import { Dumbbell, Zap, PencilLine, FileJson } from 'lucide-react';
+import { supabase } from '../lib/supabase.js';
+import { C, spring, springSoft } from '../tokens.js';
+
+export default function WelcomeScreen({ onBuild, onManual, onImport, onSignOut }) {
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    onSignOut?.();
+  };
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={springSoft}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100%',
+        width: '100%',
+        maxWidth: 390,
+        padding: '0 24px',
+        paddingTop: 'max(env(safe-area-inset-top, 0px) + 48px, 64px)',
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 40px, 48px)',
+      }}
+    >
+      {/* Logo row */}
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ ...spring, delay: 0.05 }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 56,
+        }}
+      >
+        {/* Logo mark + wordmark */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 40, height: 40,
+            background: C.accent,
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Dumbbell size={22} color="#000" strokeWidth={2.5} />
+          </div>
+          <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>
+            Trainer
+          </span>
+        </div>
+
+        {/* Sign out — subtle, top-right */}
+        <button
+          onClick={handleSignOut}
+          style={{
+            background: 'none', border: 'none',
+            color: C.mute, fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', padding: '4px 0',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          Sign out
+        </button>
+      </motion.div>
+
+      {/* Headline */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ ...springSoft, delay: 0.1 }}
+        style={{ flex: 1 }}
+      >
+        <h1 style={{
+          fontSize: 36,
+          fontWeight: 800,
+          lineHeight: 1.15,
+          letterSpacing: '-0.03em',
+          color: C.text,
+          marginBottom: 16,
+        }}>
+          Train smarter,{' '}
+          <span style={{ color: C.accent }}>not harder.</span>
+        </h1>
+        <p style={{
+          fontSize: 16,
+          color: C.dim,
+          lineHeight: 1.6,
+          marginBottom: 36,
+        }}>
+          Build a personalised programme from scratch, or import one you already trust.
+        </p>
+
+        {/* CTAs */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Primary — AI-generated */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            transition={spring}
+            onClick={onBuild}
+            style={{
+              background: C.accent,
+              color: '#000',
+              border: 'none',
+              borderRadius: 14,
+              padding: '18px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>Build my programme</div>
+              <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.7 }}>7-step setup · auto-generated</div>
+            </div>
+            <Zap size={20} color="#000" strokeWidth={2.5} />
+          </motion.button>
+
+          {/* Secondary — manual wizard */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            transition={spring}
+            onClick={onManual}
+            style={{
+              background: C.surface2,
+              color: C.text,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 14,
+              padding: '18px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>Build manually</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: C.dim }}>6-step wizard · fully customisable</div>
+            </div>
+            <PencilLine size={20} color={C.dim} strokeWidth={2} />
+          </motion.button>
+
+          {/* Secondary — import */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            transition={spring}
+            onClick={onImport}
+            style={{
+              background: C.surface2,
+              color: C.text,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 14,
+              padding: '18px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>Import existing programme</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: C.dim }}>Paste JSON · multi-week support</div>
+            </div>
+            <FileJson size={20} color={C.dim} />
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Footer */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        style={{
+          marginTop: 40,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.1em',
+          color: C.mute,
+          textAlign: 'center',
+        }}
+      >
+        YOUR DATA SYNCS ACROSS DEVICES
+      </motion.p>
+    </motion.div>
+  );
+}
