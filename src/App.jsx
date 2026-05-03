@@ -59,21 +59,19 @@ const defaultProfile = {
 const defaultWeights = { bench: 60, squat: 80, deadlift: 100, ohp: 40, row: 60 };
 
 // ─── Full-screen loading spinner ─────────────────────────────────────────────
-function LoadingScreen({ message = 'Loading…' }) {
+function LoadingScreen() {
   return (
     <div style={{
       position: 'absolute', inset: 0, background: C.bg,
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 24, zIndex: 999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
     }}>
       <motion.img
         src="/logo.png"
         alt="Trainer"
-        animate={{ scale: [0.95, 1.05, 0.95], opacity: [0.85, 1, 0.85] }}
-        transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-        style={{ width: 96, height: 96, objectFit: 'contain' }}
+        animate={{ scale: [0.95, 1.05, 0.95] }}
+        transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+        style={{ width: 140, height: 140, objectFit: 'contain' }}
       />
-      <span style={{ fontSize: 13, color: C.dim }}>{message}</span>
     </div>
   );
 }
