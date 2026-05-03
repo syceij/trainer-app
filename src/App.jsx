@@ -943,7 +943,14 @@ function AppShell({ state }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 83 }}
+            style={{
+              height: '100%',
+              // PT tab owns its own scroll (messages area) and its own bottom bar,
+              // so skip the global paddingBottom that reserves space for the nav.
+              overflowY:     activeTab === 'pt' ? 'hidden' : 'auto',
+              paddingBottom: activeTab === 'pt' ? 0       : 83,
+              WebkitOverflowScrolling: 'touch',
+            }}
           >
             {tabs[activeTab]}
           </motion.div>
