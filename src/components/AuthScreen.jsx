@@ -15,7 +15,7 @@ function Logo() {
       transition={{ ...spring, delay: 0.05 }}
       style={{ marginBottom: 40 }}
     >
-      <img src="/logo.png" alt="Trainer" style={{ height: 70, width: 'auto', objectFit: 'contain', display: 'block' }} />
+      <img src="/welcome%20logo.png" alt="Trainer" style={{ height: 70, width: 'auto', objectFit: 'contain', display: 'block' }} />
     </motion.div>
   );
 }
