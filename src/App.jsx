@@ -64,16 +64,14 @@ function LoadingScreen({ message = 'Loading…' }) {
     <div style={{
       position: 'absolute', inset: 0, background: C.bg,
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 16, zIndex: 999,
+      alignItems: 'center', justifyContent: 'center', gap: 24, zIndex: 999,
     }}>
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-        style={{
-          width: 36, height: 36, borderRadius: '50%',
-          border: `3px solid ${C.surface2}`,
-          borderTopColor: C.accent,
-        }}
+      <motion.img
+        src="/logo.png"
+        alt="Trainer"
+        animate={{ scale: [0.95, 1.05, 0.95], opacity: [0.85, 1, 0.85] }}
+        transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+        style={{ width: 96, height: 96, objectFit: 'contain' }}
       />
       <span style={{ fontSize: 13, color: C.dim }}>{message}</span>
     </div>

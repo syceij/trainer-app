@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Dumbbell, Zap, PencilLine, FileJson } from 'lucide-react';
+import { Zap, PencilLine, FileJson } from 'lucide-react';
 import { supabase } from '../lib/supabase.js';
 import { C, spring, springSoft } from '../tokens.js';
 
@@ -25,39 +25,29 @@ export default function WelcomeScreen({ onBuild, onManual, onImport, onSignOut }
         paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 40px, 48px)',
       }}
     >
-      {/* Logo row */}
+      {/* Logo — centred, with sign-out pinned top-right */}
       <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
+        initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ ...spring, delay: 0.05 }}
         style={{
+          position: 'relative',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 56,
+          justifyContent: 'center',
+          marginBottom: 48,
         }}
       >
-        {/* Logo mark + wordmark */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 40, height: 40,
-            background: C.accent,
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Dumbbell size={22} color="#000" strokeWidth={2.5} />
-          </div>
-          <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>
-            Trainer
-          </span>
-        </div>
+        <img
+          src="/logo.png"
+          alt="Trainer"
+          style={{ height: 120, width: 'auto', objectFit: 'contain' }}
+        />
 
-        {/* Sign out — subtle, top-right */}
+        {/* Sign out — subtle, pinned to top-right of the logo row */}
         <button
           onClick={handleSignOut}
           style={{
+            position: 'absolute', top: 0, right: 0,
             background: 'none', border: 'none',
             color: C.mute, fontSize: 13, fontWeight: 600,
             cursor: 'pointer', padding: '4px 0',
