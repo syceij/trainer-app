@@ -9,19 +9,16 @@ export default function WeightStepper({ label, value, onChange, step = 2.5, min 
         <span style={{ flex: 1, fontSize: 14, color: C.text, fontWeight: 500 }}>{label}</span>
       )}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        background: C.surface2,
-        borderRadius: 10,
-        border: `1.5px solid ${C.border}`,
+        display: 'flex', alignItems: 'center',
+        borderRadius: 10, border: `1.5px solid ${C.border}`,
         overflow: 'hidden',
       }}>
         <button
           onClick={dec}
           style={{
             width: 44, height: 44,
-            background: 'none', border: 'none',
-            color: C.dim, fontSize: 20, fontWeight: 700,
+            background: '#2a2a2a', border: 'none',
+            color: C.text, fontSize: 20, fontWeight: 700,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
@@ -29,7 +26,9 @@ export default function WeightStepper({ label, value, onChange, step = 2.5, min 
         >−</button>
         <span style={{
           minWidth: 72, textAlign: 'center',
-          fontSize: 15, fontWeight: 700, color: C.text, padding: '0 4px',
+          fontSize: 15, fontWeight: 700, color: C.text,
+          padding: '0 4px', background: '#2a2a2a',
+          alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {value} kg
         </span>
@@ -37,8 +36,8 @@ export default function WeightStepper({ label, value, onChange, step = 2.5, min 
           onClick={inc}
           style={{
             width: 44, height: 44,
-            background: 'none', border: 'none',
-            color: C.dim, fontSize: 20, fontWeight: 700,
+            background: '#2a2a2a', border: 'none',
+            color: C.accent, fontSize: 20, fontWeight: 700,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
