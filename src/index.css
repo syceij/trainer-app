@@ -1,93 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-@font-face {
-  font-family: 'ThmanyahSans';
-  src: url('/fonts/thmanyahsans-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ThmanyahSans';
-  src: url('/fonts/thmanyahsans-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ThmanyahSans';
-  src: url('/fonts/thmanyahsans-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ThmanyahSerifDisplay';
-  src: url('/fonts/thmanyahserifdisplay-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ThmanyahSerifDisplay';
-  src: url('/fonts/thmanyahserifdisplay-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ThmanyahSerifText';
-  src: url('/fonts/thmanyahseriftext-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ThmanyahSerifText';
-  src: url('/fonts/thmanyahseriftext-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+/* ── Full-screen PWA baseline ─────────────────────────────────────────────── */
 html, body {
   height: 100%;
-  width: 100%;
+  margin: 0;
+  padding: 0;
+  /* App background fills the status-bar and home-indicator zones */
   background: #0A0A0A;
-  color: #F5F5F5;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  font-size: 15px;
-  -webkit-font-smoothing: antialiased;
-  overscroll-behavior: none;
-  overflow: hidden;
 }
 
 #root {
   height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-input, textarea {
-  font-family: inherit;
-  font-size: 16px;
-  -webkit-tap-highlight-color: transparent;
-}
-
-::-webkit-scrollbar { display: none; }
-* { scrollbar-width: none; }
-
-a { color: inherit; text-decoration: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+  box-sizing: border-box;
+  /* Push content clear of the status bar (top) and home indicator (bottom).
+     With viewport-fit=cover + black-translucent these zones are transparent,
+     so the #0A0A0A background bleeds through and the status-bar icons
+     float over the dark surface. */
+  padding-top:    env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }

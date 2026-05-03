@@ -53,7 +53,7 @@ export default function HomeTab({ state }) {
     : `${greeting(lang)}, ${name} 👋`;
 
   return (
-    <div style={{ padding: '0 20px', paddingTop: 'max(env(safe-area-inset-top, 0px) + 16px, 24px)', paddingBottom: 20 }}>
+    <div style={{ padding: '0 20px', paddingTop: 20, paddingBottom: 20 }}>
 
       {/* ── Greeting + language toggle ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
