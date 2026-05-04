@@ -34,20 +34,176 @@ function Sparkline({ data }) {
   );
 }
 
-// ── Weekly volume bar chart ────────────────────────────────────────────────────
+// ── Muscle progress chart ─────────────────────────────────────────────────────
 
-function getWeeklyVolumes(history) {
-  const weeks = [];
-  const now   = Date.now();
-  for (let i = 5; i >= 0; i--) {
-    const start = now - (i + 1) * 7 * 86400000;
-    const end   = now - i * 7 * 86400000;
-    const vol = history
-      .filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end; })
-      .reduce((sum, s) => sum + (s.volume || 0), 0);
-    weeks.push(vol);
+const MUSCLE_GROUPS = [
+  { id: 'chest',     label: 'Chest',     muscles: ['chest'] },
+  { id: 'back',      label: 'Back',      muscles: ['back'] },
+  { id: 'shoulders', label: 'Shoulders', muscles: ['shoulders'] },
+  { id: 'arms',      label: 'Arms',      muscles: ['biceps', 'triceps'] },
+  { id: 'legs',      label: 'Legs',      muscles: ['quads', 'hamstrings', 'glutes', 'calves'] },
+  { id: 'core',      label: 'Core',      muscles: ['core'] },
+];
+
+function calcMuscleImprovements(history) {
+  // Collect first & last weight per exercise across all sessions
+  const exMap = {};
+  for (const session of history) {
+    for (const ex of (session.exercises || [])) {
+      if (ex.bodyweight || !ex.weight || !ex.name || !ex.muscle) continue;
+      const k = ex.name.toLowerCase();
+      if (!exMap[k]) exMap[k] = { muscle: ex.muscle, entries: [] };
+      exMap[k].entries.push({ date: new Date(session.date), weight: Number(ex.weight) });
+    }
   }
-  return weeks;
+
+  // Compute avg % improvement per muscle group (only count gains)
+  const groupPcts = {};
+  MUSCLE_GROUPS.forEach(mg => { groupPcts[mg.id] = []; });
+
+  for (const data of Object.values(exMap)) {
+    if (data.entries.length < 2) continue;
+    const sorted = data.entries.slice().sort((a, b) => a.date - b.date);
+    const first  = sorted[0].weight;
+    const last   = sorted[sorted.length - 1].weight;
+    if (first <= 0 || last <= first) continue;
+    const pct = ((last - first) / first) * 100;
+    for (const mg of MUSCLE_GROUPS) {
+      if (mg.muscles.includes(data.muscle)) {
+        groupPcts[mg.id].push(pct);
+        break;
+      }
+    }
+  }
+
+  return MUSCLE_GROUPS.map(mg => {
+    const vals = groupPcts[mg.id];
+    const avg  = vals.length
+      ? vals.reduce((s, v) => s + v, 0) / vals.length
+      : 0;
+    return { id: mg.id, label: mg.label, pct: Math.round(avg * 10) / 10, hasData: vals.length > 0 };
+  });
+}
+
+function MuscleProgressChart({ history }) {
+  const groups = calcMuscleImprovements(history);
+  const maxPct  = Math.max(...groups.map(g => g.pct), 1);
+  const bestId  = groups.reduce((b, g) => (g.pct > (b?.pct ?? -1) ? g : b), null)?.id;
+  const withData = groups.filter(g => g.hasData);
+  const mostImproved = withData.length
+    ? withData.reduce((b, g) => (g.pct > b.pct ? g : b))
+    : null;
+  const needsWork = withData.length > 1
+    ? withData.reduce((w, g) => (g.pct < w.pct ? g : w))
+    : null;
+
+  const BAR_AREA = 72;
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{
+        fontSize: 12, fontWeight: 700,
+        letterSpacing: '0.08em', color: C.dim, marginBottom: 14,
+      }}>
+        MUSCLE PROGRESS
+      </div>
+
+      {/* 6-bar chart */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', marginBottom: 12 }}>
+        {groups.map(g => {
+          const isB  = g.id === bestId && g.hasData;
+          const barH = g.hasData ? Math.max((g.pct / maxPct) * BAR_AREA, 6) : 0;
+          return (
+            <div
+              key={g.id}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
+            >
+              {/* % label above bar */}
+              <span style={{
+                fontSize: 8, fontWeight: 700,
+                color: isB ? C.accent : 'transparent',
+                height: 10,
+              }}>
+                {g.hasData ? `+${g.pct}%` : ''}
+              </span>
+
+              {/* Bar area — fixed height so labels align */}
+              <div style={{ height: BAR_AREA, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                {g.hasData ? (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: barH }}
+                    transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+                    style={{
+                      width: '100%',
+                      background: isB ? C.accent : 'rgba(255,255,255,0.13)',
+                      borderRadius: '4px 4px 0 0',
+                      willChange: 'height',
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '100%', height: 22,
+                    border: `1.5px dashed ${C.border}`,
+                    borderBottom: 'none',
+                    borderRadius: '4px 4px 0 0',
+                    opacity: 0.6,
+                  }} />
+                )}
+              </div>
+
+              {/* Label */}
+              <span style={{
+                fontSize: 8, fontWeight: 700,
+                color: isB ? C.accent : C.mute,
+                letterSpacing: '0.02em',
+                textAlign: 'center',
+                lineHeight: 1.1,
+              }}>
+                {g.label.toUpperCase()}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Stats row */}
+      {mostImproved ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{
+            flex: 1,
+            background: 'rgba(200,255,0,0.07)',
+            border: `1px solid rgba(200,255,0,0.22)`,
+            borderRadius: 10, padding: '10px 12px',
+          }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: '0.06em', marginBottom: 4 }}>
+              MOST IMPROVED
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{mostImproved.label}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginTop: 2 }}>+{mostImproved.pct}%</div>
+          </div>
+          {needsWork && (
+            <div style={{
+              flex: 1,
+              background: C.surface2,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: '10px 12px',
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: '0.06em', marginBottom: 4 }}>
+                NEEDS WORK
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{needsWork.label}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.dim, marginTop: 2 }}>+{needsWork.pct}%</div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '6px 0', color: C.mute, fontSize: 12 }}>
+          Log a few sessions to see muscle progress
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Most improved ─────────────────────────────────────────────────────────────
@@ -119,9 +275,6 @@ export default function ProgressTab({ state }) {
   const [actionSheet, setActionSheet]       = useState(null);  // slot index | null
   const [pickerSlot,  setPickerSlot]        = useState(null);  // slot index | null
   const [liftPage,    setLiftPage]          = useState(null);  // { name, key } | null
-
-  const weekVols = getWeeklyVolumes(history);
-  const maxVol   = Math.max(...weekVols, 1);
 
   // Sparkline for a given exercise name: last 8 session weights
   const sparkFor = (exerciseName) => {
@@ -344,34 +497,8 @@ export default function ProgressTab({ state }) {
         );
       })()}
 
-      {/* ── Weekly volume ──────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{
-          fontSize: 12, fontWeight: 700,
-          letterSpacing: lang === 'ar' ? '0' : '0.08em', color: C.dim, marginBottom: 12,
-        }}>
-          {t('WEEKLY VOLUME')}
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 80 }}>
-          {weekVols.map((vol, i) => {
-            const pct = maxVol > 0 ? vol / maxVol : 0;
-            return (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: `${Math.max(pct * 64, vol > 0 ? 4 : 0)}px` }}
-                  transition={spring}
-                  style={{
-                    width: '100%', background: C.accent,
-                    borderRadius: '3px 3px 0 0', minHeight: 0, willChange: 'height',
-                  }}
-                />
-                <span style={{ fontSize: 9, color: C.mute, fontWeight: 600 }}>W{i + 1}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* ── Muscle Progress ─────────────────────────────────────────────── */}
+      <MuscleProgressChart history={history} />
 
       {/* ── Session history ─────────────────────────────────────────────── */}
       <div style={{
