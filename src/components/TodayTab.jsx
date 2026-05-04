@@ -194,7 +194,7 @@ export default function TodayTab({ state }) {
   const isDeload = history.length >= 16;
 
   return (
-    <div style={{ padding: '0 20px', paddingTop: 'max(env(safe-area-inset-top, 0px) + 16px, 24px)', paddingBottom: 100 }}>
+    <div style={{ padding: '0 20px', paddingTop: 'max(env(safe-area-inset-top, 0px) + 16px, 24px)', paddingBottom: 24 }}>
 
       {/* ── Header ── */}
       <motion.h1
@@ -506,22 +506,21 @@ export default function TodayTab({ state }) {
         })}
       </div>
 
-      {/* ── Finish button (fixed) ── */}
-      <div style={{ position: 'fixed', bottom: 'calc(83px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 390, padding: '0 20px', zIndex: 100 }}>
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={() => setShowSummary(true)}
-          style={{
-            width: '100%', background: C.accent, border: 'none',
-            borderRadius: 14, padding: '16px 0', fontSize: 15, fontWeight: 800, color: '#000',
-            cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-            boxShadow: '0 4px 24px rgba(184,255,0,0.35)',
-            fontFamily: headingFont(lang),
-          }}
-        >
-          {t('Finish Session →')}
-        </motion.button>
-      </div>
+      {/* ── Finish button — inline below last exercise ── */}
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setShowSummary(true)}
+        style={{
+          width: '100%', background: C.accent, border: 'none',
+          borderRadius: 14, padding: '16px 0', fontSize: 15, fontWeight: 800, color: '#000',
+          cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+          boxShadow: '0 4px 24px rgba(184,255,0,0.35)',
+          fontFamily: headingFont(lang),
+          marginTop: 16,
+        }}
+      >
+        {t('Finish Session →')}
+      </motion.button>
 
       {/* ── Long-press set log popup ── */}
       <AnimatePresence>
