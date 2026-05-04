@@ -236,17 +236,22 @@ export async function insertSets(userId, sessionId, exercises) {
     if (ex.bodyweight || w == null) return [];
 
     // create one set row per actual set performed
-    return Array.from({ length: ex.sets || 1 }, (_, si) => ({
-      id:            crypto.randomUUID(),
-      session_id:    sessionId,
-      user_id:       userId,
-      exercise_name: ex.name?.trim() || 'Unknown',
-      set_number:    si + 1,
-      reps:          toText(ex.reps),   // TEXT column — "8-10", "10", or null
-      weight:        w,                  // NUMERIC column — always a finite number
-      rpe:           toText(ex.rpe),    // TEXT column — "7-8", "8", or null
-      completed:     true,
-    }));
+    // ex.perSetData[si] may carry long-press overrides: { reps, rpe, failed }
+    return Array.from({ length: ex.sets || 1 }, (_, si) => {
+      const ps = ex.perSetData?.[si]; // per-set override from long-press log (or null)
+      return {
+        id:            crypto.randomUUID(),
+        session_id:    sessionId,
+        user_id:       userId,
+        exercise_name: ex.name?.trim() || 'Unknown',
+        set_number:    si + 1,
+        reps:          ps ? toText(ps.reps)  : toText(ex.reps),
+        weight:        w,
+        rpe:           ps ? toText(ps.rpe)   : toText(ex.rpe),
+        failed:        ps ? !!ps.failed      : false,
+        completed:     true,
+      };
+    });
   });
 
   if (!rows.length) { ok('insertSets', 'no weighted sets to insert'); return; }

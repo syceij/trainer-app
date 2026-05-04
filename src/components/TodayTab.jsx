@@ -24,6 +24,12 @@ export default function TodayTab({ state }) {
   // waiting for the App.jsx state propagation chain (which can silently no-op
   // if sessionIdx lookup fails for imported programmes).
   const [restTimerLocal,     setRestTimerLocal]     = useState({}); // exKey → seconds
+  // Long-press set logging
+  const [setLogs,  setSetLogs]  = useState({}); // { [exKey_si]: { reps, rpe, failed } }
+  const [popup,    setPopup]    = useState(null);
+  const lpTimerRef  = useRef(null); // long-press timeout
+  const lpStartRef  = useRef({ x: 0, y: 0 }); // touch origin to cancel on scroll
+  const lpFiredRef  = useRef(false); // swallows the click that follows a touch long-press
 
   // ── Timer ──────────────────────────────────────────────────────────────────
   const [activeTimerKey, setActiveTimerKey] = useState(null);
@@ -33,9 +39,10 @@ export default function TodayTab({ state }) {
   const timerIntervalRef  = useRef(null);
   const timerRemainingRef = useRef(0);
 
-  // Cleanup interval on unmount
+  // Cleanup on unmount
   useEffect(() => () => {
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    clearTimeout(lpTimerRef.current);
   }, []);
 
   // Start the raw setInterval tick (call after setting up refs/state)
@@ -105,6 +112,21 @@ export default function TodayTab({ state }) {
     }
   }, [programmeMode, programme, currentSession, currentWeek, updateAutoExerciseField, updateImportedExerciseField]);
 
+  // ── Long-press: open the set-log popup ────────────────────────────────────
+  const openPopup = useCallback((exKey, exIdx, si, ex, rect) => {
+    const PH = 280, PW = 220;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const top  = rect.top - PH - 10 > 16
+      ? rect.top - PH - 10
+      : Math.min(rect.bottom + 10, vh - PH - 16);
+    const left = Math.max(8, Math.min(
+      rect.left + rect.width / 2 - PW / 2,
+      vw - PW - 8,
+    ));
+    setPopup({ exKey, exIdx, si, ex, position: { top, left } });
+  }, []);
+
   // ── No session ─────────────────────────────────────────────────────────────
   if (!currentSession) {
     return (
@@ -150,10 +172,18 @@ export default function TodayTab({ state }) {
   };
 
   const handleSave = () => {
-    const finalExercises = exercises.map(ex => ({
-      ...ex,
-      weight: editWeights[ex.key] !== undefined ? editWeights[ex.key] : ex.weight,
-    }));
+    const finalExercises = exercises.map(ex => {
+      const base = {
+        ...ex,
+        weight: editWeights[ex.key] !== undefined ? editWeights[ex.key] : ex.weight,
+      };
+      // Attach per-set overrides if any sets were logged via long-press
+      const perSetData = Array.from({ length: ex.sets }, (_, si) =>
+        setLogs[`${ex.key}_${si}`] || null
+      );
+      if (perSetData.some(Boolean)) base.perSetData = perSetData;
+      return base;
+    });
     finishSession(finalExercises);
     setShowSummary(false);
     setEditWeights({});
@@ -400,19 +430,46 @@ export default function TodayTab({ state }) {
                 {/* Set buttons */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
                   {Array.from({ length: ex.sets }).map((_, si) => {
-                    const done = isSetDone(ex.key, si);
+                    const done    = isSetDone(ex.key, si);
+                    const hasLog  = !!setLogs[`${ex.key}_${si}`];
                     return (
                       <motion.button
                         key={si}
                         whileTap={{ scale: 0.9 }}
                         transition={spring}
-                        onClick={() => toggleSet(ex.key, si, ex)}
+                        // Guard: swallow the synthetic click that fires after a touch long-press
+                        onClick={() => {
+                          if (lpFiredRef.current) { lpFiredRef.current = false; return; }
+                          toggleSet(ex.key, si, ex);
+                        }}
+                        onTouchStart={(e) => {
+                          const t = e.touches[0];
+                          lpStartRef.current = { x: t.clientX, y: t.clientY };
+                          clearTimeout(lpTimerRef.current);
+                          lpFiredRef.current = false;
+                          const el = e.currentTarget;
+                          lpTimerRef.current = setTimeout(() => {
+                            lpFiredRef.current = true;
+                            navigator.vibrate && navigator.vibrate(50);
+                            openPopup(ex.key, exIdx, si, ex, el.getBoundingClientRect());
+                          }, 500);
+                        }}
+                        onTouchMove={(e) => {
+                          const t = e.touches[0];
+                          if (Math.abs(t.clientX - lpStartRef.current.x) > 10 ||
+                              Math.abs(t.clientY - lpStartRef.current.y) > 10) {
+                            clearTimeout(lpTimerRef.current);
+                          }
+                        }}
+                        onTouchEnd={() => clearTimeout(lpTimerRef.current)}
+                        onTouchCancel={() => clearTimeout(lpTimerRef.current)}
                         style={{
                           width: 44, height: 44, borderRadius: 10,
                           background: done ? C.accent : C.surface,
                           border: `1.5px solid ${done ? C.accent : C.border}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                          position: 'relative',
                         }}
                       >
                         {done ? (
@@ -421,6 +478,15 @@ export default function TodayTab({ state }) {
                           </motion.div>
                         ) : (
                           <span style={{ fontSize: 13, fontWeight: 700, color: C.mute }}>{si + 1}</span>
+                        )}
+                        {/* White dot — indicates a long-press detailed log exists */}
+                        {done && hasLog && (
+                          <div style={{
+                            position: 'absolute', top: 4, right: 4,
+                            width: 5, height: 5, borderRadius: '50%',
+                            background: 'rgba(0,0,0,0.55)',
+                            pointerEvents: 'none',
+                          }} />
                         )}
                       </motion.button>
                     );
@@ -457,6 +523,42 @@ export default function TodayTab({ state }) {
         </motion.button>
       </div>
 
+      {/* ── Long-press set log popup ── */}
+      <AnimatePresence>
+        {popup && (
+          <SetLogPopup
+            key="set-log-popup"
+            popup={popup}
+            onClose={() => setPopup(null)}
+            onConfirm={(reps, rpe, failed) => {
+              const { exKey, si, ex } = popup;
+              const k = `${exKey}_${si}`;
+              // Store the custom log data
+              setSetLogs(logs => ({ ...logs, [k]: { reps, rpe, failed } }));
+              // Mark set complete and start rest timer (mirrors toggleSet logic)
+              const wasAlreadyDone = !!completedSets[k];
+              setCompletedSets(cs => ({ ...cs, [k]: true }));
+              if (!wasAlreadyDone) {
+                const newSets = { ...completedSets, [k]: true };
+                const allDone = Array.from({ length: ex.sets }).every((_, si2) =>
+                  newSets[`${exKey}_${si2}`]
+                );
+                if (allDone) {
+                  if (activeTimerKey === exKey) stopTimer();
+                } else {
+                  const restDur = restTimerLocal[exKey] !== undefined
+                    ? restTimerLocal[exKey]
+                    : ex.restTimer !== undefined ? ex.restTimer : getDefaultRestDuration(ex);
+                  if (restDur > 0) startTimer(exKey, restDur);
+                }
+              }
+              setPopup(null);
+            }}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Session-complete modal ── */}
       <CenteredModal
         open={showSummary}
@@ -487,6 +589,161 @@ export default function TodayTab({ state }) {
         />
       </CenteredModal>
     </div>
+  );
+}
+
+// ─── SetLogPopup ───────────────────────────────────────────────────────────────
+// Small popup that appears above a set button on long-press.
+// popup = { exKey, exIdx, si, ex, position: { top, left } }
+function SetLogPopup({ popup, onClose, onConfirm, t }) {
+  const { ex, si } = popup;
+
+  // Pre-fill with programmed values, extracting a single number from range strings
+  const parseDefault = (v, fallback = '') => {
+    if (v == null || v === '') return fallback;
+    const s = String(v);
+    const parts = s.split('-');
+    return parts[parts.length - 1].trim();
+  };
+
+  const [reps,   setReps]   = useState(parseDefault(ex.reps));
+  const [rpe,    setRpe]    = useState(parseDefault(ex.rpe, ''));
+  const [failed, setFailed] = useState(false);
+
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box',
+    background: C.surface, border: `1.5px solid ${C.border}`,
+    borderRadius: 8, color: C.text, fontSize: 15,
+    padding: '7px 10px', outline: 'none',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    WebkitAppearance: 'none',
+  };
+  const labelStyle = {
+    fontSize: 10, fontWeight: 700, color: C.mute,
+    letterSpacing: '0.07em', display: 'block', marginBottom: 5,
+  };
+
+  return (
+    <>
+      {/* Dimmed backdrop — tap to dismiss */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)',
+          zIndex: 200,
+        }}
+      />
+
+      {/* Popup card */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.88, y: 6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.88, y: 6 }}
+        transition={{ type: 'spring', stiffness: 480, damping: 34 }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'fixed',
+          top: popup.position.top,
+          left: popup.position.left,
+          width: 220,
+          background: C.surface2,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: '14px 14px 12px',
+          zIndex: 201,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+        }}
+      >
+        {/* Title */}
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12 }}>
+          {t('Log set')} {si + 1}
+        </div>
+
+        {/* Reps */}
+        <div style={{ marginBottom: 9 }}>
+          <label style={labelStyle}>REPS COMPLETED</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={reps}
+            onChange={e => setReps(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        {/* RPE */}
+        <div style={{ marginBottom: 9 }}>
+          <label style={labelStyle}>ACTUAL RPE</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.5"
+            min="1"
+            max="10"
+            value={rpe}
+            onChange={e => setRpe(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Failed set toggle */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.dim }}>Failed set</span>
+          <button
+            onClick={() => setFailed(f => !f)}
+            style={{
+              width: 40, height: 22, borderRadius: 11, padding: 0,
+              background: failed ? 'rgba(255,70,70,0.9)' : C.surface,
+              border: `1.5px solid ${failed ? 'rgba(255,70,70,0.9)' : C.border}`,
+              position: 'relative', cursor: 'pointer',
+              transition: 'background 0.15s, border-color 0.15s',
+              flexShrink: 0,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <div style={{
+              width: 16, height: 16, borderRadius: '50%', background: '#fff',
+              position: 'absolute', top: 2,
+              left: failed ? 20 : 2,
+              transition: 'left 0.15s',
+            }} />
+          </button>
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 7 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '9px 0',
+              background: C.surface, border: `1.5px solid ${C.border}`,
+              borderRadius: 10, color: C.dim,
+              fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(reps, rpe, failed)}
+            style={{
+              flex: 1, padding: '9px 0',
+              background: C.accent, border: 'none',
+              borderRadius: 10, color: '#000',
+              fontSize: 12, fontWeight: 800,
+              cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            Log set
+          </button>
+        </div>
+      </motion.div>
+    </>
   );
 }
 
