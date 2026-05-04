@@ -178,22 +178,27 @@ function calcMuscleImprovements(history) {
 }
 
 function MuscleProgressChart({ history }) {
-  const groups   = calcMuscleImprovements(history);
-  const maxPct   = Math.max(...groups.map(g => g.pct), 1);
-  // Best = highest pct among groups that have data AND have any improvement
-  const improved = groups.filter(g => g.hasData && g.pct > 0);
-  const bestId   = improved.length
+  const groups  = calcMuscleImprovements(history);
+
+  // Only consider groups with real improvement data for scaling
+  const MAX_H   = 110;  // px — total chart column height
+  const MIN_BAR = 12;   // px — minimum for any group that has data
+  const STUB_H  = 8;    // px — dashed placeholder for groups with no data
+
+  // Scale is based on the highest pct across ALL groups (floor 1 so we never divide by 0)
+  const maxPct  = Math.max(...groups.map(g => g.pct), 1);
+
+  const improved     = groups.filter(g => g.hasData && g.pct > 0);
+  const bestId       = improved.length
     ? improved.reduce((b, g) => (g.pct > b.pct ? g : b)).id
     : null;
-  const withData = groups.filter(g => g.hasData);
+  const withData     = groups.filter(g => g.hasData);
   const mostImproved = improved.length
     ? improved.reduce((b, g) => (g.pct > b.pct ? g : b))
     : null;
-  const needsWork = withData.length > 1
+  const needsWork    = withData.length > 1
     ? withData.reduce((w, g) => (g.pct < w.pct ? g : w))
     : null;
-
-  const BAR_AREA = 72;
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -207,54 +212,73 @@ function MuscleProgressChart({ history }) {
       {/* 6-bar chart */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', marginBottom: 12 }}>
         {groups.map(g => {
-          const isB  = g.id === bestId;
-          // Groups with data but 0% improvement get a small stub (8px) so the bar is visible
+          const isB = g.id === bestId;
+
+          // Bar height: proportional to maxPct, minimum MIN_BAR for any data group
           const barH = g.hasData
-            ? (g.pct > 0 ? Math.max((g.pct / maxPct) * BAR_AREA, 8) : 8)
-            : 0;
+            ? Math.max((g.pct / maxPct) * MAX_H, MIN_BAR)
+            : STUB_H;
+
+          // Colours
+          const barBg     = isB ? '#ADFF2F' : '#2a2a2a';
+          const barBorder = isB ? 'none'    : '1px solid #3a3a3a';
+          const labelClr  = isB ? '#ADFF2F'
+            : g.hasData   ? C.dim
+            : C.mute;
+
+          // % label text
+          const pctLabel = g.hasData
+            ? (g.pct > 0 ? `+${g.pct}%` : '0%')
+            : '—';
+
           return (
             <div
               key={g.id}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
             >
-              {/* % label above bar — show for best only (keeps it uncluttered) */}
+              {/* % label — shown for every bar */}
               <span style={{
                 fontSize: 8, fontWeight: 700,
-                color: isB ? C.accent : 'transparent',
-                height: 10,
+                color: labelClr,
+                height: 11, lineHeight: '11px',
+                textAlign: 'center',
               }}>
-                {isB && g.pct > 0 ? `+${g.pct}%` : ''}
+                {pctLabel}
               </span>
 
-              {/* Bar area — fixed height so labels align */}
-              <div style={{ height: BAR_AREA, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+              {/* Bar area — fixed height keeps all bars baseline-aligned */}
+              <div style={{ height: MAX_H, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
                 {g.hasData ? (
                   <motion.div
+                    key={g.id}
                     initial={{ height: 0 }}
                     animate={{ height: barH }}
-                    transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 28 }}
                     style={{
                       width: '100%',
-                      background: isB ? C.accent : 'rgba(255,255,255,0.13)',
+                      background: barBg,
+                      border: barBorder,
+                      borderBottom: 'none',
                       borderRadius: '4px 4px 0 0',
                       willChange: 'height',
                     }}
                   />
                 ) : (
                   <div style={{
-                    width: '100%', height: 22,
+                    width: '100%',
+                    height: STUB_H,
                     border: `1.5px dashed ${C.border}`,
                     borderBottom: 'none',
                     borderRadius: '4px 4px 0 0',
-                    opacity: 0.6,
+                    opacity: 0.45,
                   }} />
                 )}
               </div>
 
-              {/* Label */}
+              {/* Muscle name label */}
               <span style={{
                 fontSize: 8, fontWeight: 700,
-                color: isB ? C.accent : C.mute,
+                color: isB ? '#ADFF2F' : C.mute,
                 letterSpacing: '0.02em',
                 textAlign: 'center',
                 lineHeight: 1.1,
@@ -272,15 +296,15 @@ function MuscleProgressChart({ history }) {
           {mostImproved ? (
             <div style={{
               flex: 1,
-              background: 'rgba(200,255,0,0.07)',
-              border: `1px solid rgba(200,255,0,0.22)`,
+              background: 'rgba(173,255,47,0.07)',
+              border: '1px solid rgba(173,255,47,0.22)',
               borderRadius: 10, padding: '10px 12px',
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: '0.06em', marginBottom: 4 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#ADFF2F', letterSpacing: '0.06em', marginBottom: 4 }}>
                 MOST IMPROVED
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{mostImproved.label}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginTop: 2 }}>+{mostImproved.rawPct}%</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#ADFF2F', marginTop: 2 }}>+{mostImproved.rawPct}%</div>
             </div>
           ) : (
             <div style={{
@@ -291,14 +315,12 @@ function MuscleProgressChart({ history }) {
                 PROGRESS
               </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.dim }}>Keep training</div>
-              <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>Improvements show after more sessions</div>
+              <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>Improvements appear after more sessions</div>
             </div>
           )}
           {needsWork && needsWork.id !== mostImproved?.id && (
             <div style={{
-              flex: 1,
-              background: C.surface2,
-              border: `1px solid ${C.border}`,
+              flex: 1, background: C.surface2, border: `1px solid ${C.border}`,
               borderRadius: 10, padding: '10px 12px',
             }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: '0.06em', marginBottom: 4 }}>
