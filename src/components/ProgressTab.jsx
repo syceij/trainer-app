@@ -9,7 +9,8 @@ import ExercisePickerSheet from './ExercisePickerSheet.jsx';
 import ExerciseLiftPage from './ExerciseLiftPage.jsx';
 import { C, spring } from '../tokens.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
-import { EXERCISES } from '../lib/programme.js';
+import { MUSCLE_GROUPS, resolveMuscle } from '../lib/muscleUtils.js';
+import MusclePage from './MusclePage.jsx';
 
 // ── Sparkline (mini weight-trend inline chart) ─────────────────────────────────
 
@@ -36,85 +37,7 @@ function Sparkline({ data }) {
 }
 
 // ── Muscle progress chart ─────────────────────────────────────────────────────
-
-const MUSCLE_GROUPS = [
-  { id: 'chest',     label: 'Chest',     muscles: ['chest'] },
-  { id: 'back',      label: 'Back',      muscles: ['back'] },
-  { id: 'shoulders', label: 'Shoulders', muscles: ['shoulders'] },
-  { id: 'arms',      label: 'Arms',      muscles: ['biceps', 'triceps'] },
-  { id: 'legs',      label: 'Legs',      muscles: ['quads', 'hamstrings', 'glutes', 'calves'] },
-  { id: 'core',      label: 'Core',      muscles: ['core'] },
-];
-
-// Build lookup maps from the EXERCISES library so we can resolve muscle
-// even when history exercises don't carry the `muscle` field themselves
-// (e.g. imported programmes, or older saved sessions).
-const _keyToMuscle  = Object.fromEntries(EXERCISES.map(e => [e.key, e.muscle]));
-const _nameToMuscle = Object.fromEntries(EXERCISES.map(e => [e.name.toLowerCase(), e.muscle]));
-
-// FIX 3 — Manual mapping for known name mismatches between sets table and library
-const EXERCISE_NAME_MAP = {
-  'deadlift':                    'deadlift',
-  'incline db press':            'incline db press',
-  'cable row':                   'cable row',
-  'lat pulldown (neutral grip)': 'lat pulldown',
-  'lateral raise (db)':          'lateral raise',
-  'skull crusher':               'tricep pushdown',   // closest muscle match: triceps
-  'skull crushers':              'tricep pushdown',
-  'tricep pushdown (cable)':     'tricep pushdown',
-  'hammer curl':                 'hammer curl',
-  'cable fly':                   'cable fly',
-  'cable crunch':                'cable crunch',
-  'barbell bench press':         'barbell bench press',
-};
-
-// Extra direct muscle assignments for names that don't exist in the library
-const MANUAL_MUSCLE_MAP = {
-  'skull crusher':               'triceps',
-  'skull crushers':              'triceps',
-  'cable crunch':                'core',
-  'lat pulldown (neutral grip)': 'back',
-  'lateral raise (db)':          'shoulders',
-  'tricep pushdown (cable)':     'triceps',
-  'hammer curl':                 'biceps',
-};
-
-function resolveMuscle(ex) {
-  // 1. Muscle already on the exercise object (auto-programme exercises)
-  if (ex.muscle) return ex.muscle;
-
-  // 2. Key-based exact lookup
-  if (ex.key && _keyToMuscle[ex.key]) return _keyToMuscle[ex.key];
-
-  if (!ex.name) return null;
-  const nameLc = ex.name.toLowerCase().trim();
-
-  // 3. Manual muscle map for known mismatches (FIX 3)
-  if (MANUAL_MUSCLE_MAP[nameLc]) return MANUAL_MUSCLE_MAP[nameLc];
-
-  // 4. Normalise via alias map then do exact library lookup (FIX 1 + 3)
-  const normalised = EXERCISE_NAME_MAP[nameLc] || nameLc;
-  if (_nameToMuscle[normalised]) return _nameToMuscle[normalised];
-
-  // 5. Case-insensitive exact match against library (FIX 1)
-  if (_nameToMuscle[nameLc]) return _nameToMuscle[nameLc];
-
-  // 6. Partial match — library name contains the first word of the exercise name (FIX 2)
-  const firstWord = nameLc.split(' ')[0];
-  for (const [libName, muscle] of Object.entries(_nameToMuscle)) {
-    if (libName.includes(firstWord)) return muscle;
-  }
-
-  // 7. Reverse partial — exercise name contains the library name's first word
-  for (const [libName, muscle] of Object.entries(_nameToMuscle)) {
-    const libFirst = libName.split(' ')[0];
-    if (nameLc.includes(libFirst)) return muscle;
-  }
-
-  // FIX 4 — Log anything that still doesn't match so we can add it
-  console.log('[MuscleChart] No muscle category found for:', ex.name);
-  return null;
-}
+// MUSCLE_GROUPS and resolveMuscle are imported from muscleUtils.js
 
 function calcMuscleImprovements(history) {
   // Collect weight entries per exercise, keyed by exercise name (lowercased)
@@ -177,7 +100,7 @@ function calcMuscleImprovements(history) {
   });
 }
 
-function MuscleProgressChart({ history }) {
+function MuscleProgressChart({ history, onBarTap }) {
   const groups  = calcMuscleImprovements(history);
 
   // Only consider groups with real improvement data for scaling
@@ -232,9 +155,17 @@ function MuscleProgressChart({ history }) {
             : '—';
 
           return (
-            <div
+            <motion.div
               key={g.id}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => onBarTap?.(g.id)}
+              style={{
+                flex: 1, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: 4,
+                cursor: 'pointer',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+              }}
             >
               {/* % label — shown for every bar */}
               <span style={{
@@ -285,7 +216,7 @@ function MuscleProgressChart({ history }) {
               }}>
                 {g.label.toUpperCase()}
               </span>
-            </div>
+            </motion.div>
           );
         })}
       </div>
@@ -406,6 +337,7 @@ export default function ProgressTab({ state }) {
   } = state;
 
   const [expandedSession, setExpandedSession] = useState(null);
+  const [musclePage,      setMusclePage]      = useState(null); // muscle group id
 
   // Tracked lift card interactions
   const [actionSheet, setActionSheet]       = useState(null);  // slot index | null
@@ -634,7 +566,7 @@ export default function ProgressTab({ state }) {
       })()}
 
       {/* ── Muscle Progress ─────────────────────────────────────────────── */}
-      <MuscleProgressChart history={history} />
+      <MuscleProgressChart history={history} onBarTap={setMusclePage} />
 
       {/* ── Session history ─────────────────────────────────────────────── */}
       <div style={{
@@ -780,6 +712,18 @@ export default function ProgressTab({ state }) {
             exercise={liftPage}
             userId={user?.id}
             onBack={() => setLiftPage(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Muscle detail page (full-screen slide-over) ─────────────────── */}
+      <AnimatePresence>
+        {musclePage && (
+          <MusclePage
+            key={musclePage}
+            muscleId={musclePage}
+            userId={user?.id}
+            onBack={() => setMusclePage(null)}
           />
         )}
       </AnimatePresence>

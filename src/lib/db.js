@@ -325,6 +325,23 @@ export async function loadSetsForExercise(userId, exerciseName) {
   return data || [];
 }
 
+/**
+ * Load every set row for a user, ordered oldest-first.
+ * Used by MusclePage to compute per-muscle stats without
+ * making one query per exercise.
+ */
+export async function loadAllUserSets(userId) {
+  tag('loadAllUserSets', '▶', `user=${userId}`);
+  const { data, error } = await supabase
+    .from('sets')
+    .select('id, session_id, exercise_name, set_number, reps, weight, rpe, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) { fail('loadAllUserSets', error); return []; }
+  ok('loadAllUserSets', `${data?.length ?? 0} rows`);
+  return data || [];
+}
+
 export async function upsertAllWorkingWeights(userId, weights) {
   // working_weights columns: id, user_id, exercise_name, weight, updated_at
   // weight column is NUMERIC — guard with toNumericWeight and skip invalid entries.
