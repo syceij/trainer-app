@@ -1,9 +1,52 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, User, Mail, Calendar, Dumbbell, Globe, LogOut, Trash2, UserX, Check, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Mail, Calendar, Dumbbell, Globe, LogOut, Trash2, UserX, Check, X, Shield } from 'lucide-react';
 import { C, spring, springSoft } from '../tokens.js';
-import { upsertProfile } from '../lib/db.js';
+import { upsertProfile, updatePrivacySettings } from '../lib/db.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
+
+// ── Privacy toggle row ─────────────────────────────────────────────────────────
+function PrivacyRow({ label, description, enabled, onToggle, last }) {
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        padding: '13px 16px',
+        borderBottom: last ? 'none' : `1px solid ${C.border}`,
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{label}</div>
+        {description && (
+          <div style={{ fontSize: 12, color: C.mute, marginTop: 2, lineHeight: 1.4 }}>{description}</div>
+        )}
+      </div>
+      <motion.div
+        animate={{ background: enabled ? C.accent : C.surface }}
+        transition={{ duration: 0.2 }}
+        style={{
+          width: 44, height: 26, borderRadius: 13,
+          border: `1.5px solid ${enabled ? C.accent : C.border}`,
+          position: 'relative', flexShrink: 0,
+          cursor: 'pointer',
+        }}
+      >
+        <motion.div
+          animate={{ x: enabled ? 20 : 2 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+          style={{
+            position: 'absolute', top: 2,
+            width: 18, height: 18, borderRadius: '50%',
+            background: enabled ? '#000' : C.dim,
+          }}
+        />
+      </motion.div>
+    </div>
+  );
+}
 
 // ── Section wrapper ────────────────────────────────────────────────────────────
 function Section({ title, children }) {
@@ -109,6 +152,7 @@ export default function AccountPage({ state, onBack }) {
     programmeMode, importedProgramme, programme,
     currentWeek, history,
     showToast, t,
+    privacySettings, setPrivacySettings,
   } = state;
 
   const [editingName,    setEditingName]    = useState(false);
@@ -117,6 +161,29 @@ export default function AccountPage({ state, onBack }) {
   const [resetting,      setResetting]      = useState(false);
   const [deleteConfirm,  setDeleteConfirm]  = useState(false);
   const [deleting,       setDeleting]       = useState(false);
+
+  // ── Privacy settings (defaults: everything visible to friends) ───────────────
+  const privacy = privacySettings || {
+    showSessions: true,
+    showWeights:  true,
+    showProgress: true,
+    showOnLeaderboard: true,
+  };
+
+  const togglePrivacy = async (key) => {
+    const updated = { ...privacy, [key]: !privacy[key] };
+    setPrivacySettings?.(updated);
+    const uid = user?.id;
+    if (uid) {
+      try {
+        await updatePrivacySettings(uid, updated);
+      } catch {
+        // revert on error
+        setPrivacySettings?.(privacy);
+        showToast?.('⚠ Failed to save privacy setting');
+      }
+    }
+  };
 
   const rtl     = lang === 'ar';
   const BackIcon = rtl ? ChevronRight : ChevronLeft;
@@ -307,6 +374,35 @@ export default function AccountPage({ state, onBack }) {
                 {lang === 'ar' ? 'EN' : 'AR'}
               </motion.button>
             }
+          />
+        </Section>
+
+        {/* ── PRIVACY ── */}
+        <Section title={lang === 'ar' ? 'الخصوصية' : 'PRIVACY (GYM BROS)'}>
+          <PrivacyRow
+            label="Show sessions to Bros"
+            description="Friends can see your recent workouts"
+            enabled={privacy.showSessions}
+            onToggle={() => togglePrivacy('showSessions')}
+          />
+          <PrivacyRow
+            label="Show working weights to Bros"
+            description="Friends can see your current lifting weights"
+            enabled={privacy.showWeights}
+            onToggle={() => togglePrivacy('showWeights')}
+          />
+          <PrivacyRow
+            label="Show progress to Bros"
+            description="Friends can see your muscle improvement chart"
+            enabled={privacy.showProgress}
+            onToggle={() => togglePrivacy('showProgress')}
+          />
+          <PrivacyRow
+            label="Appear on leaderboard"
+            description="Show your session count in the Bros leaderboard"
+            enabled={privacy.showOnLeaderboard}
+            onToggle={() => togglePrivacy('showOnLeaderboard')}
+            last
           />
         </Section>
 

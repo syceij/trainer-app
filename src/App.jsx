@@ -16,6 +16,8 @@ import HomeTab from './components/HomeTab.jsx';
 import TodayTab from './components/TodayTab.jsx';
 import ProgressTab from './components/ProgressTab.jsx';
 import PTTab from './components/PTTab.jsx';
+import GymBrosTab from './components/GymBrosTab.jsx';
+import UsernameModal from './components/shared/UsernameModal.jsx';
 import ProgrammePage from './components/ProgrammePage.jsx';
 import CalendarPage from './components/CalendarPage.jsx';
 import AccountPage from './components/AccountPage.jsx';
@@ -33,6 +35,7 @@ import {
   loadSessions, insertSession, insertSets,
   loadWorkingWeights, upsertAllWorkingWeights,
   saveTrackedLifts,
+  insertActivity, acceptInvite,
 } from './lib/db.js';
 import { C, spring, springSoft } from './tokens.js';
 
@@ -175,6 +178,9 @@ export default function App() {
   const [accountView, setAccountView]             = useState(false);
   const [editedKeys, setEditedKeys]               = useState([]);
   const [trackedLifts, setTrackedLifts]           = useState(null); // null = not yet loaded
+  const [username, setUsername]                   = useState(null); // null = not yet loaded
+  const [privacySettings, setPrivacySettings]     = useState(null);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
 
   // Refs so callbacks always see the latest values without stale closures
   const userRef        = useRef(user);
@@ -202,6 +208,19 @@ export default function App() {
   useEffect(() => {
     saveUI({ lang, activeTab });
   }, [lang, activeTab]);
+
+  // ── Handle invite link on load ───────────────────────────────────────────
+  // Checks window.location.pathname for /invite/[CODE] and stores the code
+  // so it can be actioned once the user is authenticated.
+  const pendingInviteRef = useRef(null);
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/invite\/([A-Z0-9]{8})$/i);
+    if (match) {
+      pendingInviteRef.current = match[1].toUpperCase();
+      // Clean the URL without a page reload
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
   // ── Supabase auth listener ────────────────────────────────────────────────
   useEffect(() => {
@@ -267,6 +286,9 @@ export default function App() {
       if (profileRow) {
         if (profileRow.language) setLang(profileRow.language);
         if (profileRow.name)     setProfile(p => ({ ...p, name: profileRow.name }));
+        // Social fields
+        setUsername(profileRow.username || null);
+        if (profileRow.privacy_settings) setPrivacySettings(profileRow.privacy_settings);
       }
 
       // Apply working weights from DB
@@ -373,6 +395,22 @@ export default function App() {
         // Genuinely new user with no programme yet → show welcome/onboarding
         console.log('[App] loadUserData — no programme, routing to welcome');
         setPhase('welcome');
+      }
+
+      // ── Process any pending invite link ──────────────────────────────────────
+      if (pendingInviteRef.current) {
+        const code = pendingInviteRef.current;
+        pendingInviteRef.current = null;
+        try {
+          const { inviterName } = await acceptInvite(code, uid);
+          showToast(`You and ${inviterName} are now Gym Bros! 🤝`);
+        } catch (e) {
+          const msg = e?.message;
+          if (msg === 'expired') showToast('Invite link has expired');
+          else if (msg === 'self') showToast("That's your own invite link!");
+          else if (msg === 'invalid') showToast('Invalid invite link');
+          // else silently ignore (e.g. already friends)
+        }
       }
     } catch {
       setNetError(true);
@@ -713,6 +751,13 @@ export default function App() {
       // Write individual set rows
       await insertSets(uid, finalId, exList);
 
+      // Insert activity feed event (fire-and-forget)
+      insertActivity(uid, 'session_complete', {
+        session_name: currentSession.name,
+        exercise_count: exList.length,
+        session_id: finalId,
+      }).catch(() => {});
+
       showToast('Session saved ✓');
 
       // ── Upsert working weights for every weighted exercise in this session ──
@@ -815,6 +860,14 @@ export default function App() {
     }
   }, [resetAppState]);
 
+  // ── Show username modal when user first opens the Bros tab ────────────────
+  const handleSetActiveTab = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab === 'gymbros' && !username && user) {
+      setShowUsernameModal(true);
+    }
+  }, [username, user]);
+
   // ── appState bundle ────────────────────────────────────────────────────────
   const appState = {
     phase, programmeMode, importedProgramme, currentWeek, setCurrentWeek: handleSetCurrentWeek,
@@ -826,7 +879,7 @@ export default function App() {
     streak,
     totalSessions: history.length,
     currentStreakCount: streak.filter(Boolean).length,
-    activeTab, setActiveTab,
+    activeTab, setActiveTab: handleSetActiveTab,
     chatMessages, setChatMessages,
     lastWeightAdded,
     showToast, triggerConfetti,
@@ -843,6 +896,9 @@ export default function App() {
     deleteAccount,
     user,
     trackedLifts, updateTrackedLifts,
+    username, setUsername,
+    privacySettings, setPrivacySettings,
+    showUsernameModal, setShowUsernameModal,
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -916,12 +972,21 @@ export default function App() {
 
 // ─── AppShell ──────────────────────────────────────────────────────────────────
 function AppShell({ state }) {
-  const { activeTab, setActiveTab, programmeView, setProgrammeView, calendarView, setCalendarView, accountView, setAccountView, lang, t } = state;
+  const {
+    activeTab, setActiveTab,
+    programmeView, setProgrammeView,
+    calendarView, setCalendarView,
+    accountView, setAccountView,
+    lang, t,
+    showUsernameModal, setShowUsernameModal,
+    user, setUsername,
+  } = state;
 
   const tabs = {
     home:     <HomeTab     state={state} />,
     today:    <TodayTab    state={state} />,
     progress: <ProgressTab state={state} />,
+    gymbros:  <GymBrosTab  state={state} />,
     pt:       <PTTab       state={state} />,
   };
 
@@ -946,6 +1011,7 @@ function AppShell({ state }) {
               overflowY:     activeTab === 'pt' ? 'hidden' : 'auto',
               paddingBottom: activeTab === 'pt' ? 0       : 49,
               WebkitOverflowScrolling: 'touch',
+              // Gymbros uses its own internal padding
             }}
           >
             {tabs[activeTab]}
@@ -970,6 +1036,20 @@ function AppShell({ state }) {
       <AnimatePresence>
         {accountView && (
           <AccountPage key="account-page" state={state} onBack={() => setAccountView(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Username setup modal — shown once when a user first opens Gym Bros */}
+      <AnimatePresence>
+        {showUsernameModal && user && (
+          <UsernameModal
+            key="username-modal"
+            userId={user.id}
+            onComplete={(uname) => {
+              setUsername(uname);
+              setShowUsernameModal(false);
+            }}
+          />
         )}
       </AnimatePresence>
     </motion.div>

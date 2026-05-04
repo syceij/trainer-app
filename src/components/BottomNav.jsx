@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
-import { Home, Dumbbell, TrendingUp, MessageCircle } from 'lucide-react';
+import { Home, Dumbbell, TrendingUp, Users, MessageCircle } from 'lucide-react';
 import { C, spring } from '../tokens.js';
 
 const TABS = [
   { key: 'home',     label: 'Home',     Icon: Home },
   { key: 'today',    label: 'Train',    Icon: Dumbbell },
   { key: 'progress', label: 'Progress', Icon: TrendingUp },
+  { key: 'gymbros',  label: 'Bros',     Icon: Users },
   { key: 'pt',       label: 'PT',       Icon: MessageCircle },
 ];
 
