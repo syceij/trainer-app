@@ -9,6 +9,7 @@ import ExercisePickerSheet from './ExercisePickerSheet.jsx';
 import ExerciseLiftPage from './ExerciseLiftPage.jsx';
 import { C, spring } from '../tokens.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
+import { EXERCISES } from '../lib/programme.js';
 
 // ── Sparkline (mini weight-trend inline chart) ─────────────────────────────────
 
@@ -45,29 +46,55 @@ const MUSCLE_GROUPS = [
   { id: 'core',      label: 'Core',      muscles: ['core'] },
 ];
 
+// Build lookup maps from the EXERCISES library so we can resolve muscle
+// even when history exercises don't carry the `muscle` field themselves
+// (e.g. imported programmes, or older saved sessions).
+const _keyToMuscle  = Object.fromEntries(EXERCISES.map(e => [e.key,  e.muscle]));
+const _nameToMuscle = Object.fromEntries(EXERCISES.map(e => [e.name.toLowerCase(), e.muscle]));
+
+function resolveMuscle(ex) {
+  if (ex.muscle) return ex.muscle;
+  if (ex.key  && _keyToMuscle[ex.key])               return _keyToMuscle[ex.key];
+  if (ex.name && _nameToMuscle[ex.name.toLowerCase()]) return _nameToMuscle[ex.name.toLowerCase()];
+  return null;
+}
+
 function calcMuscleImprovements(history) {
-  // Collect first & last weight per exercise across all sessions
+  // Collect weight entries per exercise, keyed by exercise name (lowercased)
   const exMap = {};
   for (const session of history) {
     for (const ex of (session.exercises || [])) {
-      if (ex.bodyweight || !ex.weight || !ex.name || !ex.muscle) continue;
+      if (ex.bodyweight) continue;
+      const w = Number(ex.weight);
+      if (!ex.name || !Number.isFinite(w) || w <= 0) continue;
+      const muscle = resolveMuscle(ex);
+      if (!muscle) continue;
       const k = ex.name.toLowerCase();
-      if (!exMap[k]) exMap[k] = { muscle: ex.muscle, entries: [] };
-      exMap[k].entries.push({ date: new Date(session.date), weight: Number(ex.weight) });
+      if (!exMap[k]) exMap[k] = { muscle, entries: [] };
+      exMap[k].entries.push({ date: new Date(session.date), weight: w });
     }
   }
 
-  // Compute avg % improvement per muscle group (only count gains)
-  const groupPcts = {};
-  MUSCLE_GROUPS.forEach(mg => { groupPcts[mg.id] = []; });
+  // Per muscle group: collect % improvements from exercises with 2+ data points.
+  // Also track whether ANY exercise was logged (for showing bars with 0% change).
+  const groupPcts  = {};
+  const groupSeen  = {};
+  MUSCLE_GROUPS.forEach(mg => { groupPcts[mg.id] = []; groupSeen[mg.id] = false; });
 
   for (const data of Object.values(exMap)) {
+    // Mark the muscle group as "seen" even if only 1 session logged
+    for (const mg of MUSCLE_GROUPS) {
+      if (mg.muscles.includes(data.muscle)) {
+        groupSeen[mg.id] = true;
+        break;
+      }
+    }
     if (data.entries.length < 2) continue;
     const sorted = data.entries.slice().sort((a, b) => a.date - b.date);
     const first  = sorted[0].weight;
     const last   = sorted[sorted.length - 1].weight;
-    if (first <= 0 || last <= first) continue;
-    const pct = ((last - first) / first) * 100;
+    if (first <= 0) continue;
+    const pct = ((last - first) / first) * 100; // can be 0 or negative — intentional
     for (const mg of MUSCLE_GROUPS) {
       if (mg.muscles.includes(data.muscle)) {
         groupPcts[mg.id].push(pct);
@@ -77,21 +104,33 @@ function calcMuscleImprovements(history) {
   }
 
   return MUSCLE_GROUPS.map(mg => {
-    const vals = groupPcts[mg.id];
-    const avg  = vals.length
+    const vals   = groupPcts[mg.id];
+    const seen   = groupSeen[mg.id];
+    // avg of improvements; if only 1 session logged (no pairs), show 0%
+    const avg    = vals.length
       ? vals.reduce((s, v) => s + v, 0) / vals.length
       : 0;
-    return { id: mg.id, label: mg.label, pct: Math.round(avg * 10) / 10, hasData: vals.length > 0 };
+    return {
+      id:      mg.id,
+      label:   mg.label,
+      pct:     Math.round(Math.max(avg, 0) * 10) / 10, // clamp negatives to 0 for bar height
+      rawPct:  Math.round(avg * 10) / 10,              // real value for stats cards
+      hasData: seen,
+    };
   });
 }
 
 function MuscleProgressChart({ history }) {
-  const groups = calcMuscleImprovements(history);
-  const maxPct  = Math.max(...groups.map(g => g.pct), 1);
-  const bestId  = groups.reduce((b, g) => (g.pct > (b?.pct ?? -1) ? g : b), null)?.id;
+  const groups   = calcMuscleImprovements(history);
+  const maxPct   = Math.max(...groups.map(g => g.pct), 1);
+  // Best = highest pct among groups that have data AND have any improvement
+  const improved = groups.filter(g => g.hasData && g.pct > 0);
+  const bestId   = improved.length
+    ? improved.reduce((b, g) => (g.pct > b.pct ? g : b)).id
+    : null;
   const withData = groups.filter(g => g.hasData);
-  const mostImproved = withData.length
-    ? withData.reduce((b, g) => (g.pct > b.pct ? g : b))
+  const mostImproved = improved.length
+    ? improved.reduce((b, g) => (g.pct > b.pct ? g : b))
     : null;
   const needsWork = withData.length > 1
     ? withData.reduce((w, g) => (g.pct < w.pct ? g : w))
@@ -111,20 +150,23 @@ function MuscleProgressChart({ history }) {
       {/* 6-bar chart */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', marginBottom: 12 }}>
         {groups.map(g => {
-          const isB  = g.id === bestId && g.hasData;
-          const barH = g.hasData ? Math.max((g.pct / maxPct) * BAR_AREA, 6) : 0;
+          const isB  = g.id === bestId;
+          // Groups with data but 0% improvement get a small stub (8px) so the bar is visible
+          const barH = g.hasData
+            ? (g.pct > 0 ? Math.max((g.pct / maxPct) * BAR_AREA, 8) : 8)
+            : 0;
           return (
             <div
               key={g.id}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
             >
-              {/* % label above bar */}
+              {/* % label above bar — show for best only (keeps it uncluttered) */}
               <span style={{
                 fontSize: 8, fontWeight: 700,
                 color: isB ? C.accent : 'transparent',
                 height: 10,
               }}>
-                {g.hasData ? `+${g.pct}%` : ''}
+                {isB && g.pct > 0 ? `+${g.pct}%` : ''}
               </span>
 
               {/* Bar area — fixed height so labels align */}
@@ -168,21 +210,34 @@ function MuscleProgressChart({ history }) {
       </div>
 
       {/* Stats row */}
-      {mostImproved ? (
+      {withData.length > 0 ? (
         <div style={{ display: 'flex', gap: 8 }}>
-          <div style={{
-            flex: 1,
-            background: 'rgba(200,255,0,0.07)',
-            border: `1px solid rgba(200,255,0,0.22)`,
-            borderRadius: 10, padding: '10px 12px',
-          }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: '0.06em', marginBottom: 4 }}>
-              MOST IMPROVED
+          {mostImproved ? (
+            <div style={{
+              flex: 1,
+              background: 'rgba(200,255,0,0.07)',
+              border: `1px solid rgba(200,255,0,0.22)`,
+              borderRadius: 10, padding: '10px 12px',
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: '0.06em', marginBottom: 4 }}>
+                MOST IMPROVED
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{mostImproved.label}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginTop: 2 }}>+{mostImproved.rawPct}%</div>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{mostImproved.label}</div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginTop: 2 }}>+{mostImproved.pct}%</div>
-          </div>
-          {needsWork && (
+          ) : (
+            <div style={{
+              flex: 1, background: C.surface2, border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: '10px 12px',
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: '0.06em', marginBottom: 4 }}>
+                PROGRESS
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.dim }}>Keep training</div>
+              <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>Improvements show after more sessions</div>
+            </div>
+          )}
+          {needsWork && needsWork.id !== mostImproved?.id && (
             <div style={{
               flex: 1,
               background: C.surface2,
@@ -193,13 +248,15 @@ function MuscleProgressChart({ history }) {
                 NEEDS WORK
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{needsWork.label}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.dim, marginTop: 2 }}>+{needsWork.pct}%</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.dim, marginTop: 2 }}>
+                {needsWork.rawPct > 0 ? `+${needsWork.rawPct}%` : 'No gains yet'}
+              </div>
             </div>
           )}
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '6px 0', color: C.mute, fontSize: 12 }}>
-          Log a few sessions to see muscle progress
+          Log your first session to see muscle progress
         </div>
       )}
     </div>
