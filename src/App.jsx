@@ -36,6 +36,7 @@ import {
   loadWorkingWeights, upsertAllWorkingWeights,
   saveTrackedLifts,
   insertActivity, acceptInvite,
+  updateLeaderboardScore,
 } from './lib/db.js';
 import { C, spring, springSoft } from './tokens.js';
 
@@ -757,6 +758,9 @@ export default function App() {
 
       // Write individual set rows
       await insertSets(uid, finalId, exList);
+
+      // Refresh own leaderboard score so friends see updated numbers (fire-and-forget)
+      updateLeaderboardScore(uid).catch(() => {});
 
       // FIX 1 — Activity feed: use correct type 'session_completed' with full data
       insertActivity(uid, 'session_completed', {

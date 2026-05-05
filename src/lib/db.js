@@ -420,11 +420,127 @@ export async function loadFriends(userId) {
 
   if (!friendIds.length) { ok('loadFriends', '0 friends'); return []; }
 
+  // Also fetch leaderboard_data so the leaderboard can show cached scores
+  // without needing to query each friend's private tables.
   const { data: profiles, error: pErr } = await supabase
-    .from('profiles').select('id, name, username').in('id', friendIds);
+    .from('profiles').select('id, name, username, leaderboard_data').in('id', friendIds);
   if (pErr) { fail('loadFriends (profiles)', pErr); return []; }
   ok('loadFriends', `${profiles?.length ?? 0} friends`);
   return profiles || [];
+}
+
+// ── Leaderboard scoring ───────────────────────────────────────────────────────
+
+/**
+ * Calculate a user's leaderboard score from their own Supabase data.
+ *
+ * Formula: finalScore = round(consistencyScore × 0.7 + improvementScore × 0.3)
+ *
+ *   consistencyScore (0-100):
+ *     sessions this calendar month / 20 (5 days/week × 4 weeks) × 100, cap 100
+ *
+ *   improvementScore (0-100):
+ *     average of per-exercise improvement % (current_weight vs first_logged_weight),
+ *     each exercise capped at 100 before averaging
+ *
+ * This always queries live Supabase data for the calling user.
+ * Scores for OTHER users are read from their cached profiles.leaderboard_data.
+ */
+export async function calculateLeaderboardScore(userId) {
+  const now = new Date();
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  firstDayOfMonth.setHours(0, 0, 0, 0);
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const [{ data: sessions }, { data: weights }, { data: allSets }] = await Promise.all([
+    // Sessions this calendar month (use 'date' column which the app sets explicitly)
+    supabase.from('sessions')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('date', firstDayOfMonth.toISOString()),
+    // Current working weight per exercise
+    supabase.from('working_weights')
+      .select('exercise_name, weight')
+      .eq('user_id', userId),
+    // All sets ordered oldest-first so first occurrence = first logged weight
+    supabase.from('sets')
+      .select('exercise_name, weight')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true }),
+  ]);
+
+  // ── Consistency ──────────────────────────────────────────────────────────────
+  const sessionsCompleted  = sessions?.length || 0;
+  const sessionsProgrammed = 20; // 5 days/week × 4 weeks
+  const consistencyScore = Math.min(
+    (sessionsCompleted / sessionsProgrammed) * 100,
+    100
+  );
+
+  // ── Improvement ──────────────────────────────────────────────────────────────
+  // Build a map of exercise_name (lowercase) → first logged weight
+  const firstWeightMap = {};
+  for (const row of (allSets || [])) {
+    const key = (row.exercise_name || '').toLowerCase().trim();
+    if (key && !(key in firstWeightMap)) {
+      const w = parseFloat(row.weight);
+      if (w > 0) firstWeightMap[key] = w;
+    }
+  }
+
+  let totalImprovement = 0;
+  let exerciseCount = 0;
+  for (const w of (weights || [])) {
+    const key = (w.exercise_name || '').toLowerCase().trim();
+    const firstW = firstWeightMap[key];
+    if (firstW && firstW > 0) {
+      const currentW = parseFloat(w.weight) || 0;
+      const improvement = ((currentW - firstW) / firstW) * 100;
+      totalImprovement += Math.min(improvement, 100); // cap per-exercise at 100
+      exerciseCount++;
+    }
+  }
+
+  const improvementScore = exerciseCount > 0
+    ? totalImprovement / exerciseCount
+    : 0;
+
+  // ── Final score ──────────────────────────────────────────────────────────────
+  const finalScore = Math.round(
+    (consistencyScore * 0.7) + (improvementScore * 0.3)
+  );
+
+  return {
+    score:               finalScore,
+    sessionsCompleted,
+    sessionsProgrammed,
+    improvementPct:      Math.round(improvementScore),
+    month:               monthKey,   // used by viewers to detect stale month data
+    updatedAt:           new Date().toISOString(),
+  };
+}
+
+/**
+ * Calculate this user's leaderboard score and persist it to profiles.leaderboard_data.
+ * Call fire-and-forget after each session save so friends always see an up-to-date score.
+ *
+ * Requires: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS leaderboard_data jsonb;
+ */
+export async function updateLeaderboardScore(userId) {
+  try {
+    tag('updateLeaderboardScore', '▶', `user=${userId}`);
+    const scoreData = await calculateLeaderboardScore(userId);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ leaderboard_data: scoreData })
+      .eq('id', userId);
+    if (error) { fail('updateLeaderboardScore (save)', error); return null; }
+    ok('updateLeaderboardScore', `score=${scoreData.score} month=${scoreData.month}`);
+    return scoreData;
+  } catch (e) {
+    console.warn('[DB] updateLeaderboardScore failed (non-fatal):', e?.message);
+    return null;
+  }
 }
 
 /**

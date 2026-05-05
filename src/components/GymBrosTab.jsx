@@ -8,7 +8,7 @@ import { C, springSoft } from '../tokens.js';
 import {
   loadFriends, loadPendingRequests, sendFriendRequest,
   respondFriendRequest, createInviteLink, searchUsers,
-  loadActivityFeed,
+  loadActivityFeed, calculateLeaderboardScore, updateLeaderboardScore,
 } from '../lib/db.js';
 import FriendProfilePage from './FriendProfilePage.jsx';
 
@@ -129,31 +129,55 @@ function RequestRow({ req, onAccept, onDecline }) {
 }
 
 // ── Leaderboard row ────────────────────────────────────────────────────────────
-function LeaderboardRow({ rank, user, metric, isMe }) {
+function LeaderboardRow({ rank, user, isMe }) {
   const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+  const initial = (user.name || user.username || '?')[0].toUpperCase();
+  const subtitle = `${user.sessionsCompleted ?? 0}/${user.sessionsProgrammed ?? 20} sessions · +${user.improvementPct ?? 0}% strength`;
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '11px 16px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '12px 16px',
       borderBottom: `1px solid ${C.border}`,
-      background: isMe ? 'rgba(173,255,47,0.04)' : 'transparent',
+      background: isMe ? 'rgba(173,255,47,0.05)' : 'transparent',
     }}>
+      {/* Rank / medal */}
       <div style={{
-        width: 24, textAlign: 'center', fontSize: 14,
-        fontWeight: 800, color: medal ? C.text : C.mute, flexShrink: 0,
+        width: 22, textAlign: 'center',
+        fontSize: medal ? 16 : 12, fontWeight: 800,
+        color: medal ? C.text : C.mute, flexShrink: 0,
       }}>
         {medal || rank}
       </div>
+      {/* Avatar */}
+      <div style={{
+        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+        background: isMe ? `${C.accent}22` : C.surface,
+        border: `1.5px solid ${isMe ? C.accent + '55' : C.border}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 13, fontWeight: 800,
+        color: isMe ? C.accent : C.dim,
+      }}>
+        {initial}
+      </div>
+      {/* Name + subtitle */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 13, fontWeight: isMe ? 800 : 600, color: isMe ? C.accent : C.text,
+          fontSize: 13, fontWeight: isMe ? 800 : 600,
+          color: isMe ? C.accent : C.text,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
-          {user.name || user.username || 'Gym Bro'} {isMe ? '(you)' : ''}
+          {user.name || user.username || 'Gym Bro'}{isMe ? ' (you)' : ''}
+        </div>
+        <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>
+          {subtitle}
         </div>
       </div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: isMe ? C.accent : C.text, flexShrink: 0 }}>
-        {metric}
+      {/* Score */}
+      <div style={{
+        fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em',
+        color: isMe ? C.accent : C.text, flexShrink: 0,
+      }}>
+        {user.score ?? 0}
       </div>
     </div>
   );
@@ -504,21 +528,25 @@ function AddBroSheet({ currentUserId, onClose, onRequestSent }) {
 
 // ── GymBrosTab ─────────────────────────────────────────────────────────────────
 export default function GymBrosTab({ state }) {
-  const { user, history, showToast } = state;
+  const { user, showToast } = state;
   const uid = user?.id;
 
   const [friends,    setFriends]    = useState([]);
   const [pending,    setPending]    = useState([]);
   const [feed,       setFeed]       = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]); // computed after data loads
   const [loading,    setLoading]    = useState(true);
   const [showAdd,    setShowAdd]    = useState(false);
-  const [profileFor, setProfileFor] = useState(null); // friend object
+  const [profileFor, setProfileFor] = useState(null);
 
   useEffect(() => {
     if (!uid) return;
     let cancelled = false;
+
     async function load() {
       setLoading(true);
+
+      // 1. Load friends + pending in parallel
       const [fr, pend] = await Promise.all([
         loadFriends(uid),
         loadPendingRequests(uid),
@@ -533,35 +561,68 @@ export default function GymBrosTab({ state }) {
       setFriends(frList);
       setPending(pendList);
 
+      // 2. Fetch activity feed and own fresh score in parallel
       const friendIds = frList.map(f => f.id);
-      if (friendIds.length > 0) {
-        const feedData = await loadActivityFeed(uid, friendIds);
-        if (!cancelled) setFeed(feedData || []);
-      }
+      const [feedData, myScore] = await Promise.all([
+        friendIds.length > 0 ? loadActivityFeed(uid, friendIds) : Promise.resolve([]),
+        calculateLeaderboardScore(uid),
+      ]);
+      if (cancelled) return;
+
+      if (feedData?.length) setFeed(feedData);
+
+      // 3. Persist own fresh score so friends see the updated number
+      updateLeaderboardScore(uid).catch(() => {});
+
+      // 4. Build leaderboard
+      // Current month key — used to detect stale month data in friends' cached scores
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      const myEntry = {
+        id:                uid,
+        name:              state.profile?.name || 'You',
+        username:          state.username || null,
+        score:             myScore?.score             ?? 0,
+        sessionsCompleted: myScore?.sessionsCompleted ?? 0,
+        sessionsProgrammed: myScore?.sessionsProgrammed ?? 20,
+        improvementPct:    myScore?.improvementPct    ?? 0,
+        isMe:              true,
+      };
+
+      const friendEntries = frList.map(f => {
+        const ld = f.leaderboard_data;
+        // If their cached score is from a previous month, sessions count = 0
+        // but improvement % carries over (it's cumulative not monthly)
+        const isCurrentMonth = ld?.month === currentMonth;
+        return {
+          id:                f.id,
+          name:              f.name,
+          username:          f.username,
+          score:             isCurrentMonth ? (ld?.score             ?? 0) : 0,
+          sessionsCompleted: isCurrentMonth ? (ld?.sessionsCompleted ?? 0) : 0,
+          sessionsProgrammed: ld?.sessionsProgrammed ?? 20,
+          improvementPct:    ld?.improvementPct    ?? 0,
+          isMe:              false,
+        };
+      });
+
+      const sorted = [myEntry, ...friendEntries]
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          // Tie-break: alphabetical by name
+          return (a.name || '').localeCompare(b.name || '');
+        })
+        .map((entry, i) => ({ ...entry, rank: i + 1 }));
+
+      console.log('[GymBros] Leaderboard (THIS MONTH):', sorted);
+      if (!cancelled) setLeaderboard(sorted);
       if (!cancelled) setLoading(false);
     }
+
     load();
     return () => { cancelled = true; };
   }, [uid]);
-
-  // Leaderboard: self + friends sorted by session count
-  const leaderboardEntries = (() => {
-    const me = {
-      id: uid,
-      name: state.profile?.name || 'You',
-      username: null,
-      sessionCount: history.length,
-    };
-    const others = friends.map(f => ({
-      ...f,
-      sessionCount: f.session_count || 0,
-    }));
-    const entries = [me, ...others]
-      .sort((a, b) => b.sessionCount - a.sessionCount)
-      .map((u, i) => ({ ...u, rank: i + 1 }));
-    console.log('[GymBros] Leaderboard:', entries);
-    return entries;
-  })();
 
   const handleAccept = (req) => {
     setPending(p => p.filter(r => r.friendshipId !== req.friendshipId));
@@ -647,20 +708,19 @@ export default function GymBrosTab({ state }) {
             )}
 
             {/* Leaderboard */}
-            {leaderboardEntries.length > 1 && (
+            {leaderboard.length > 1 && (
               <>
-                <SectionTitle>LEADERBOARD — SESSIONS</SectionTitle>
+                <SectionTitle>LEADERBOARD — THIS MONTH</SectionTitle>
                 <div style={{
                   background: C.surface2, borderRadius: 12,
                   border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: 4,
                 }}>
-                  {leaderboardEntries.map(entry => (
+                  {leaderboard.map(entry => (
                     <LeaderboardRow
                       key={entry.id}
                       rank={entry.rank}
                       user={entry}
-                      metric={`${entry.sessionCount} sess`}
-                      isMe={entry.id === uid}
+                      isMe={entry.isMe}
                     />
                   ))}
                 </div>
