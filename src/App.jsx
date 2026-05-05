@@ -391,6 +391,13 @@ export default function App() {
         // signal needed.  Never fall through to welcome for a returning user.
         console.log('[App] loadUserData — programme found, routing to app');
         setPhase('app');
+
+        // FIX 6 — Show username modal after the user is on the main home screen,
+        // not during onboarding or on the first tap of the Bros tab.
+        // profileRow.username is null for users who haven't set one yet.
+        if (!profileRow?.username) {
+          setShowUsernameModal(true);
+        }
       } else {
         // Genuinely new user with no programme yet → show welcome/onboarding
         console.log('[App] loadUserData — no programme, routing to welcome');
@@ -751,10 +758,12 @@ export default function App() {
       // Write individual set rows
       await insertSets(uid, finalId, exList);
 
-      // Insert activity feed event (fire-and-forget)
-      insertActivity(uid, 'session_complete', {
+      // FIX 1 — Activity feed: use correct type 'session_completed' with full data
+      insertActivity(uid, 'session_completed', {
         session_name: currentSession.name,
+        volume: vol,
         exercise_count: exList.length,
+        week_number: currentWeekRef.current ?? null,
         session_id: finalId,
       }).catch(() => {});
 
@@ -775,6 +784,34 @@ export default function App() {
           setWeights(prev => ({ ...prev, ...weightUpdates }));
           await upsertAllWorkingWeights(uid, weightUpdates);
           console.log('[App] finishSession — working weights upserted:', Object.keys(weightUpdates));
+
+          // FIX 2 — PR detection: for each updated exercise, check if the new
+          // weight exceeds any previously logged weight (excluding this session).
+          // Fire-and-forget per exercise so a single failure doesn't block others.
+          for (const [exerciseName, newWeight] of Object.entries(weightUpdates)) {
+            (async () => {
+              try {
+                const { data: prevSets } = await supabase
+                  .from('sets')
+                  .select('weight')
+                  .eq('user_id', uid)
+                  .ilike('exercise_name', exerciseName)
+                  .neq('session_id', finalId)   // exclude the just-inserted sets
+                  .order('weight', { ascending: false })
+                  .limit(1);
+
+                const previousMax = parseFloat(prevSets?.[0]?.weight) || 0;
+                if (newWeight > previousMax) {
+                  console.log(`[App] finishSession — PR! ${exerciseName}: ${previousMax}→${newWeight}kg`);
+                  await insertActivity(uid, 'new_pr', {
+                    exercise_name: exerciseName,
+                    weight: newWeight,
+                    previous_weight: previousMax,
+                  });
+                }
+              } catch { /* non-fatal — PR logging should never surface errors */ }
+            })();
+          }
         }
       } catch (wErr) {
         console.warn('[App] finishSession — working weights upsert failed (non-fatal):', wErr);
@@ -860,13 +897,10 @@ export default function App() {
     }
   }, [resetAppState]);
 
-  // ── Show username modal when user first opens the Bros tab ────────────────
+  // ── Tab navigation (username modal is triggered by loadUserData, not here) ──
   const handleSetActiveTab = useCallback((tab) => {
     setActiveTab(tab);
-    if (tab === 'gymbros' && !username && user) {
-      setShowUsernameModal(true);
-    }
-  }, [username, user]);
+  }, []);
 
   // ── appState bundle ────────────────────────────────────────────────────────
   const appState = {

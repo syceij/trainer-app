@@ -173,16 +173,24 @@ function ActivityItem({ item, currentUserId }) {
   })();
 
   const body = (() => {
-    if (item.type === 'session_complete') {
-      return `completed "${item.data?.session_name || 'a session'}"`;
+    if (item.type === 'session_completed') {
+      const vol = item.data?.volume;
+      const volStr = vol && vol > 0 ? ` · ${Math.round(vol).toLocaleString()} kg total` : '';
+      return `completed "${item.data?.session_name || 'a session'}"${volStr}`;
     }
-    if (item.type === 'pr') {
-      return `hit a new PR on ${item.data?.exercise || 'an exercise'}: ${item.data?.weight}kg`;
+    if (item.type === 'new_pr') {
+      const ex = item.data?.exercise_name || 'an exercise';
+      const w  = item.data?.weight;
+      const prev = item.data?.previous_weight;
+      const prevStr = prev && prev > 0 ? ` (was ${prev} kg)` : '';
+      return `hit a new PR on ${ex}: ${w} kg${prevStr}`;
     }
     return 'did something impressive';
   })();
 
-  const icon = item.type === 'pr' ? <Trophy size={14} color={C.accent} /> : <Dumbbell size={14} color={C.mute} />;
+  const icon = item.type === 'new_pr'
+    ? <Trophy size={14} color={C.accent} />
+    : <Dumbbell size={14} color={C.mute} />;
 
   return (
     <div style={{
@@ -233,7 +241,10 @@ function AddBroSheet({ currentUserId, onClose, onRequestSent }) {
     try {
       const row = await createInviteLink(currentUserId);
       if (row?.code) {
-        const base = window.location.origin;
+        // FIX 3 — use production URL from env var; fall back to current origin
+        // (works on localhost in dev and on Vercel in production)
+        const base = (import.meta.env.VITE_APP_URL || window.location.origin)
+          .replace(/\/$/, '');
         setInviteLink(`${base}/invite/${row.code}`);
       }
     } catch { /* non-fatal */ }

@@ -70,9 +70,16 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
     return () => { cancelled = true; };
   }, [friendId]);
 
-  // Compute muscle improvement from sessions
+  // FIX 5 — read privacy settings; default to fully visible if not set
+  const privacy = profile?.privacy_settings || {};
+  const canSeeProgress = privacy.showProgress  !== false;
+  const canSeeSessions = privacy.showSessions  !== false;
+  const canSeeWeights  = privacy.showWeights   !== false;
+
+  // Compute muscle improvement from sessions (only if friend allows it)
+  // FIX 4 — zero-division guard: use firstWeight > 0 check and cap at 100 %
   const muscleImprovements = (() => {
-    if (!sessions.length) return [];
+    if (!sessions.length || !canSeeProgress) return [];
     const exMap = {};
     for (const sess of sessions) {
       for (const ex of (sess.exercises || [])) {
@@ -87,15 +94,18 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
     for (const [, info] of Object.entries(exMap)) {
       const { muscle, weights: ws } = info;
       if (ws.length < 2) continue;
-      const first = ws[0], last = ws[ws.length - 1];
-      const pct = first > 0 ? Math.round(((last - first) / first) * 100) : 0;
+      const firstWeight = ws[0];
+      const currentWeight = ws[ws.length - 1];
+      // FIX 4: guard against firstWeight = 0; cap improvement at 100 %
+      const improvementScore = firstWeight > 0
+        ? Math.min(Math.round(((currentWeight - firstWeight) / firstWeight) * 100), 100)
+        : 0;
       if (!grouped[muscle]) grouped[muscle] = { pcts: [] };
-      grouped[muscle].pcts.push(pct);
+      grouped[muscle].pcts.push(improvementScore);
     }
     const results = [];
     for (const mg of MUSCLE_GROUPS) {
-      const allMuscles = mg.muscles;
-      const allPcts = allMuscles.flatMap(m => (grouped[m]?.pcts || []));
+      const allPcts = mg.muscles.flatMap(m => (grouped[m]?.pcts || []));
       if (!allPcts.length) continue;
       const avg = Math.round(allPcts.reduce((a, b) => a + b, 0) / allPcts.length);
       if (avg > 0) results.push({ id: mg.id, label: mg.label, pct: avg });
@@ -226,8 +236,8 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
               />
             </div>
 
-            {/* Muscle improvements */}
-            {muscleImprovements.length > 0 && (
+            {/* Muscle improvements — hidden if friend disabled showProgress */}
+            {canSeeProgress && muscleImprovements.length > 0 && (
               <div style={{
                 background: C.surface2, borderRadius: 14,
                 border: `1px solid ${C.border}`, padding: '14px 16px', marginBottom: 16,
@@ -241,8 +251,8 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
               </div>
             )}
 
-            {/* Recent sessions */}
-            {sessions.length > 0 && (
+            {/* Recent sessions — hidden if friend disabled showSessions */}
+            {canSeeSessions && sessions.length > 0 && (
               <div style={{
                 background: C.surface2, borderRadius: 14,
                 border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: 16,
@@ -290,8 +300,8 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
               </div>
             )}
 
-            {/* Working weights */}
-            {Object.keys(weights).length > 0 && (
+            {/* Working weights — hidden if friend disabled showWeights */}
+            {canSeeWeights && Object.keys(weights).length > 0 && (
               <div style={{
                 background: C.surface2, borderRadius: 14,
                 border: `1px solid ${C.border}`, overflow: 'hidden',
@@ -328,9 +338,14 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
               </div>
             )}
 
-            {!sessions.length && !Object.keys(weights).length && (
+            {/* Empty state — nothing visible either because data is absent or all hidden by privacy */}
+            {(!canSeeSessions || !sessions.length) &&
+             (!canSeeWeights  || !Object.keys(weights).length) &&
+             (!canSeeProgress || !muscleImprovements.length) && (
               <div style={{ textAlign: 'center', padding: '32px 0', color: C.mute, fontSize: 14 }}>
-                No public data yet
+                {(!canSeeSessions && !canSeeWeights && !canSeeProgress)
+                  ? 'This Bro keeps their stats private 🔒'
+                  : 'No data yet'}
               </div>
             )}
           </>

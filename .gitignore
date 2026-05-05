@@ -1,3 +1,8 @@
+# Environment variables (contains secrets / deployment URLs)
+.env
+.env.local
+.env.production
+
 # Logs
 logs
 *.log
