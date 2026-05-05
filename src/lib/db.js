@@ -393,41 +393,71 @@ export async function updatePrivacySettings(userId, settings) {
   ok('updatePrivacySettings', 'saved');
 }
 
-/** Load all accepted friends for a user. Returns [{id, name, username}]. */
+/**
+ * Load all accepted friends for a user. Returns [{id, name, username}].
+ *
+ * Uses a single bidirectional OR query so the RLS policy
+ *   USING (auth.uid() = user_id OR auth.uid() = friend_id)
+ * covers both sides of every friendship row in one round-trip.
+ * Previously two separate queries were used; the cross-direction
+ * query was blocked by stricter RLS, causing friends to go missing
+ * for the request-sender after acceptance.
+ */
 export async function loadFriends(userId) {
   tag('loadFriends', '▶', `user=${userId}`);
-  const [{ data: sent }, { data: recv }] = await Promise.all([
-    supabase.from('friendships').select('friend_id').eq('user_id', userId).eq('status', 'accepted'),
-    supabase.from('friendships').select('user_id').eq('friend_id', userId).eq('status', 'accepted'),
-  ]);
-  const ids = [
-    ...(sent || []).map(r => r.friend_id),
-    ...(recv || []).map(r => r.user_id),
-  ];
-  if (!ids.length) { ok('loadFriends', '0 friends'); return []; }
-  const { data: profiles, error } = await supabase
-    .from('profiles').select('id, name, username').in('id', ids);
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('user_id, friend_id')
+    .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+    .eq('status', 'accepted');
   if (error) { fail('loadFriends', error); return []; }
+
+  // Extract the other person's ID from whichever side is not the current user
+  const friendIds = (data || []).map(row =>
+    row.user_id === userId ? row.friend_id : row.user_id
+  );
+  console.log('[loadFriends] rows returned:', data?.length ?? 0, '| friendIds:', friendIds);
+
+  if (!friendIds.length) { ok('loadFriends', '0 friends'); return []; }
+
+  const { data: profiles, error: pErr } = await supabase
+    .from('profiles').select('id, name, username').in('id', friendIds);
+  if (pErr) { fail('loadFriends (profiles)', pErr); return []; }
   ok('loadFriends', `${profiles?.length ?? 0} friends`);
   return profiles || [];
 }
 
-/** Load incoming pending friend requests (someone wants to add the user). */
+/**
+ * Load incoming pending friend requests (someone wants to add the current user).
+ * Only returns rows where friend_id = userId AND status = 'pending'
+ * (i.e. requests sent TO me, not requests I sent).
+ * Uses the OR filter on the select so the bidirectional RLS policy allows the read.
+ */
 export async function loadPendingRequests(userId) {
+  tag('loadPendingRequests', '▶', `user=${userId}`);
   const { data, error } = await supabase
     .from('friendships')
-    .select('id, user_id')
-    .eq('friend_id', userId).eq('status', 'pending');
+    .select('id, user_id, friend_id')
+    .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+    .eq('status', 'pending');
   if (error) { fail('loadPendingRequests', error); return []; }
-  const senderIds = (data || []).map(r => r.user_id);
+
+  // Keep only INCOMING rows — where the current user is the recipient
+  const incoming = (data || []).filter(r => r.friend_id === userId);
+  console.log('[loadPendingRequests] total pending rows:', data?.length ?? 0,
+    '| incoming to me:', incoming.length);
+
+  const senderIds = incoming.map(r => r.user_id);
   if (!senderIds.length) return [];
+
   const { data: profiles } = await supabase
     .from('profiles').select('id, name, username').in('id', senderIds);
   const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
-  return (data || []).map(r => ({
+
+  return incoming.map(r => ({
     friendshipId: r.id,
     userId: r.user_id,
-    name: profileMap[r.user_id]?.name  || 'Unknown',
+    name: profileMap[r.user_id]?.name     || 'Unknown',
     username: profileMap[r.user_id]?.username || null,
   }));
 }

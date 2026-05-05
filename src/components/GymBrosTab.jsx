@@ -515,6 +515,10 @@ export default function GymBrosTab({ state }) {
       if (cancelled) return;
       const frList = fr || [];
       const pendList = pend || [];
+
+      console.log('[GymBros] Friends fetched:', frList);
+      console.log('[GymBros] Pending requests fetched:', pendList);
+
       setFriends(frList);
       setPending(pendList);
 
@@ -541,9 +545,11 @@ export default function GymBrosTab({ state }) {
       ...f,
       sessionCount: f.session_count || 0,
     }));
-    return [me, ...others]
+    const entries = [me, ...others]
       .sort((a, b) => b.sessionCount - a.sessionCount)
       .map((u, i) => ({ ...u, rank: i + 1 }));
+    console.log('[GymBros] Leaderboard:', entries);
+    return entries;
   })();
 
   const handleAccept = (req) => {
@@ -592,8 +598,25 @@ export default function GymBrosTab({ state }) {
       <div style={{ padding: '0 16px' }}>
 
         {loading ? (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: C.mute, fontSize: 14 }}>
-            Loading…
+          /* Skeleton loader — shows structure while network fetches */
+          <div style={{ marginTop: 20 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 16px',
+                background: C.surface2, borderRadius: 12,
+                border: `1px solid ${C.border}`, marginBottom: 8,
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: C.surface, flexShrink: 0,
+                }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ height: 12, width: '55%', background: C.surface, borderRadius: 6 }} />
+                  <div style={{ height: 10, width: '35%', background: C.surface, borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <>
@@ -603,7 +626,7 @@ export default function GymBrosTab({ state }) {
                 <SectionTitle>REQUESTS ({pending.length})</SectionTitle>
                 {pending.map(req => (
                   <RequestRow
-                    key={req.id}
+                    key={req.friendshipId}
                     req={req}
                     onAccept={handleAccept}
                     onDecline={handleDecline}
