@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, User, Mail, Calendar, Dumbbell, Globe, LogOut, Trash2, UserX, Check, X, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Mail, Calendar, Dumbbell, Globe, LogOut, Trash2, UserX, Check, X, Shield, AtSign, Lock } from 'lucide-react';
 import { C, spring, springSoft } from '../tokens.js';
 import { upsertProfile, updatePrivacySettings } from '../lib/db.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
@@ -69,7 +69,7 @@ function Section({ title, children }) {
 }
 
 // ── Row ────────────────────────────────────────────────────────────────────────
-function Row({ icon: Icon, label, value, onEdit, suffix, accent, last }) {
+function Row({ icon: Icon, label, value, onEdit, suffix, accent, last, note }) {
   return (
     <div
       onClick={onEdit}
@@ -96,6 +96,9 @@ function Row({ icon: Icon, label, value, onEdit, suffix, accent, last }) {
         }}>
           {value || <span style={{ color: C.mute }}>—</span>}
         </div>
+        {note && (
+          <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>{note}</div>
+        )}
       </div>
       {suffix}
       {onEdit && <ChevronRight size={14} color={C.mute} />}
@@ -153,6 +156,7 @@ export default function AccountPage({ state, onBack }) {
     currentWeek, history,
     showToast, t,
     privacySettings, setPrivacySettings,
+    username,
   } = state;
 
   const [editingName,    setEditingName]    = useState(false);
@@ -316,6 +320,13 @@ export default function AccountPage({ state, onBack }) {
               />
             )
           }
+          <Row
+            icon={AtSign}
+            label={lang === 'ar' ? 'اسم المستخدم' : 'Username'}
+            value={username ? `@${username}` : (lang === 'ar' ? 'لم يُحدد' : 'Not set')}
+            suffix={<Lock size={14} color={C.mute} style={{ flexShrink: 0 }} />}
+            note={lang === 'ar' ? 'لا يمكن تغيير اسم المستخدم' : 'Username cannot be changed'}
+          />
           <Row
             icon={Mail} label={lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}
             value={user?.email}

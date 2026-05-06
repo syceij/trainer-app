@@ -275,7 +275,7 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
         {initial}
       </div>
 
-      {/* Name + subtitle */}
+      {/* Name + @username + subtitle */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 13, fontWeight: isMe ? 700 : 600,
@@ -285,6 +285,11 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
         }}>
           {user.name || user.username || 'Gym Bro'}{isMe ? ' (you)' : ''}
         </div>
+        {user.username && (
+          <div style={{ fontSize: 10, color: isMe ? LIME + '99' : '#484848', lineHeight: 1.2 }}>
+            @{user.username}
+          </div>
+        )}
         <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>
           {subtitle}
         </div>
@@ -306,9 +311,14 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
 }
 
 // ── Activity item ──────────────────────────────────────────────────────────────
-function ActivityItem({ item, currentUserId }) {
+function ActivityItem({ item, currentUserId, onProfileTap }) {
   const isMe = item.user_id === currentUserId;
-  const name = item.profile?.username || item.profile?.name || 'Gym Bro';
+  // Display @username when available, fall back to name
+  const displayName = isMe
+    ? 'You'
+    : item.profile?.username
+      ? `@${item.profile.username}`
+      : (item.profile?.name || 'Gym Bro');
   const time = (() => {
     const d = new Date(item.created_at);
     const diff = Date.now() - d.getTime();
@@ -349,7 +359,16 @@ function ActivityItem({ item, currentUserId }) {
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, color: C.text, lineHeight: 1.4 }}>
-          <span style={{ fontWeight: 700 }}>{isMe ? 'You' : name}</span>{' '}
+          <span
+            style={{
+              fontWeight: 700,
+              cursor: !isMe ? 'pointer' : 'default',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+            onClick={!isMe ? () => onProfileTap?.(item.user_id) : undefined}
+          >
+            {displayName}
+          </span>{' '}
           <span style={{ color: C.dim }}>{body}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
@@ -362,7 +381,7 @@ function ActivityItem({ item, currentUserId }) {
 }
 
 // ── Add Bro bottom sheet ───────────────────────────────────────────────────────
-function AddBroSheet({ currentUserId, onClose, onRequestSent }) {
+function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
   const [tab,        setTab]        = useState('invite');
   const [inviteLink, setInviteLink] = useState(null);
   const [genLoading, setGenLoading] = useState(false);
@@ -393,8 +412,14 @@ function AddBroSheet({ currentUserId, onClose, onRequestSent }) {
     setTimeout(() => setCopied(false), 2000);
   };
   const shareLink = () => {
-    if (navigator.share) navigator.share({ title: 'Join me on Trainer!', url: inviteLink }).catch(() => {});
-    else copyLink();
+    const msg = username
+      ? `Hey! Join me on Trainer 💪 I'm @${username}. Use this link to connect with me: ${inviteLink}`
+      : `Hey! Join me on Trainer 💪 Use this link to add me as a Gym Bro: ${inviteLink}`;
+    if (navigator.share) {
+      navigator.share({ title: 'Join me on Trainer!', text: msg, url: inviteLink }).catch(() => {});
+    } else {
+      copyLink();
+    }
   };
 
   const handleSearch = (val) => {
@@ -806,7 +831,15 @@ export default function GymBrosTab({ state }) {
             <SectionLabel>RECENT ACTIVITY</SectionLabel>
             <div style={{ marginBottom: 8 }}>
               {feed.slice(0, 20).map((item, i) => (
-                <ActivityItem key={item.id || i} item={item} currentUserId={uid} />
+                <ActivityItem
+                  key={item.id || i}
+                  item={item}
+                  currentUserId={uid}
+                  onProfileTap={(userId) => {
+                    const f = friends.find(fr => fr.id === userId);
+                    if (f) setProfileFor(f);
+                  }}
+                />
               ))}
             </div>
           </div>
@@ -841,6 +874,7 @@ export default function GymBrosTab({ state }) {
           <AddBroSheet
             key="add-bro"
             currentUserId={uid}
+            username={state.username}
             onClose={() => setShowAdd(false)}
             onRequestSent={() => showToast?.('Friend request sent ✓')}
           />

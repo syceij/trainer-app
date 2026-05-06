@@ -80,16 +80,19 @@ export async function loadProfile(userId) {
   return data;
 }
 
-export async function upsertProfile(userId, { name, lang }) {
-  // profiles columns: id, name, language, created_at
-  // There is NO profile_json column — do not insert it.
+export async function upsertProfile(userId, { name, lang, email, username } = {}) {
+  // profiles columns: id, name, language, email, username, created_at
+  // Only include fields that are explicitly provided so we never accidentally
+  // overwrite existing values with undefined/null.
   tag('upsertProfile', '▶', `user=${userId} name="${name}" lang=${lang}`);
+  const payload = { id: userId };
+  if (name     !== undefined) payload.name     = name;
+  if (lang     !== undefined) payload.language = lang;
+  if (email    !== undefined) payload.email    = email;
+  if (username !== undefined) payload.username = username;
   const { data, error } = await supabase
     .from('profiles')
-    .upsert(
-      { id: userId, name, language: lang },
-      { onConflict: 'id' }
-    )
+    .upsert(payload, { onConflict: 'id' })
     .select();
   if (error) { fail('upsertProfile', error); throw error; }
   ok('upsertProfile', data);

@@ -5,6 +5,10 @@ import { supabase } from '../lib/supabase.js';
 import { upsertProfile } from '../lib/db.js';
 import { C, spring, springSoft } from '../tokens.js';
 
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+const GREEN = '#ADFF2F';
+const RED   = '#E24B4A';
+
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
 function Logo() {
@@ -68,6 +72,73 @@ function Field({ label, type, value, onChange, autoComplete, placeholder }) {
   );
 }
 
+// ── Username field — real-time availability check ─────────────────────────────
+// status: 'idle' | 'short' | 'checking' | 'available' | 'taken' | 'invalid'
+function UsernameField({ value, onChange, status }) {
+  const hasDecision = status === 'available' || status === 'taken';
+  const isError     = status === 'taken' || status === 'invalid';
+  const borderCol   = hasDecision ? (status === 'available' ? GREEN : RED) : C.border;
+
+  let hint = null;
+  if (status === 'invalid')        hint = { color: RED,    text: 'Letters, numbers and _ only' };
+  else if (status === 'checking')  hint = { color: C.mute, text: 'Checking availability…' };
+  else if (status === 'available') hint = { color: GREEN,  text: '✓ Available' };
+  else if (status === 'taken')     hint = { color: RED,    text: '✗ Already taken' };
+  else                             hint = { color: C.mute, text: '3–20 chars · letters, numbers and _ only' };
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{
+        display: 'block', fontSize: 12, fontWeight: 700,
+        color: C.dim, marginBottom: 6, letterSpacing: '0.04em',
+      }}>
+        USERNAME
+      </label>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value.toLowerCase().replace(/\s/g, ''))}
+          autoComplete="username"
+          placeholder="e.g. ahmed_lifts"
+          maxLength={20}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: C.surface2,
+            border: `1.5px solid ${isError ? RED : borderCol}`,
+            borderRadius: 12, padding: '14px 16px',
+            paddingRight: hasDecision ? 44 : 16,
+            color: C.text, fontSize: 16, outline: 'none',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            WebkitTapHighlightColor: 'transparent',
+            transition: 'border-color 0.18s',
+          }}
+          onFocus={e => {
+            e.target.style.borderColor = hasDecision
+              ? (status === 'available' ? GREEN : RED)
+              : C.accent;
+          }}
+          onBlur={e => { e.target.style.borderColor = isError ? RED : borderCol; }}
+        />
+        {hasDecision && (
+          <div style={{
+            position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 17, fontWeight: 800, lineHeight: 1,
+            color: status === 'available' ? GREEN : RED,
+          }}>
+            {status === 'available' ? '✓' : '✗'}
+          </div>
+        )}
+      </div>
+      {hint && (
+        <div style={{ fontSize: 11, color: hint.color, marginTop: 5, lineHeight: 1.4 }}>
+          {hint.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PrimaryButton({ children, onClick, loading, disabled }) {
   return (
     <motion.button
@@ -119,27 +190,51 @@ function ErrorBanner({ msg }) {
   );
 }
 
-// ── Login view ─────────────────────────────────────────────────────────────────
+// ── Login view ────────────────────────────────────────────────────────────────
 function LoginView({ onSwitch, onSuccess }) {
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [emailOrUsername, setEmailOrUsername] = useState('');
+  const [password,        setPassword]        = useState('');
+  const [error,           setError]           = useState('');
+  const [loading,         setLoading]         = useState(false);
 
   const handleLogin = async () => {
     setError('');
-    if (!email || !password) { setError('Please enter your email and password.'); return; }
+    if (!emailOrUsername || !password) {
+      setError('Please enter your email/username and password.');
+      return;
+    }
     setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+
+    let resolvedEmail = emailOrUsername.trim();
+
+    // Detect email: must contain @ with at least one . in the domain part
+    const atIdx   = resolvedEmail.indexOf('@');
+    const isEmail = atIdx > 0 && resolvedEmail.slice(atIdx + 1).includes('.');
+
+    if (!isEmail) {
+      // Username login — look up the email stored in profiles
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('username', resolvedEmail.toLowerCase())
+        .maybeSingle();
+
+      if (!profile?.email) {
+        setLoading(false);
+        setError('No account found with that username.');
+        return;
+      }
+      resolvedEmail = profile.email;
+    }
+
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: resolvedEmail,
+      password,
+    });
     setLoading(false);
     if (err) {
-      setError(
-        err.message.includes('Invalid login')
-          ? 'Incorrect email or password.'
-          : err.message.includes('Email not confirmed')
-          ? 'Please confirm your email first — check your inbox.'
-          : err.message
-      );
+      // Deliberately vague for security
+      setError('Incorrect email/username or password.');
       return;
     }
     onSuccess();
@@ -161,11 +256,25 @@ function LoginView({ onSwitch, onSuccess }) {
 
       <ErrorBanner msg={error} />
 
-      <Field label="Email"    type="email"    value={email}    onChange={setEmail}    autoComplete="email"            placeholder="you@example.com" />
-      <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" placeholder="••••••••" />
+      <Field
+        label="Email or username"
+        type="text"
+        value={emailOrUsername}
+        onChange={setEmailOrUsername}
+        autoComplete="email"
+        placeholder="Email or @username"
+      />
+      <Field
+        label="Password"
+        type="password"
+        value={password}
+        onChange={setPassword}
+        autoComplete="current-password"
+        placeholder="••••••••"
+      />
 
       <div onKeyDown={handleKey}>
-        <PrimaryButton onClick={handleLogin} loading={loading} disabled={!email || !password}>
+        <PrimaryButton onClick={handleLogin} loading={loading} disabled={!emailOrUsername || !password}>
           Sign in
         </PrimaryButton>
       </div>
@@ -180,23 +289,49 @@ function LoginView({ onSwitch, onSuccess }) {
   );
 }
 
-// ── Signup view ────────────────────────────────────────────────────────────────
+// ── Signup view ───────────────────────────────────────────────────────────────
 function SignupView({ onSwitch, onConfirm }) {
-  const [name, setName]         = useState('');
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [name,           setName]           = useState('');
+  const [username,       setUsername]       = useState('');
+  const [usernameStatus, setUsernameStatus] = useState('idle');
+  const [email,          setEmail]          = useState('');
+  const [password,       setPassword]       = useState('');
+  const [error,          setError]          = useState('');
+  const [loading,        setLoading]        = useState(false);
+  const debounceRef = useRef(null);
+
+  const handleUsernameChange = (val) => {
+    const cleaned = val.toLowerCase().replace(/\s/g, '');
+    setUsername(cleaned);
+    clearTimeout(debounceRef.current);
+
+    if (cleaned.length === 0)        { setUsernameStatus('idle');    return; }
+    if (cleaned.length < 3)          { setUsernameStatus('short');   return; }
+    if (!USERNAME_RE.test(cleaned))  { setUsernameStatus('invalid'); return; }
+
+    setUsernameStatus('checking');
+    debounceRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleaned)
+        .maybeSingle();
+      setUsernameStatus(data ? 'taken' : 'available');
+    }, 500);
+  };
 
   const handleSignup = async () => {
     setError('');
-    if (!name.trim())        { setError('Please enter your name.'); return; }
-    if (!email)              { setError('Please enter your email.'); return; }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (!name.trim())                   { setError('Please enter your name.'); return; }
+    if (!username)                      { setError('Please choose a username.'); return; }
+    if (!USERNAME_RE.test(username))    { setError('Username must be 3–20 chars: letters, numbers and _ only.'); return; }
+    if (usernameStatus === 'taken')     { setError('That username is already taken.'); return; }
+    if (usernameStatus === 'checking')  { setError('Please wait for the username check to finish.'); return; }
+    if (usernameStatus !== 'available') { setError('Please choose a valid, available username.'); return; }
+    if (!email)                         { setError('Please enter your email.'); return; }
+    if (password.length < 6)           { setError('Password must be at least 6 characters.'); return; }
 
     setLoading(true);
-
-    // 10-second timeout — never leave the user frozen
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('timeout')), 10000)
     );
@@ -208,7 +343,7 @@ function SignupView({ onSwitch, onConfirm }) {
           password,
           options: {
             data: { name: name.trim() },
-            emailRedirectTo: undefined, // send OTP code, not a magic link
+            emailRedirectTo: undefined,
           },
         }),
         timeout,
@@ -226,20 +361,15 @@ function SignupView({ onSwitch, onConfirm }) {
         return;
       }
 
-      // Navigate to OTP screen immediately — never spin on this screen
-      onConfirm({ email, name: name.trim() });
-
+      // Go to OTP screen — username travels with us so it gets saved after verification
+      onConfirm({ email, name: name.trim(), username });
     } catch (e) {
       setLoading(false);
-      setError(
-        e.message === 'timeout'
-          ? 'Something went wrong. Please try again.'
-          : e.message
-      );
+      setError(e.message === 'timeout' ? 'Something went wrong. Please try again.' : e.message);
     }
   };
 
-  const ready = name.trim() && email && password.length >= 6;
+  const ready = name.trim() && username && usernameStatus === 'available' && email && password.length >= 6;
 
   return (
     <motion.div
@@ -255,9 +385,10 @@ function SignupView({ onSwitch, onConfirm }) {
 
       <ErrorBanner msg={error} />
 
-      <Field label="Name"     type="text"     value={name}     onChange={setName}     autoComplete="given-name"    placeholder="Your name" />
-      <Field label="Email"    type="email"    value={email}    onChange={setEmail}    autoComplete="email"         placeholder="you@example.com" />
-      <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password"  placeholder="Min. 6 characters" />
+      <Field label="Name" type="text" value={name} onChange={setName} autoComplete="given-name" placeholder="Your name" />
+      <UsernameField value={username} onChange={handleUsernameChange} status={usernameStatus} />
+      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" placeholder="you@example.com" />
+      <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" placeholder="Min. 6 characters" />
 
       <PrimaryButton onClick={handleSignup} loading={loading} disabled={!ready}>
         Create account
@@ -274,7 +405,7 @@ function SignupView({ onSwitch, onConfirm }) {
 }
 
 // ── OTP verification view ─────────────────────────────────────────────────────
-function OtpView({ email, name, onSuccess, onBack }) {
+function OtpView({ email, name, username, onSuccess, onBack }) {
   const [digits,    setDigits]    = useState(['', '', '', '', '', '']);
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -283,13 +414,11 @@ function OtpView({ email, name, onSuccess, onBack }) {
   const inputRefs = useRef([]);
 
   const handleDigitChange = (index, value) => {
-    // Strip non-digits, keep only the last character typed
     const digit = value.replace(/\D/g, '').slice(-1);
     const next = [...digits];
     next[index] = digit;
     setDigits(next);
     setError('');
-    // Auto-advance on digit entry
     if (digit && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -298,12 +427,10 @@ function OtpView({ email, name, onSuccess, onBack }) {
   const handleKeyDown = (index, e) => {
     if (e.key === 'Backspace') {
       if (digits[index]) {
-        // Clear current cell
         const next = [...digits];
         next[index] = '';
         setDigits(next);
       } else if (index > 0) {
-        // Move back and clear previous cell
         const next = [...digits];
         next[index - 1] = '';
         setDigits(next);
@@ -313,7 +440,6 @@ function OtpView({ email, name, onSuccess, onBack }) {
       else if (e.key === 'ArrowRight' && index < 5) { inputRefs.current[index + 1]?.focus(); }
   };
 
-  // Handle pasting a full 6-digit code
   const handlePaste = (e) => {
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
     if (!pasted) return;
@@ -346,10 +472,15 @@ function OtpView({ email, name, onSuccess, onBack }) {
       return;
     }
 
-    // Session is live — create the profile row now
+    // Session is live — persist name + username + email to profiles row
     if (data?.user) {
       try {
-        await upsertProfile(data.user.id, { name: name.trim(), lang: 'en' });
+        await upsertProfile(data.user.id, {
+          name:     name.trim(),
+          lang:     'en',
+          username: username || null,
+          email:    email    || null,
+        });
       } catch {
         // Non-critical — ensureProfileExists in App.jsx will catch it on next load
       }
@@ -366,7 +497,11 @@ function OtpView({ email, name, onSuccess, onBack }) {
     const { error: err } = await supabase.auth.resend({ type: 'signup', email });
     setResending(false);
     if (err) setError(err.message);
-    else { setResentOk(true); setDigits(['', '', '', '', '', '']); inputRefs.current[0]?.focus(); }
+    else {
+      setResentOk(true);
+      setDigits(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+    }
   };
 
   const filled = digits.every(d => d !== '');
@@ -377,7 +512,6 @@ function OtpView({ email, name, onSuccess, onBack }) {
       initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
       transition={springSoft}
     >
-      {/* Back button */}
       <button
         onClick={onBack}
         style={{
@@ -404,7 +538,6 @@ function OtpView({ email, name, onSuccess, onBack }) {
 
       <ErrorBanner msg={error} />
 
-      {/* 6 digit input boxes */}
       <div
         style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28 }}
         onPaste={handlePaste}
@@ -443,7 +576,6 @@ function OtpView({ email, name, onSuccess, onBack }) {
         Verify
       </PrimaryButton>
 
-      {/* Resend */}
       <div style={{ textAlign: 'center', marginTop: 20 }}>
         {resentOk && (
           <motion.p
@@ -487,15 +619,17 @@ function OtpView({ email, name, onSuccess, onBack }) {
   );
 }
 
-// ── Root export ────────────────────────────────────────────────────────────────
+// ── Root export ───────────────────────────────────────────────────────────────
 export default function AuthScreen({ onAuth }) {
-  const [view,      setView]  = useState('login'); // 'login' | 'signup' | 'otp'
-  const [otpEmail,  setOtpEmail]  = useState('');
-  const [otpName,   setOtpName]   = useState('');
+  const [view,        setView]        = useState('login'); // 'login' | 'signup' | 'otp'
+  const [otpEmail,    setOtpEmail]    = useState('');
+  const [otpName,     setOtpName]     = useState('');
+  const [otpUsername, setOtpUsername] = useState('');
 
-  const goToOtp = ({ email, name }) => {
+  const goToOtp = ({ email, name, username }) => {
     setOtpEmail(email);
     setOtpName(name);
+    setOtpUsername(username || '');
     setView('otp');
   };
 
@@ -510,24 +644,17 @@ export default function AuthScreen({ onAuth }) {
     }}>
       <AnimatePresence mode="wait">
         {view === 'login' && (
-          <LoginView
-            key="login"
-            onSwitch={() => setView('signup')}
-            onSuccess={onAuth}
-          />
+          <LoginView key="login" onSwitch={() => setView('signup')} onSuccess={onAuth} />
         )}
         {view === 'signup' && (
-          <SignupView
-            key="signup"
-            onSwitch={() => setView('login')}
-            onConfirm={goToOtp}
-          />
+          <SignupView key="signup" onSwitch={() => setView('login')} onConfirm={goToOtp} />
         )}
         {view === 'otp' && (
           <OtpView
             key="otp"
             email={otpEmail}
             name={otpName}
+            username={otpUsername}
             onSuccess={onAuth}
             onBack={() => setView('signup')}
           />

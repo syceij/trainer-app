@@ -282,14 +282,23 @@ export default function App() {
       console.log('[App] loadUserData — sessionRows count:', sessionRows.length);
       console.log('[App] loadUserData — weightMap:', weightMap);
 
-      // Apply profile — profiles table has: id, name, language, created_at
-      // There is no profile_json column.
+      // Apply profile — profiles table has: id, name, language, email, username, created_at
       if (profileRow) {
         if (profileRow.language) setLang(profileRow.language);
         if (profileRow.name)     setProfile(p => ({ ...p, name: profileRow.name }));
         // Social fields
         setUsername(profileRow.username || null);
         if (profileRow.privacy_settings) setPrivacySettings(profileRow.privacy_settings);
+
+        // One-time email backfill: populate profiles.email for users who signed up
+        // before the email column was added (they can then log in by username).
+        if (!profileRow.email && resolvedUser.email) {
+          supabase.from('profiles')
+            .update({ email: resolvedUser.email })
+            .eq('id', uid)
+            .then(() => console.log('[App] loadUserData — email backfilled'))
+            .catch(() => {});
+        }
       }
 
       // Apply working weights from DB
