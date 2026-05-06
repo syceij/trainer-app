@@ -70,8 +70,8 @@ function LoadingScreen() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
     }}>
       <motion.img
-        src="/loading%20logo.png"
-        alt="Trainer"
+        src="/logo.png"
+        alt="HEX"
         animate={{ scale: [0.95, 1.05, 0.95] }}
         transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
         style={{ width: 140, height: 140, objectFit: 'contain' }}

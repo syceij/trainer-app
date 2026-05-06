@@ -424,10 +424,10 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
   };
   const shareLink = () => {
     const msg = username
-      ? `Hey! Join me on Trainer 💪 I'm @${username}. Use this link to connect with me: ${inviteLink}`
-      : `Hey! Join me on Trainer 💪 Use this link to add me as a Gym Bro: ${inviteLink}`;
+      ? `Hey! Join me on HEX 💪 I'm @${username}. Use this link to connect with me: ${inviteLink}`
+      : `Hey! Join me on HEX 💪 Use this link to add me as a Gym Bro: ${inviteLink}`;
     if (navigator.share) {
-      navigator.share({ title: 'Join me on Trainer!', text: msg, url: inviteLink }).catch(() => {});
+      navigator.share({ title: 'Join me on HEX!', text: msg, url: inviteLink }).catch(() => {});
     } else {
       copyLink();
     }

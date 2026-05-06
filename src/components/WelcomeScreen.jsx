@@ -38,8 +38,8 @@ export default function WelcomeScreen({ onBuild, onManual, onImport, onSignOut }
         }}
       >
         <img
-          src="/welcome%20logo.png"
-          alt="Trainer"
+          src="/logo.png"
+          alt="HEX"
           style={{ height: 120, width: 'auto', objectFit: 'contain' }}
         />
 
@@ -73,8 +73,8 @@ export default function WelcomeScreen({ onBuild, onManual, onImport, onSignOut }
           color: C.text,
           marginBottom: 16,
         }}>
-          Train smarter,{' '}
-          <span style={{ color: C.accent }}>not harder.</span>
+          Your strength.{' '}
+          <span style={{ color: C.accent }}>Tracked.</span>
         </h1>
         <p style={{
           fontSize: 16,
@@ -82,7 +82,7 @@ export default function WelcomeScreen({ onBuild, onManual, onImport, onSignOut }
           lineHeight: 1.6,
           marginBottom: 36,
         }}>
-          Build a personalised programme from scratch, or import one you already trust.
+          Build your programme, log your sessions, dominate.
         </p>
 
         {/* CTAs */}
