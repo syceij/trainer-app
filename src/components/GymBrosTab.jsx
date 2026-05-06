@@ -288,7 +288,7 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
             flexShrink: 0, maxWidth: '55%',
             overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {user.name || user.username || 'Gym Bro'}{isMe ? ' (you)' : ''}
+            {user.name || user.username || 'Gym Bro'}
           </span>
           {user.username && (
             <span style={{
