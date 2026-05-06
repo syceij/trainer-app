@@ -969,7 +969,7 @@ export default function App() {
 
       {/* Auth screens */}
       {authState === 'unauthenticated' && !netError && (
-        <AuthScreen onAuth={() => {
+        <AuthScreen lang={lang} onAuth={() => {
           supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
               setUser(session.user);
@@ -985,7 +985,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {phase === 'welcome' && (
             <motion.div key="welcome" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <WelcomeScreen onBuild={() => setPhase('onboarding')} onManual={() => setPhase('manual_builder')} onImport={() => setPhase('import')} />
+              <WelcomeScreen lang={lang} onBuild={() => setPhase('onboarding')} onManual={() => setPhase('manual_builder')} onImport={() => setPhase('import')} />
             </motion.div>
           )}
           {phase === 'manual_builder' && (
@@ -1000,12 +1000,12 @@ export default function App() {
           )}
           {phase === 'onboarding' && (
             <motion.div key="onboarding" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Onboarding onComplete={enterApp} onBack={() => setPhase('welcome')} />
+              <Onboarding onComplete={enterApp} onBack={() => setPhase('welcome')} lang={lang} />
             </motion.div>
           )}
           {phase === 'import' && (
             <motion.div key="import" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <ImportScreen onImport={enterAppWithImport} onBack={() => setPhase('welcome')} />
+              <ImportScreen onImport={enterAppWithImport} onBack={() => setPhase('welcome')} lang={lang} />
             </motion.div>
           )}
           {phase === 'app' && (

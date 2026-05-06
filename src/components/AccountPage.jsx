@@ -391,26 +391,26 @@ export default function AccountPage({ state, onBack }) {
         {/* ── PRIVACY ── */}
         <Section title={lang === 'ar' ? 'الخصوصية' : 'PRIVACY (GYM BROS)'}>
           <PrivacyRow
-            label="Show sessions to Bros"
-            description="Friends can see your recent workouts"
+            label={lang === 'ar' ? 'إظهار الجلسات للأصدقاء' : 'Show sessions to Bros'}
+            description={lang === 'ar' ? 'يمكن لأصدقائك رؤية تمارينك الأخيرة' : 'Friends can see your recent workouts'}
             enabled={privacy.showSessions}
             onToggle={() => togglePrivacy('showSessions')}
           />
           <PrivacyRow
-            label="Show working weights to Bros"
-            description="Friends can see your current lifting weights"
+            label={lang === 'ar' ? 'إظهار الأوزان للأصدقاء' : 'Show working weights to Bros'}
+            description={lang === 'ar' ? 'يمكن لأصدقائك رؤية أوزانك الحالية' : 'Friends can see your current lifting weights'}
             enabled={privacy.showWeights}
             onToggle={() => togglePrivacy('showWeights')}
           />
           <PrivacyRow
-            label="Show progress to Bros"
-            description="Friends can see your muscle improvement chart"
+            label={lang === 'ar' ? 'إظهار التقدم للأصدقاء' : 'Show progress to Bros'}
+            description={lang === 'ar' ? 'يمكن لأصدقائك رؤية مخطط تقدمك' : 'Friends can see your muscle improvement chart'}
             enabled={privacy.showProgress}
             onToggle={() => togglePrivacy('showProgress')}
           />
           <PrivacyRow
-            label="Appear on leaderboard"
-            description="Show your session count in the Bros leaderboard"
+            label={lang === 'ar' ? 'الظهور في قائمة المتصدرين' : 'Appear on leaderboard'}
+            description={lang === 'ar' ? 'أظهر نقاطك في قائمة متصدري الأصدقاء' : 'Show your session count in the Bros leaderboard'}
             enabled={privacy.showOnLeaderboard}
             onToggle={() => togglePrivacy('showOnLeaderboard')}
             last
@@ -538,11 +538,12 @@ export default function AccountPage({ state, onBack }) {
             {deleteConfirm ? (
               <div>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#ff6b6b', marginBottom: 6 }}>
-                  Delete account
+                  {lang === 'ar' ? 'حذف الحساب' : 'Delete account'}
                 </p>
                 <p style={{ fontSize: 13, color: C.dim, marginBottom: 14, lineHeight: 1.55 }}>
-                  This will permanently delete your account, programme, all session history, and progress.
-                  This cannot be undone and you will not be able to recover your data.
+                  {lang === 'ar'
+                    ? 'سيؤدي هذا إلى حذف حسابك وبرنامجك وسجل جلساتك وتقدمك بشكل دائم. لا يمكن التراجع عن ذلك.'
+                    : 'This will permanently delete your account, programme, all session history, and progress. This cannot be undone and you will not be able to recover your data.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <motion.button whileTap={{ scale: 0.97 }} onClick={handleDeleteAccount}
@@ -557,7 +558,9 @@ export default function AccountPage({ state, onBack }) {
                       touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                       opacity: deleting ? 0.6 : 1,
                     }}>
-                    {deleting ? 'Deleting…' : 'Delete my account'}
+                    {deleting
+                      ? (lang === 'ar' ? 'جارٍ الحذف…' : 'Deleting…')
+                      : (lang === 'ar' ? 'حذف حسابي' : 'Delete my account')}
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.97 }}
                     onClick={() => setDeleteConfirm(false)}
@@ -569,7 +572,7 @@ export default function AccountPage({ state, onBack }) {
                       cursor: deleting ? 'default' : 'pointer',
                       touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                     }}>
-                    Cancel
+                    {lang === 'ar' ? 'إلغاء' : 'Cancel'}
                   </motion.button>
                 </div>
               </div>
@@ -586,7 +589,7 @@ export default function AccountPage({ state, onBack }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}>
                 <UserX size={15} color="#ff6b6b" />
-                Delete account
+                {lang === 'ar' ? 'حذف الحساب' : 'Delete account'}
               </motion.button>
             )}
 

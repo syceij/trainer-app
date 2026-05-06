@@ -74,17 +74,17 @@ function Field({ label, type, value, onChange, autoComplete, placeholder }) {
 
 // ── Username field — real-time availability check ─────────────────────────────
 // status: 'idle' | 'short' | 'checking' | 'available' | 'taken' | 'invalid'
-function UsernameField({ value, onChange, status }) {
+function UsernameField({ value, onChange, status, ar }) {
   const hasDecision = status === 'available' || status === 'taken';
   const isError     = status === 'taken' || status === 'invalid';
   const borderCol   = hasDecision ? (status === 'available' ? GREEN : RED) : C.border;
 
   let hint = null;
-  if (status === 'invalid')        hint = { color: RED,    text: 'Letters, numbers and _ only' };
-  else if (status === 'checking')  hint = { color: C.mute, text: 'Checking availability…' };
-  else if (status === 'available') hint = { color: GREEN,  text: '✓ Available' };
-  else if (status === 'taken')     hint = { color: RED,    text: '✗ Already taken' };
-  else                             hint = { color: C.mute, text: '3–20 chars · letters, numbers and _ only' };
+  if (status === 'invalid')        hint = { color: RED,    text: ar ? 'أحرف وأرقام و _ فقط' : 'Letters, numbers and _ only' };
+  else if (status === 'checking')  hint = { color: C.mute, text: ar ? 'جارٍ التحقق من التوفر…' : 'Checking availability…' };
+  else if (status === 'available') hint = { color: GREEN,  text: ar ? '✓ متاح' : '✓ Available' };
+  else if (status === 'taken')     hint = { color: RED,    text: ar ? '✗ مأخوذ بالفعل' : '✗ Already taken' };
+  else                             hint = { color: C.mute, text: ar ? '٣-٢٠ حرفاً · أحرف وأرقام و _ فقط' : '3–20 chars · letters, numbers and _ only' };
 
   return (
     <div style={{ marginBottom: 14 }}>
@@ -92,7 +92,7 @@ function UsernameField({ value, onChange, status }) {
         display: 'block', fontSize: 12, fontWeight: 700,
         color: C.dim, marginBottom: 6, letterSpacing: '0.04em',
       }}>
-        USERNAME
+        {ar ? 'اسم المستخدم' : 'USERNAME'}
       </label>
       <div style={{ position: 'relative' }}>
         <input
@@ -191,7 +191,7 @@ function ErrorBanner({ msg }) {
 }
 
 // ── Login view ────────────────────────────────────────────────────────────────
-function LoginView({ onSwitch, onSuccess }) {
+function LoginView({ onSwitch, onSuccess, ar }) {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password,        setPassword]        = useState('');
   const [error,           setError]           = useState('');
@@ -200,7 +200,9 @@ function LoginView({ onSwitch, onSuccess }) {
   const handleLogin = async () => {
     setError('');
     if (!emailOrUsername || !password) {
-      setError('Please enter your email/username and password.');
+      setError(ar
+        ? 'يرجى إدخال البريد الإلكتروني/اسم المستخدم وكلمة المرور.'
+        : 'Please enter your email/username and password.');
       return;
     }
     setLoading(true);
@@ -221,7 +223,7 @@ function LoginView({ onSwitch, onSuccess }) {
 
       if (!profile?.email) {
         setLoading(false);
-        setError('No account found with that username.');
+        setError(ar ? 'لا يوجد حساب بهذا الاسم.' : 'No account found with that username.');
         return;
       }
       resolvedEmail = profile.email;
@@ -234,7 +236,7 @@ function LoginView({ onSwitch, onSuccess }) {
     setLoading(false);
     if (err) {
       // Deliberately vague for security
-      setError('Incorrect email/username or password.');
+      setError(ar ? 'البريد الإلكتروني/اسم المستخدم أو كلمة المرور غير صحيحة.' : 'Incorrect email/username or password.');
       return;
     }
     onSuccess();
@@ -249,23 +251,25 @@ function LoginView({ onSwitch, onSuccess }) {
       transition={springSoft}
     >
       <Logo />
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, marginBottom: 6 }}>
-        Welcome back
+      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, marginBottom: 6, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
+        {ar ? 'مرحباً بعودتك' : 'Welcome back'}
       </h2>
-      <p style={{ fontSize: 14, color: C.dim, marginBottom: 28 }}>Sign in to continue</p>
+      <p style={{ fontSize: 14, color: C.dim, marginBottom: 28 }}>
+        {ar ? 'سجّل الدخول للمتابعة' : 'Sign in to continue'}
+      </p>
 
       <ErrorBanner msg={error} />
 
       <Field
-        label="Email or username"
+        label={ar ? 'البريد الإلكتروني أو اسم المستخدم' : 'Email or username'}
         type="text"
         value={emailOrUsername}
         onChange={setEmailOrUsername}
         autoComplete="email"
-        placeholder="Email or @username"
+        placeholder={ar ? 'البريد الإلكتروني أو @اسم_المستخدم' : 'Email or @username'}
       />
       <Field
-        label="Password"
+        label={ar ? 'كلمة المرور' : 'Password'}
         type="password"
         value={password}
         onChange={setPassword}
@@ -275,14 +279,14 @@ function LoginView({ onSwitch, onSuccess }) {
 
       <div onKeyDown={handleKey}>
         <PrimaryButton onClick={handleLogin} loading={loading} disabled={!emailOrUsername || !password}>
-          Sign in
+          {ar ? 'تسجيل الدخول' : 'Sign in'}
         </PrimaryButton>
       </div>
 
       <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: C.dim }}>
-        Don&apos;t have an account?{' '}
+        {ar ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
         <button onClick={onSwitch} style={{ background: 'none', border: 'none', color: C.accent, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-          Sign up
+          {ar ? 'إنشاء حساب' : 'Sign up'}
         </button>
       </p>
     </motion.div>
@@ -290,7 +294,7 @@ function LoginView({ onSwitch, onSuccess }) {
 }
 
 // ── Signup view ───────────────────────────────────────────────────────────────
-function SignupView({ onSwitch, onConfirm }) {
+function SignupView({ onSwitch, onConfirm, ar }) {
   const [name,           setName]           = useState('');
   const [username,       setUsername]       = useState('');
   const [usernameStatus, setUsernameStatus] = useState('idle');
@@ -322,14 +326,14 @@ function SignupView({ onSwitch, onConfirm }) {
 
   const handleSignup = async () => {
     setError('');
-    if (!name.trim())                   { setError('Please enter your name.'); return; }
-    if (!username)                      { setError('Please choose a username.'); return; }
-    if (!USERNAME_RE.test(username))    { setError('Username must be 3–20 chars: letters, numbers and _ only.'); return; }
-    if (usernameStatus === 'taken')     { setError('That username is already taken.'); return; }
-    if (usernameStatus === 'checking')  { setError('Please wait for the username check to finish.'); return; }
-    if (usernameStatus !== 'available') { setError('Please choose a valid, available username.'); return; }
-    if (!email)                         { setError('Please enter your email.'); return; }
-    if (password.length < 6)           { setError('Password must be at least 6 characters.'); return; }
+    if (!name.trim())                   { setError(ar ? 'يرجى إدخال اسمك.' : 'Please enter your name.'); return; }
+    if (!username)                      { setError(ar ? 'يرجى اختيار اسم مستخدم.' : 'Please choose a username.'); return; }
+    if (!USERNAME_RE.test(username))    { setError(ar ? 'اسم المستخدم: ٣-٢٠ حرفاً، أحرف وأرقام و _ فقط.' : 'Username must be 3–20 chars: letters, numbers and _ only.'); return; }
+    if (usernameStatus === 'taken')     { setError(ar ? 'اسم المستخدم مأخوذ بالفعل.' : 'That username is already taken.'); return; }
+    if (usernameStatus === 'checking')  { setError(ar ? 'يرجى الانتظار حتى يكتمل التحقق.' : 'Please wait for the username check to finish.'); return; }
+    if (usernameStatus !== 'available') { setError(ar ? 'يرجى اختيار اسم مستخدم صالح ومتاح.' : 'Please choose a valid, available username.'); return; }
+    if (!email)                         { setError(ar ? 'يرجى إدخال بريدك الإلكتروني.' : 'Please enter your email.'); return; }
+    if (password.length < 6)           { setError(ar ? 'كلمة المرور يجب أن تكون ٦ أحرف على الأقل.' : 'Password must be at least 6 characters.'); return; }
 
     setLoading(true);
     const timeout = new Promise((_, reject) =>
@@ -355,7 +359,7 @@ function SignupView({ onSwitch, onConfirm }) {
         setError(
           err.message.toLowerCase().includes('already registered') ||
           err.message.toLowerCase().includes('already been registered')
-            ? 'An account with this email already exists. Try signing in.'
+            ? (ar ? 'يوجد حساب بهذا البريد. جرّب تسجيل الدخول.' : 'An account with this email already exists. Try signing in.')
             : err.message
         );
         return;
@@ -365,7 +369,7 @@ function SignupView({ onSwitch, onConfirm }) {
       onConfirm({ email, name: name.trim(), username });
     } catch (e) {
       setLoading(false);
-      setError(e.message === 'timeout' ? 'Something went wrong. Please try again.' : e.message);
+      setError(e.message === 'timeout' ? (ar ? 'حدث خطأ ما. يرجى المحاولة مجدداً.' : 'Something went wrong. Please try again.') : e.message);
     }
   };
 
@@ -378,26 +382,28 @@ function SignupView({ onSwitch, onConfirm }) {
       transition={springSoft}
     >
       <Logo />
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, marginBottom: 6 }}>
-        Create account
+      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, marginBottom: 6, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
+        {ar ? 'إنشاء حساب' : 'Create account'}
       </h2>
-      <p style={{ fontSize: 14, color: C.dim, marginBottom: 28 }}>Start your training journey</p>
+      <p style={{ fontSize: 14, color: C.dim, marginBottom: 28 }}>
+        {ar ? 'ابدأ رحلتك التدريبية' : 'Start your training journey'}
+      </p>
 
       <ErrorBanner msg={error} />
 
-      <Field label="Name" type="text" value={name} onChange={setName} autoComplete="given-name" placeholder="Your name" />
-      <UsernameField value={username} onChange={handleUsernameChange} status={usernameStatus} />
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" placeholder="you@example.com" />
-      <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" placeholder="Min. 6 characters" />
+      <Field label={ar ? 'الاسم' : 'Name'} type="text" value={name} onChange={setName} autoComplete="given-name" placeholder={ar ? 'اسمك' : 'Your name'} />
+      <UsernameField value={username} onChange={handleUsernameChange} status={usernameStatus} ar={ar} />
+      <Field label={ar ? 'البريد الإلكتروني' : 'Email'} type="email" value={email} onChange={setEmail} autoComplete="email" placeholder="you@example.com" />
+      <Field label={ar ? 'كلمة المرور' : 'Password'} type="password" value={password} onChange={setPassword} autoComplete="new-password" placeholder={ar ? 'الحد الأدنى ٦ أحرف' : 'Min. 6 characters'} />
 
       <PrimaryButton onClick={handleSignup} loading={loading} disabled={!ready}>
-        Create account
+        {ar ? 'إنشاء حساب' : 'Create account'}
       </PrimaryButton>
 
       <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: C.dim }}>
-        Already have an account?{' '}
+        {ar ? 'لديك حساب بالفعل؟' : 'Already have an account?'}{' '}
         <button onClick={onSwitch} style={{ background: 'none', border: 'none', color: C.accent, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-          Sign in
+          {ar ? 'تسجيل الدخول' : 'Sign in'}
         </button>
       </p>
     </motion.div>
@@ -405,7 +411,7 @@ function SignupView({ onSwitch, onConfirm }) {
 }
 
 // ── OTP verification view ─────────────────────────────────────────────────────
-function OtpView({ email, name, username, onSuccess, onBack }) {
+function OtpView({ email, name, username, onSuccess, onBack, ar }) {
   const [digits,    setDigits]    = useState(['', '', '', '', '', '']);
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -451,7 +457,7 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
 
   const handleVerify = async () => {
     const token = digits.join('');
-    if (token.length < 6) { setError('Enter the 6-digit code.'); return; }
+    if (token.length < 6) { setError(ar ? 'أدخل الرمز المكوّن من ٦ أرقام.' : 'Enter the 6-digit code.'); return; }
 
     setLoading(true);
     setError('');
@@ -466,8 +472,8 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
       setLoading(false);
       setError(
         err.message.toLowerCase().includes('expired')
-          ? 'Code expired. Tap Resend to get a new one.'
-          : 'Invalid code. Please try again.'
+          ? (ar ? 'انتهت صلاحية الرمز. اضغط إعادة الإرسال.' : 'Code expired. Tap Resend to get a new one.')
+          : (ar ? 'رمز غير صالح. يرجى المحاولة مجدداً.' : 'Invalid code. Please try again.')
       );
       return;
     }
@@ -523,16 +529,16 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
           WebkitTapHighlightColor: 'transparent',
         }}
       >
-        ← Back
+        {ar ? '→ رجوع' : '← Back'}
       </button>
 
       <Logo />
 
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, marginBottom: 8 }}>
-        Check your email
+      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, marginBottom: 8, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
+        {ar ? 'تحقق من بريدك الإلكتروني' : 'Check your email'}
       </h2>
       <p style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 28 }}>
-        Enter the 6-digit code sent to{' '}
+        {ar ? 'أدخل الرمز المكوّن من ٦ أرقام المُرسَل إلى ' : 'Enter the 6-digit code sent to '}
         <span style={{ color: C.text, fontWeight: 700 }}>{email}</span>
       </p>
 
@@ -573,7 +579,7 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
       </div>
 
       <PrimaryButton onClick={handleVerify} loading={loading} disabled={!filled}>
-        Verify
+        {ar ? 'تحقق' : 'Verify'}
       </PrimaryButton>
 
       <div style={{ textAlign: 'center', marginTop: 20 }}>
@@ -582,7 +588,7 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{ fontSize: 12, color: '#4ADE80', marginBottom: 8 }}
           >
-            Code resent ✓
+            {ar ? 'تم إعادة الإرسال ✓' : 'Code resent ✓'}
           </motion.p>
         )}
         <button
@@ -608,10 +614,10 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
                 >
                   <Loader size={14} color={C.mute} />
                 </motion.div>
-                Sending…
+                {ar ? 'جارٍ الإرسال…' : 'Sending…'}
               </>
             )
-            : 'Resend code'
+            : (ar ? 'إعادة إرسال الرمز' : 'Resend code')
           }
         </button>
       </div>
@@ -620,7 +626,8 @@ function OtpView({ email, name, username, onSuccess, onBack }) {
 }
 
 // ── Root export ───────────────────────────────────────────────────────────────
-export default function AuthScreen({ onAuth }) {
+export default function AuthScreen({ onAuth, lang = 'en' }) {
+  const ar = lang === 'ar';
   const [view,        setView]        = useState('login'); // 'login' | 'signup' | 'otp'
   const [otpEmail,    setOtpEmail]    = useState('');
   const [otpName,     setOtpName]     = useState('');
@@ -641,13 +648,14 @@ export default function AuthScreen({ onAuth }) {
       paddingTop: 'max(env(safe-area-inset-top, 0px) + 20px, 40px)',
       paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 20px, 40px)',
       overflowY: 'auto', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box',
+      direction: ar ? 'rtl' : 'ltr',
     }}>
       <AnimatePresence mode="wait">
         {view === 'login' && (
-          <LoginView key="login" onSwitch={() => setView('signup')} onSuccess={onAuth} />
+          <LoginView key="login" onSwitch={() => setView('signup')} onSuccess={onAuth} ar={ar} />
         )}
         {view === 'signup' && (
-          <SignupView key="signup" onSwitch={() => setView('login')} onConfirm={goToOtp} />
+          <SignupView key="signup" onSwitch={() => setView('login')} onConfirm={goToOtp} ar={ar} />
         )}
         {view === 'otp' && (
           <OtpView
@@ -655,6 +663,7 @@ export default function AuthScreen({ onAuth }) {
             email={otpEmail}
             name={otpName}
             username={otpUsername}
+            ar={ar}
             onSuccess={onAuth}
             onBack={() => setView('signup')}
           />

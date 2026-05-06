@@ -38,7 +38,7 @@ function SectionLabel({ children, right }) {
 }
 
 // ── Pending request row ────────────────────────────────────────────────────────
-function RequestRow({ req, onAccept, onDecline }) {
+function RequestRow({ req, onAccept, onDecline, ar }) {
   const [acting, setActing] = useState(false);
   const act = async (accept) => {
     setActing(true);
@@ -63,7 +63,7 @@ function RequestRow({ req, onAccept, onDecline }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{req.name || req.username || 'Gym Bro'}</div>
-        <div style={{ fontSize: 11, color: C.mute }}>Wants to be your Bro</div>
+        <div style={{ fontSize: 11, color: C.mute }}>{ar ? 'يريد أن يكون صديقاً لك' : 'Wants to be your Bro'}</div>
       </div>
       <div style={{ display: 'flex', gap: 7 }}>
         <motion.button whileTap={{ scale: 0.9 }} disabled={acting} onClick={() => act(true)} style={{
@@ -123,7 +123,7 @@ function FriendBubble({ friend, trainedToday, onTap }) {
 }
 
 // ── Add Bro bubble (dashed, end of row) ───────────────────────────────────────
-function AddBubble({ onTap }) {
+function AddBubble({ onTap, ar }) {
   return (
     <motion.div
       whileTap={{ scale: 0.92 }}
@@ -141,13 +141,13 @@ function AddBubble({ onTap }) {
       }}>
         <Plus size={18} color="#444" />
       </div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: '#444' }}>Add</div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: '#444' }}>{ar ? 'إضافة' : 'Add'}</div>
     </motion.div>
   );
 }
 
 // ── All Friends slide-over page ────────────────────────────────────────────────
-function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
+function AllFriendsPage({ friends, currentUserId, onTap, onBack, ar }) {
   const page = (
     <motion.div
       initial={{ x: '100%' }}
@@ -178,8 +178,10 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
           <ChevronRight size={18} color={C.text} style={{ transform: 'rotate(180deg)' }} />
         </motion.button>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>Your Bros</div>
-          <div style={{ fontSize: 11, color: C.mute }}>{friends.length} {friends.length === 1 ? 'bro' : 'bros'}</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>{ar ? 'أصدقاؤك' : 'Your Bros'}</div>
+          <div style={{ fontSize: 11, color: C.mute }}>
+            {ar ? `${friends.length} صديق` : `${friends.length} ${friends.length === 1 ? 'bro' : 'bros'}`}
+          </div>
         </div>
       </div>
 
@@ -187,7 +189,7 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {friends.length === 0 ? (
           <div style={{ padding: '48px 24px', textAlign: 'center', color: C.mute, fontSize: 14 }}>
-            No Bros yet — add some!
+            {ar ? 'لا أصدقاء بعد — أضف بعضهم!' : 'No Bros yet — add some!'}
           </div>
         ) : friends.map((f, i) => {
           const ld = f.leaderboard_data || {};
@@ -235,7 +237,7 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
 }
 
 // ── Compact leaderboard row ────────────────────────────────────────────────────
-function LeaderboardRow({ rank, user, isMe, onTap }) {
+function LeaderboardRow({ rank, user, isMe, onTap, ar }) {
   const rankColor = isMe ? LIME : (RANK_COLORS[rank] || '#444');
   const initial = (user.name || user.username || '?')[0].toUpperCase();
   const subtitle = `${user.setsCompleted ?? 0} sets · +${user.improvementPct ?? 0}% volume`;
@@ -311,7 +313,7 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
         <div style={{ fontSize: 15, fontWeight: 800, color: isMe ? LIME : C.text, lineHeight: 1.2 }}>
           {user.score ?? 0}
         </div>
-        <div style={{ fontSize: 10, color: '#555' }}>pts</div>
+        <div style={{ fontSize: 10, color: '#555' }}>{ar ? 'نقطة' : 'pts'}</div>
       </div>
 
       {/* Chevron */}
@@ -322,17 +324,23 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
 }
 
 // ── Activity item ──────────────────────────────────────────────────────────────
-function ActivityItem({ item, currentUserId, onProfileTap }) {
+function ActivityItem({ item, currentUserId, onProfileTap, ar }) {
   const isMe = item.user_id === currentUserId;
   // Display @username when available, fall back to name
   const displayName = isMe
-    ? 'You'
+    ? (ar ? 'أنت' : 'You')
     : item.profile?.username
       ? `@${item.profile.username}`
-      : (item.profile?.name || 'Gym Bro');
+      : (item.profile?.name || (ar ? 'صديق صالة' : 'Gym Bro'));
   const time = (() => {
     const d = new Date(item.created_at);
     const diff = Date.now() - d.getTime();
+    if (ar) {
+      if (diff < 60000) return 'الآن';
+      if (diff < 3600000) return `منذ ${Math.floor(diff / 60000)}د`;
+      if (diff < 86400000) return `منذ ${Math.floor(diff / 3600000)}س`;
+      return d.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+    }
     if (diff < 60000) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
@@ -341,14 +349,21 @@ function ActivityItem({ item, currentUserId, onProfileTap }) {
   const body = (() => {
     if (item.type === 'session_completed') {
       const vol = item.data?.volume;
-      const volStr = vol && vol > 0 ? ` · ${Math.round(vol).toLocaleString()} kg` : '';
-      return `completed "${item.data?.session_name || 'a session'}"${volStr}`;
+      const volStr = vol && vol > 0 ? ` · ${Math.round(vol).toLocaleString()} كجم` : '';
+      const volStrEn = vol && vol > 0 ? ` · ${Math.round(vol).toLocaleString()} kg` : '';
+      const name = item.data?.session_name || (ar ? 'جلسة' : 'a session');
+      return ar
+        ? `أتم "${name}"${volStr}`
+        : `completed "${name}"${volStrEn}`;
     }
     if (item.type === 'new_pr') {
       const prev = item.data?.previous_weight;
-      return `PR on ${item.data?.exercise_name || 'an exercise'}: ${item.data?.weight} kg${prev > 0 ? ` (was ${prev})` : ''}`;
+      const exName = item.data?.exercise_name || (ar ? 'تمرين' : 'an exercise');
+      return ar
+        ? `رقم قياسي في ${exName}: ${item.data?.weight} كجم${prev > 0 ? ` (كان ${prev})` : ''}`
+        : `PR on ${exName}: ${item.data?.weight} kg${prev > 0 ? ` (was ${prev})` : ''}`;
     }
-    return 'did something impressive';
+    return ar ? 'أنجز شيئاً رائعاً' : 'did something impressive';
   })();
   const icon = item.type === 'new_pr'
     ? <Trophy size={13} color={LIME} />
@@ -392,7 +407,7 @@ function ActivityItem({ item, currentUserId, onProfileTap }) {
 }
 
 // ── Add Bro bottom sheet ───────────────────────────────────────────────────────
-function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
+function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
   const [tab,        setTab]        = useState('invite');
   const [inviteLink, setInviteLink] = useState(null);
   const [genLoading, setGenLoading] = useState(false);
@@ -477,7 +492,7 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
       >
         <div style={{ padding: '16px 20px 0' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#2a2a2a', margin: '0 auto 16px' }} />
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 14 }}>Add a Bro</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 14 }}>{ar ? 'إضافة صديق' : 'Add a Bro'}</div>
           <div style={{ display: 'flex', background: '#1e1e1e', borderRadius: 10, padding: 3, marginBottom: 16 }}>
             {['invite', 'search'].map(t => (
               <button key={t} onClick={() => setTab(t)} style={{
@@ -489,7 +504,7 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
                 color: tab === t ? C.text : C.mute,
                 cursor: 'pointer', transition: 'all 0.15s',
               }}>
-                {t === 'invite' ? 'Invite link' : 'Search users'}
+                {t === 'invite' ? (ar ? 'رابط الدعوة' : 'Invite link') : (ar ? 'البحث' : 'Search users')}
               </button>
             ))}
           </div>
@@ -499,11 +514,13 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
           {tab === 'invite' && (
             <div>
               <div style={{ fontSize: 13, color: C.dim, marginBottom: 16, lineHeight: 1.5 }}>
-                Share this link — it lets them add you as a Bro instantly. Expires in 48h.
+                {ar
+                  ? 'شارك هذا الرابط — يتيح لهم إضافتك كصديق فوراً. ينتهي خلال ٤٨ ساعة.'
+                  : 'Share this link — it lets them add you as a Bro instantly. Expires in 48h.'}
               </div>
               {genLoading ? (
                 <div style={{ background: '#1e1e1e', borderRadius: 12, padding: '14px 16px', fontSize: 13, color: C.mute, textAlign: 'center' }}>
-                  Generating link…
+                  {ar ? 'جارٍ إنشاء الرابط…' : 'Generating link…'}
                 </div>
               ) : inviteLink ? (
                 <>
@@ -521,21 +538,21 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
                       cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                     }}>
                       {copied ? <Check size={13} strokeWidth={3} /> : <Copy size={13} />}
-                      {copied ? 'Copied!' : 'Copy'}
+                      {copied ? (ar ? 'تم النسخ!' : 'Copied!') : (ar ? 'نسخ' : 'Copy')}
                     </motion.button>
                     <motion.button whileTap={{ scale: 0.97 }} onClick={shareLink} style={{
                       flex: 1, background: LIME, border: 'none', borderRadius: 10, padding: '12px 0',
                       fontSize: 13, fontWeight: 800, color: '#000', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                     }}>
-                      <Share2 size={13} />Share
+                      <Share2 size={13} />{ar ? 'مشاركة' : 'Share'}
                     </motion.button>
                   </div>
                   <motion.button whileTap={{ scale: 0.97 }} onClick={genLink} style={{
                     marginTop: 10, width: '100%', background: 'transparent', border: 'none',
                     padding: '8px 0', fontSize: 12, color: '#444', cursor: 'pointer',
                   }}>
-                    Generate new link
+                    {ar ? 'إنشاء رابط جديد' : 'Generate new link'}
                   </motion.button>
                 </>
               ) : null}
@@ -552,7 +569,7 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
                 <input
                   value={query}
                   onChange={e => handleSearch(e.target.value)}
-                  placeholder="Search by username or name…"
+                  placeholder={ar ? 'ابحث باسم المستخدم أو الاسم…' : 'Search by username or name…'}
                   autoFocus
                   style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14, fontFamily: 'inherit' }}
                 />
@@ -585,13 +602,13 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent }) {
                       color: sent[u.id] === 'sent' ? LIME : '#000',
                       cursor: sent[u.id] ? 'default' : 'pointer', flexShrink: 0,
                     }}>
-                    {sent[u.id] === 'sending' ? '…' : sent[u.id] === 'sent' ? 'Sent ✓' : 'Add'}
+                    {sent[u.id] === 'sending' ? '…' : sent[u.id] === 'sent' ? (ar ? 'تم ✓' : 'Sent ✓') : (ar ? 'إضافة' : 'Add')}
                   </motion.button>
                 </div>
               ))}
               {query && !searching && results.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: C.mute, fontSize: 13 }}>
-                  No users found for "{query}"
+                  {ar ? `لا مستخدمين لـ "${query}"` : `No users found for "${query}"`}
                 </div>
               )}
             </div>
@@ -622,7 +639,8 @@ function SkeletonRow() {
 
 // ── GymBrosTab ─────────────────────────────────────────────────────────────────
 export default function GymBrosTab({ state }) {
-  const { user, showToast } = state;
+  const { user, showToast, lang = 'en' } = state;
+  const ar = lang === 'ar';
   const uid = user?.id;
 
   const [friends,      setFriends]      = useState([]);
@@ -721,7 +739,9 @@ export default function GymBrosTab({ state }) {
   };
 
   if (!uid) return (
-    <div style={{ padding: 32, textAlign: 'center', color: C.mute }}>Sign in to use Gym Bros</div>
+    <div style={{ padding: 32, textAlign: 'center', color: C.mute }}>
+      {ar ? 'سجّل الدخول لاستخدام أصدقاء الصالة' : 'Sign in to use Gym Bros'}
+    </div>
   );
 
   return (
@@ -731,8 +751,8 @@ export default function GymBrosTab({ state }) {
 
         {/* Row 1: Title + Add button */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: '-0.03em' }}>
-            Gym Bros
+          <div style={{ fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: ar ? '0' : '-0.03em', fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
+            {ar ? 'أصدقاء الصالة' : 'Gym Bros'}
           </div>
           <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowAdd(true)} style={{
             width: 32, height: 32, borderRadius: '50%',
@@ -752,12 +772,12 @@ export default function GymBrosTab({ state }) {
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 11, fontWeight: 700, color: LIME, padding: 0,
               }}>
-                See all →
+                {ar ? '← عرض الكل' : 'See all →'}
               </motion.button>
             )
           }
         >
-          YOUR BROS
+          {ar ? 'أصدقاؤك' : 'YOUR BROS'}
         </SectionLabel>
 
         {/* Row 3: Horizontal friends bubbles */}
@@ -786,7 +806,7 @@ export default function GymBrosTab({ state }) {
                   onTap={setProfileFor}
                 />
               ))}
-              <AddBubble onTap={() => setShowAdd(true)} />
+              <AddBubble onTap={() => setShowAdd(true)} ar={ar} />
             </>
           )}
         </div>
@@ -801,9 +821,9 @@ export default function GymBrosTab({ state }) {
         {/* Pending requests */}
         {!loading && pending.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <SectionLabel>REQUESTS ({pending.length})</SectionLabel>
+            <SectionLabel>{ar ? `الطلبات (${pending.length})` : `REQUESTS (${pending.length})`}</SectionLabel>
             {pending.map(req => (
-              <RequestRow key={req.friendshipId} req={req} onAccept={handleAccept} onDecline={handleDecline} />
+              <RequestRow key={req.friendshipId} req={req} onAccept={handleAccept} onDecline={handleDecline} ar={ar} />
             ))}
           </div>
         )}
@@ -811,7 +831,7 @@ export default function GymBrosTab({ state }) {
         {/* Leaderboard */}
         {leaderboard.length > 1 && (
           <div style={{ marginTop: 14 }}>
-            <SectionLabel>LEADERBOARD · THIS MONTH</SectionLabel>
+            <SectionLabel>{ar ? 'المتصدرون · هذا الشهر' : 'LEADERBOARD · THIS MONTH'}</SectionLabel>
             <div style={{
               background: '#161616', borderRadius: 12,
               border: '1px solid #1e1e1e', overflow: 'hidden',
@@ -825,6 +845,7 @@ export default function GymBrosTab({ state }) {
                     rank={entry.rank}
                     user={entry}
                     isMe={entry.isMe}
+                    ar={ar}
                     onTap={() => {
                       const f = friends.find(fr => fr.id === entry.id);
                       if (f) setProfileFor(f);
@@ -839,13 +860,14 @@ export default function GymBrosTab({ state }) {
         {/* Activity feed */}
         {!loading && feed.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <SectionLabel>RECENT ACTIVITY</SectionLabel>
+            <SectionLabel>{ar ? 'النشاط الأخير' : 'RECENT ACTIVITY'}</SectionLabel>
             <div style={{ marginBottom: 8 }}>
               {feed.slice(0, 20).map((item, i) => (
                 <ActivityItem
                   key={item.id || i}
                   item={item}
                   currentUserId={uid}
+                  ar={ar}
                   onProfileTap={(userId) => {
                     const f = friends.find(fr => fr.id === userId);
                     if (f) setProfileFor(f);
@@ -863,16 +885,20 @@ export default function GymBrosTab({ state }) {
             padding: '40px 24px', gap: 10,
           }}>
             <div style={{ fontSize: 44 }}>🏋️</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.text, textAlign: 'center' }}>No Bros yet</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.text, textAlign: 'center' }}>
+              {ar ? 'لا أصدقاء بعد' : 'No Bros yet'}
+            </div>
             <div style={{ fontSize: 13, color: C.dim, textAlign: 'center', lineHeight: 1.5 }}>
-              Invite your gym friends and compete on the leaderboard
+              {ar
+                ? 'ادعُ أصدقاء الصالة وتنافسوا على قائمة المتصدرين'
+                : 'Invite your gym friends and compete on the leaderboard'}
             </div>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowAdd(true)} style={{
               marginTop: 8, background: LIME, border: 'none', borderRadius: 12,
               padding: '13px 28px', fontSize: 14, fontWeight: 800, color: '#000',
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
             }}>
-              <UserPlus size={15} />Add your first Bro
+              <UserPlus size={15} />{ar ? 'أضف أول صديق' : 'Add your first Bro'}
             </motion.button>
           </div>
         )}
@@ -886,8 +912,9 @@ export default function GymBrosTab({ state }) {
             key="add-bro"
             currentUserId={uid}
             username={state.username}
+            ar={ar}
             onClose={() => setShowAdd(false)}
-            onRequestSent={() => showToast?.('Friend request sent ✓')}
+            onRequestSent={() => showToast?.(ar ? 'تم إرسال طلب الصداقة ✓' : 'Friend request sent ✓')}
           />
         )}
       </AnimatePresence>
@@ -898,6 +925,7 @@ export default function GymBrosTab({ state }) {
             key="all-friends"
             friends={friends}
             currentUserId={uid}
+            ar={ar}
             onTap={(f) => { setShowAllFriends(false); setProfileFor(f); }}
             onBack={() => setShowAllFriends(false)}
           />

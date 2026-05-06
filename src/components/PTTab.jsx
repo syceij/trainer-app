@@ -4,8 +4,10 @@ import { Send, UserCircle } from 'lucide-react';
 import { C, spring, springSoft } from '../tokens.js';
 import { generateReply } from '../lib/ptReplies.js';
 
-const AUTO_CHIPS = ["What's my next session?", "Change to dumbbells only", "Add more arm work", "I'm feeling fatigued"];
-const IMPORT_CHIPS = ["What's today's session?", "Jump to week 2", "Show me week 1", "I'm feeling fatigued"];
+const AUTO_CHIPS_EN   = ["What's my next session?", "Change to dumbbells only", "Add more arm work", "I'm feeling fatigued"];
+const IMPORT_CHIPS_EN = ["What's today's session?", "Jump to week 2", "Show me week 1", "I'm feeling fatigued"];
+const AUTO_CHIPS_AR   = ["ما هي جلستي القادمة؟", "غيّر إلى دمبلز فقط", "أضف تمارين الذراعين", "أشعر بالتعب"];
+const IMPORT_CHIPS_AR = ["ما هي جلسة اليوم؟", "انتقل إلى الأسبوع ٢", "أظهر لي الأسبوع ١", "أشعر بالتعب"];
 
 function TypingIndicator() {
   return (
@@ -23,12 +25,15 @@ function TypingIndicator() {
 }
 
 export default function PTTab({ state }) {
-  const { chatMessages, setChatMessages, programmeMode, setAccountView, profile } = state;
+  const { chatMessages, setChatMessages, programmeMode, setAccountView, profile, lang = 'en' } = state;
+  const ar = lang === 'ar';
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
+  const AUTO_CHIPS   = ar ? AUTO_CHIPS_AR   : AUTO_CHIPS_EN;
+  const IMPORT_CHIPS = ar ? IMPORT_CHIPS_AR : IMPORT_CHIPS_EN;
   const chips = programmeMode === 'imported' ? IMPORT_CHIPS : AUTO_CHIPS;
   const showChips = chatMessages.length <= 2 && !input;
 
@@ -77,8 +82,12 @@ export default function PTTab({ state }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Ask PT</h1>
-            <p style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>AI coaching · programme adjustments · form cues</p>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
+              {ar ? 'اسأل المدرب' : 'Ask PT'}
+            </h1>
+            <p style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>
+              {ar ? 'تدريب ذكي · تعديلات البرنامج · تعليمات الشكل' : 'AI coaching · programme adjustments · form cues'}
+            </p>
           </div>
           <motion.button
             whileTap={{ scale: 0.93 }}
@@ -94,7 +103,7 @@ export default function PTTab({ state }) {
           >
             <UserCircle size={15} color={C.accent} />
             <span style={{ fontSize: 12, fontWeight: 700, color: C.dim, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {profile?.name || 'Account'}
+              {profile?.name || (ar ? 'الحساب' : 'Account')}
             </span>
           </motion.button>
         </div>
@@ -110,8 +119,14 @@ export default function PTTab({ state }) {
             style={{ textAlign: 'center', padding: '24px 16px' }}
           >
             <div style={{ fontSize: 32, marginBottom: 12 }}>🏋️</div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>Your personal trainer</p>
-            <p style={{ fontSize: 13, color: C.dim }}>Ask anything about your training, adjust your programme, or get coaching cues.</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+              {ar ? 'مدرّبك الشخصي' : 'Your personal trainer'}
+            </p>
+            <p style={{ fontSize: 13, color: C.dim }}>
+              {ar
+                ? 'اسأل أي شيء عن تدريبك، عدّل برنامجك، أو احصل على تعليمات الشكل.'
+                : 'Ask anything about your training, adjust your programme, or get coaching cues.'}
+            </p>
           </motion.div>
         )}
 
@@ -191,7 +206,7 @@ export default function PTTab({ state }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Ask your trainer..."
+          placeholder={ar ? 'اسأل مدرّبك...' : 'Ask your trainer...'}
           rows={1}
           style={{
             flex: 1,

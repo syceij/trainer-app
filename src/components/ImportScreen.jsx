@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronDown, ChevronUp, Copy, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Copy, CheckCircle, AlertCircle } from 'lucide-react';
 import TextArea from './shared/TextArea.jsx';
 import { C, spring, springSoft } from '../tokens.js';
 import { PROMPT_TEMPLATE, SAMPLE_PROGRAMME, validateImported, importedSessionToRuntime } from '../lib/importHelpers.js';
 
-export default function ImportScreen({ onImport, onBack }) {
+export default function ImportScreen({ onImport, onBack, lang = 'en' }) {
+  const ar = lang === 'ar';
   const [json, setJson] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -20,7 +21,15 @@ export default function ImportScreen({ onImport, onBack }) {
 
   const tryValidate = () => {
     let data;
-    try { data = JSON.parse(json); } catch { setErrors(['Invalid JSON — check for missing commas, brackets, or quotes']); setValid(null); return; }
+    try {
+      data = JSON.parse(json);
+    } catch {
+      setErrors([ar
+        ? 'JSON غير صالح — تحقق من الفواصل، الأقواس، أو علامات الاقتباس'
+        : 'Invalid JSON — check for missing commas, brackets, or quotes']);
+      setValid(null);
+      return;
+    }
     const errs = validateImported(data);
     if (errs.length) { setErrors(errs); setValid(null); }
     else { setErrors(null); setValid(data); }
@@ -37,6 +46,8 @@ export default function ImportScreen({ onImport, onBack }) {
     onImport(valid);
   };
 
+  const BackIcon = ar ? ChevronRight : ChevronLeft;
+
   return (
     <motion.div
       initial={{ x: 24, opacity: 0 }}
@@ -50,6 +61,7 @@ export default function ImportScreen({ onImport, onBack }) {
         paddingTop: 'max(env(safe-area-inset-top, 0px) + 16px, 24px)',
         paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 16px, 24px)',
         overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+        direction: ar ? 'rtl' : 'ltr',
       }}
     >
       {/* Header */}
@@ -64,15 +76,17 @@ export default function ImportScreen({ onImport, onBack }) {
             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <ChevronLeft size={18} />
+          <BackIcon size={18} />
         </button>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>
-          Paste your programme
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
+          {ar ? 'الصق برنامجك' : 'Paste your programme'}
         </h1>
       </div>
 
       <p style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 20 }}>
-        Use the Claude prompt below to convert your programme to JSON, then paste it here.
+        {ar
+          ? 'استخدم الطلب أدناه لتحويل برنامجك إلى JSON، ثم الصقه هنا.'
+          : 'Use the Claude prompt below to convert your programme to JSON, then paste it here.'}
       </p>
 
       {/* Collapsible prompt */}
@@ -86,7 +100,7 @@ export default function ImportScreen({ onImport, onBack }) {
             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <span>Show prompt template for Claude</span>
+          <span>{ar ? 'عرض قالب الطلب' : 'Show prompt template for Claude'}</span>
           {showPrompt ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
         <AnimatePresence>
@@ -102,7 +116,7 @@ export default function ImportScreen({ onImport, onBack }) {
                 <pre style={{
                   fontFamily: 'ui-monospace, monospace', fontSize: 11,
                   color: C.dim, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  lineHeight: 1.6, marginBottom: 12,
+                  lineHeight: 1.6, marginBottom: 12, direction: 'ltr', textAlign: 'left',
                 }}>
                   {PROMPT_TEMPLATE}
                 </pre>
@@ -116,7 +130,9 @@ export default function ImportScreen({ onImport, onBack }) {
                   }}
                 >
                   {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
-                  {copied ? 'Copied!' : 'Copy prompt'}
+                  {copied
+                    ? (ar ? 'تم النسخ!' : 'Copied!')
+                    : (ar ? 'نسخ الطلب' : 'Copy prompt')}
                 </button>
               </div>
             </motion.div>
@@ -130,7 +146,7 @@ export default function ImportScreen({ onImport, onBack }) {
         onChange={e => { setJson(e.target.value); setErrors(null); setValid(null); }}
         rows={10}
         placeholder={'{\n  "name": "My Programme",\n  "weeks": [...]\n}'}
-        style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, marginBottom: 12 }}
+        style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, marginBottom: 12, direction: 'ltr', textAlign: 'left' }}
       />
 
       <button
@@ -138,11 +154,11 @@ export default function ImportScreen({ onImport, onBack }) {
         style={{
           background: 'none', border: 'none', color: C.accent,
           fontSize: 13, fontWeight: 600, padding: '4px 0 12px',
-          cursor: 'pointer', textAlign: 'left',
+          cursor: 'pointer', textAlign: ar ? 'right' : 'left',
           touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
         }}
       >
-        Try with sample programme →
+        {ar ? '← جرّب مع برنامج نموذجي' : 'Try with sample programme →'}
       </button>
 
       {/* Error panel */}
@@ -156,9 +172,11 @@ export default function ImportScreen({ onImport, onBack }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <AlertCircle size={14} color="#FF6060" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#FF6060' }}>Validation errors</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#FF6060' }}>
+              {ar ? 'أخطاء التحقق' : 'Validation errors'}
+            </span>
           </div>
-          <ul style={{ paddingLeft: 16, margin: 0 }}>
+          <ul style={{ paddingLeft: ar ? 0 : 16, paddingRight: ar ? 16 : 0, margin: 0 }}>
             {errors.map((e, i) => (
               <li key={i} style={{ fontSize: 12, color: '#FF8080', marginBottom: 4 }}>{e}</li>
             ))}
@@ -177,12 +195,15 @@ export default function ImportScreen({ onImport, onBack }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <CheckCircle size={14} color={C.accent} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>Valid programme</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>
+              {ar ? 'برنامج صالح' : 'Valid programme'}
+            </span>
           </div>
           <p style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{valid.name}</p>
           <p style={{ fontSize: 12, color: C.dim }}>
-            {valid.weeks?.length || 1} week{valid.weeks?.length !== 1 ? 's' : ''} ·{' '}
-            {valid.weeks?.[0]?.sessions?.filter(s => !s.isRest).length || 0} sessions/week
+            {ar
+              ? `${valid.weeks?.length || 1} أسبوع · ${valid.weeks?.[0]?.sessions?.filter(s => !s.isRest).length || 0} جلسات/أسبوع`
+              : `${valid.weeks?.length || 1} week${valid.weeks?.length !== 1 ? 's' : ''} · ${valid.weeks?.[0]?.sessions?.filter(s => !s.isRest).length || 0} sessions/week`}
           </p>
         </motion.div>
       )}
@@ -197,7 +218,7 @@ export default function ImportScreen({ onImport, onBack }) {
             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
           }}
         >
-          Validate
+          {ar ? 'التحقق' : 'Validate'}
         </button>
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -214,7 +235,7 @@ export default function ImportScreen({ onImport, onBack }) {
             transition: 'background 0.2s, color 0.2s',
           }}
         >
-          Import &amp; start →
+          {ar ? '← استيراد والبدء' : 'Import & start →'}
         </motion.button>
       </div>
     </motion.div>
