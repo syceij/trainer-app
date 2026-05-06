@@ -246,13 +246,13 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
       onClick={!isMe ? onTap : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        padding: '9px 12px',
+        padding: '7px 12px',
         borderBottom: '1px solid #1c1c1c',
         background: isMe ? '#1a2a00' : 'transparent',
         borderLeft: isMe ? `2px solid ${LIME}` : '2px solid transparent',
         cursor: isMe ? 'default' : 'pointer',
         WebkitTapHighlightColor: 'transparent',
-        minHeight: 44,
+        minHeight: 38,
       }}
     >
       {/* Rank */}
@@ -275,21 +275,32 @@ function LeaderboardRow({ rank, user, isMe, onTap }) {
         {initial}
       </div>
 
-      {/* Name + @username + subtitle */}
+      {/* Name @username · subtitle */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 13, fontWeight: isMe ? 700 : 600,
-          color: isMe ? LIME : C.text,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          display: 'flex', alignItems: 'baseline', gap: 5,
+          whiteSpace: 'nowrap', overflow: 'hidden',
           lineHeight: 1.3,
         }}>
-          {user.name || user.username || 'Gym Bro'}{isMe ? ' (you)' : ''}
+          <span style={{
+            fontSize: 13, fontWeight: isMe ? 700 : 600,
+            color: isMe ? LIME : C.text,
+            flexShrink: 0, maxWidth: '55%',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {user.name || user.username || 'Gym Bro'}{isMe ? ' (you)' : ''}
+          </span>
+          {user.username && (
+            <span style={{
+              fontSize: 10, fontWeight: 500,
+              color: isMe ? LIME + '88' : '#444',
+              flexShrink: 1, minWidth: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              @{user.username}
+            </span>
+          )}
         </div>
-        {user.username && (
-          <div style={{ fontSize: 10, color: isMe ? LIME + '99' : '#484848', lineHeight: 1.2 }}>
-            @{user.username}
-          </div>
-        )}
         <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>
           {subtitle}
         </div>
