@@ -437,11 +437,13 @@ export async function loadFriends(userId) {
  * Formula: finalScore = round(consistencyScore × 0.7 + improvementScore × 0.3)
  *
  *   consistencyScore (0-100):
- *     sessions this calendar month / 20 (5 days/week × 4 weeks) × 100, cap 100
+ *     sets completed this month / sets programmed (from active programme) × 100, cap 100.
+ *     If no programme data → setsProgrammed = setsCompleted × 1.25 (or 20 if zero).
  *
  *   improvementScore (0-100):
- *     average of per-exercise improvement % (current_weight vs first_logged_weight),
- *     each exercise capped at 100 before averaging
+ *     average volume improvement % per exercise (volume = reps × weight per set row).
+ *     Compares earliest logged set vs most recent logged set for each exercise.
+ *     Each exercise contribution capped at 100 before averaging.
  *
  * This always queries live Supabase data for the calling user.
  * Scores for OTHER users are read from their cached profiles.leaderboard_data.
@@ -450,53 +452,102 @@ export async function calculateLeaderboardScore(userId) {
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   firstDayOfMonth.setHours(0, 0, 0, 0);
+  const dayOfMonth = now.getDate();
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const [{ data: sessions }, { data: weights }, { data: allSets }] = await Promise.all([
-    // Sessions this calendar month (use 'date' column which the app sets explicitly)
-    supabase.from('sessions')
+  // Parse reps field — handles range strings like "8-10" by taking the lower bound
+  const parseReps = (reps) => {
+    if (typeof reps === 'number') return reps;
+    const parts = String(reps || '8').split('-');
+    return parseInt(parts[0], 10) || 8;
+  };
+
+  const [
+    { data: completedSets },
+    { data: weights },
+    { data: programme },
+    { data: allSets },
+  ] = await Promise.all([
+    // Sets completed this calendar month
+    supabase.from('sets')
       .select('id')
       .eq('user_id', userId)
-      .gte('date', firstDayOfMonth.toISOString()),
+      .eq('completed', true)
+      .gte('created_at', firstDayOfMonth.toISOString()),
     // Current working weight per exercise
     supabase.from('working_weights')
       .select('exercise_name, weight')
       .eq('user_id', userId),
-    // All sets ordered oldest-first so first occurrence = first logged weight
+    // Active programme for programmed-sets calculation
+    supabase.from('programmes')
+      .select('data')
+      .eq('user_id', userId)
+      .eq('active', true)
+      .order('created_at', { ascending: false })
+      .limit(1),
+    // All sets oldest-first for volume improvement calculation
     supabase.from('sets')
-      .select('exercise_name, weight')
+      .select('exercise_name, reps, weight')
       .eq('user_id', userId)
       .order('created_at', { ascending: true }),
   ]);
 
   // ── Consistency ──────────────────────────────────────────────────────────────
-  const sessionsCompleted  = sessions?.length || 0;
-  const sessionsProgrammed = 20; // 5 days/week × 4 weeks
+  const setsCompleted = completedSets?.length || 0;
+
+  // Derive setsProgrammed from the active programme if available
+  let setsProgrammed;
+  const progData = programme?.[0]?.data;
+  if (progData) {
+    // Handle various programme data shapes
+    const days = progData.days || progData.sessions || progData.trainingDays || [];
+    let setsPerWeek = 0;
+    for (const day of days) {
+      const exercises = day.exercises || day.workout || day.lifts || [];
+      for (const ex of exercises) {
+        setsPerWeek += typeof ex.sets === 'number' ? ex.sets : 3;
+      }
+    }
+    const weeksElapsed = Math.max(Math.ceil(dayOfMonth / 7), 1);
+    setsProgrammed = setsPerWeek > 0
+      ? setsPerWeek * weeksElapsed
+      : (setsCompleted > 0 ? Math.round(setsCompleted * 1.25) : 20);
+  } else {
+    setsProgrammed = setsCompleted > 0 ? Math.round(setsCompleted * 1.25) : 20;
+  }
+
   const consistencyScore = Math.min(
-    (sessionsCompleted / sessionsProgrammed) * 100,
+    setsProgrammed > 0 ? (setsCompleted / setsProgrammed) * 100 : 0,
     100
   );
 
   // ── Improvement ──────────────────────────────────────────────────────────────
-  // Build a map of exercise_name (lowercase) → first logged weight
-  const firstWeightMap = {};
+  // Group all historical sets by exercise_name (lowercase) — already oldest-first
+  const setsByExercise = {};
   for (const row of (allSets || [])) {
     const key = (row.exercise_name || '').toLowerCase().trim();
-    if (key && !(key in firstWeightMap)) {
-      const w = parseFloat(row.weight);
-      if (w > 0) firstWeightMap[key] = w;
-    }
+    if (!key) continue;
+    if (!setsByExercise[key]) setsByExercise[key] = [];
+    setsByExercise[key].push(row);
   }
 
   let totalImprovement = 0;
   let exerciseCount = 0;
+
   for (const w of (weights || [])) {
     const key = (w.exercise_name || '').toLowerCase().trim();
-    const firstW = firstWeightMap[key];
-    if (firstW && firstW > 0) {
-      const currentW = parseFloat(w.weight) || 0;
-      const improvement = ((currentW - firstW) / firstW) * 100;
-      totalImprovement += Math.min(improvement, 100); // cap per-exercise at 100
+    const rows = setsByExercise[key];
+    if (!rows || rows.length < 2) continue; // need at least two data points
+
+    const firstRow   = rows[0];
+    const currentRow = rows[rows.length - 1];
+
+    const firstVolume   = parseReps(firstRow.reps)   * (parseFloat(firstRow.weight)   || 0);
+    const currentVolume = parseReps(currentRow.reps) * (parseFloat(currentRow.weight) || 0);
+
+    if (firstVolume > 0) {
+      const improvement = ((currentVolume - firstVolume) / firstVolume) * 100;
+      totalImprovement += Math.min(Math.max(improvement, 0), 100); // clamp 0-100
       exerciseCount++;
     }
   }
@@ -511,12 +562,12 @@ export async function calculateLeaderboardScore(userId) {
   );
 
   return {
-    score:               finalScore,
-    sessionsCompleted,
-    sessionsProgrammed,
-    improvementPct:      Math.round(improvementScore),
-    month:               monthKey,   // used by viewers to detect stale month data
-    updatedAt:           new Date().toISOString(),
+    score:          finalScore,
+    setsCompleted,
+    setsProgrammed,
+    improvementPct: Math.round(improvementScore),
+    month:          monthKey,   // used by viewers to detect stale month data
+    updatedAt:      new Date().toISOString(),
   };
 }
 

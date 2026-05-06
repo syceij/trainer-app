@@ -192,7 +192,7 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
         ) : friends.map((f, i) => {
           const ld = f.leaderboard_data || {};
           const improvement = ld.improvementPct ?? 0;
-          const sessions = ld.sessionsCompleted ?? 0;
+          const sets = ld.setsCompleted ?? 0;
           return (
             <motion.div
               key={f.id}
@@ -221,7 +221,7 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
                 </div>
                 {f.username && <div style={{ fontSize: 11, color: C.mute }}>@{f.username}</div>}
                 <div style={{ fontSize: 11, color: C.mute, marginTop: 1 }}>
-                  {sessions} sessions this month · +{improvement}% strength
+                  {sets} sets · +{improvement}% volume
                 </div>
               </div>
               <ChevronRight size={14} color="#333" />
@@ -238,7 +238,7 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack }) {
 function LeaderboardRow({ rank, user, isMe, onTap }) {
   const rankColor = isMe ? LIME : (RANK_COLORS[rank] || '#444');
   const initial = (user.name || user.username || '?')[0].toUpperCase();
-  const subtitle = `${user.sessionsCompleted ?? 0}/20 sessions · +${user.improvementPct ?? 0}%`;
+  const subtitle = `${user.setsCompleted ?? 0} sets · +${user.improvementPct ?? 0}% volume`;
 
   return (
     <motion.div
@@ -631,10 +631,10 @@ export default function GymBrosTab({ state }) {
         id: uid,
         name: state.profile?.name || 'You',
         username: state.username || null,
-        score:              myScore?.score             ?? 0,
-        sessionsCompleted:  myScore?.sessionsCompleted ?? 0,
-        sessionsProgrammed: myScore?.sessionsProgrammed ?? 20,
-        improvementPct:     myScore?.improvementPct    ?? 0,
+        score:          myScore?.score          ?? 0,
+        setsCompleted:  myScore?.setsCompleted  ?? 0,
+        setsProgrammed: myScore?.setsProgrammed ?? 20,
+        improvementPct: myScore?.improvementPct ?? 0,
         isMe: true,
       };
 
@@ -643,10 +643,10 @@ export default function GymBrosTab({ state }) {
         const isCurrent = ld?.month === currentMonth;
         return {
           id: f.id, name: f.name, username: f.username,
-          score:              isCurrent ? (ld?.score             ?? 0) : 0,
-          sessionsCompleted:  isCurrent ? (ld?.sessionsCompleted ?? 0) : 0,
-          sessionsProgrammed: ld?.sessionsProgrammed ?? 20,
-          improvementPct:     ld?.improvementPct     ?? 0,
+          score:          isCurrent ? (ld?.score          ?? 0) : 0,
+          setsCompleted:  isCurrent ? (ld?.setsCompleted  ?? 0) : 0,
+          setsProgrammed: ld?.setsProgrammed ?? 20,
+          improvementPct: ld?.improvementPct ?? 0,
           isMe: false,
         };
       });
