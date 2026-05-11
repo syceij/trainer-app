@@ -13,14 +13,9 @@ const RED   = '#E24B4A';
 
 function Logo() {
   return (
-    <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ ...spring, delay: 0.05 }}
-      style={{ marginBottom: 40, display: 'flex', justifyContent: 'center' }}
-    >
-      <img src="/login-logo.png" alt="HEX" style={{ height: 160, width: 'auto', objectFit: 'contain', display: 'block' }} />
-    </motion.div>
+    <div style={{ marginBottom: 40, display: 'flex', justifyContent: 'center' }}>
+      <img src="/login-logo.png" alt="HEX" style={{ height: 160, width: 'auto' }} />
+    </div>
   );
 }
 
