@@ -37,6 +37,7 @@ import {
   saveTrackedLifts,
   insertActivity, acceptInvite,
   updateLeaderboardScore,
+  saveCustomExercises,
 } from './lib/db.js';
 import { C, spring, springSoft } from './tokens.js';
 
@@ -182,6 +183,7 @@ export default function App() {
   const [username, setUsername]                   = useState(null); // null = not yet loaded
   const [privacySettings, setPrivacySettings]     = useState(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [customExercises, setCustomExercises]     = useState([]);
 
   // Refs so callbacks always see the latest values without stale closures
   const userRef        = useRef(user);
@@ -289,6 +291,10 @@ export default function App() {
         // Social fields
         setUsername(profileRow.username || null);
         if (profileRow.privacy_settings) setPrivacySettings(profileRow.privacy_settings);
+        // Custom exercises
+        if (Array.isArray(profileRow.custom_exercises)) {
+          setCustomExercises(profileRow.custom_exercises);
+        }
 
         // One-time email backfill: populate profiles.email for users who signed up
         // before the email column was added (they can then log in by username).
@@ -613,6 +619,20 @@ export default function App() {
       } catch (err) { handleDbError('updateTrackedLifts', err); }
     }
   }, [handleDbError]);
+
+  // ── Custom exercises ──────────────────────────────────────────────────────
+  const addCustomExercise = useCallback(async (exercise) => {
+    setCustomExercises(prev => {
+      const updated = [...prev, exercise];
+      const uid = userRef.current?.id;
+      if (uid) {
+        saveCustomExercises(uid, updated).catch(err =>
+          console.warn('[App] saveCustomExercises failed (non-fatal):', err)
+        );
+      }
+      return updated;
+    });
+  }, []);
 
   // ── Programme field editors (AUTO) ────────────────────────────────────────
   const updateAutoExerciseField = useCallback((sessionIdx, exIdx, field, value) => {
@@ -946,6 +966,7 @@ export default function App() {
     username, setUsername,
     privacySettings, setPrivacySettings,
     showUsernameModal, setShowUsernameModal,
+    customExercises, addCustomExercise,
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────

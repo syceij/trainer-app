@@ -79,7 +79,7 @@ function EditableField({
 }
 
 // ─── ExerciseEditor ────────────────────────────────────────────────────────────
-function ExerciseEditor({ ex, exIdx, onSave, onSwap, editedKeys, editKeyPrefix, lang, t }) {
+function ExerciseEditor({ ex, exIdx, onSave, onSwap, editedKeys, editKeyPrefix, lang, t, customExercises, onAddCustom }) {
   const [pickerOpen,      setPickerOpen]      = useState(false);
   const [customTimerOpen, setCustomTimerOpen] = useState(false);
   const [customTimerVal,  setCustomTimerVal]  = useState('');
@@ -131,6 +131,8 @@ function ExerciseEditor({ ex, exIdx, onSave, onSwap, editedKeys, editKeyPrefix, 
         onSelect={newEx => { if (onSwap) onSwap(newEx); }}
         lang={lang}
         t={t}
+        customExercises={customExercises || []}
+        onAddCustom={onAddCustom || null}
       />
 
       {/* Sets × Reps · RPE · Weight */}
@@ -260,7 +262,7 @@ function ExerciseEditor({ ex, exIdx, onSave, onSwap, editedKeys, editKeyPrefix, 
 }
 
 // ─── SessionCard ───────────────────────────────────────────────────────────────
-function SessionCard({ session, isToday, editKeyPrefix, editedKeys, onSaveSession, onSaveExercise, lang, t }) {
+function SessionCard({ session, isToday, editKeyPrefix, editedKeys, onSaveSession, onSaveExercise, lang, t, customExercises, onAddCustom }) {
   const [expanded, setExpanded] = useState(isToday);
 
   return (
@@ -354,13 +356,16 @@ function SessionCard({ session, isToday, editKeyPrefix, editedKeys, onSaveSessio
                     save('key',  newEx.key);
                     save('muscle', newEx.muscle);
                     save('bodyweight', !!newEx.bodyweight);
-                    save('tag', newEx.isMain ? 'compound' : 'accessory');
+                    save('tag', newEx.isMain ? 'compound' : (newEx.isCustom ? 'accessory' : 'accessory'));
                     if (!newEx.bodyweight) save('weight', ex.weight ?? 20);
                     const prev = ex.notes ? `${ex.notes} · ` : '';
                     save('notes', `${prev}Swapped from ${ex.name}`);
+                    if (newEx.isCustom) save('isCustom', true);
                   } : undefined}
                   lang={lang}
                   t={t}
+                  customExercises={customExercises}
+                  onAddCustom={onAddCustom}
                 />
               ))}
             </div>
@@ -382,6 +387,8 @@ export default function ProgrammePage({ state, onBack }) {
     updateAutoExerciseField, updateAutoSessionField,
     updateImportedExerciseField, updateImportedSessionField,
     lang, t,
+    customExercises = [],
+    addCustomExercise,
   } = state;
 
   const [importedTab, setImportedTab] = useState(currentWeek);
@@ -461,6 +468,8 @@ function AutoContent({ state }) {
     programme, currentSession, editedKeys,
     updateAutoExerciseField, updateAutoSessionField,
     lang, t,
+    customExercises = [],
+    addCustomExercise,
   } = state;
 
   const DAY_LETTERS = ['M','T','W','T','F','S','S'];
@@ -507,6 +516,8 @@ function AutoContent({ state }) {
           onSaveSession={(field, value) => updateAutoSessionField(sessionIdx, field, value)}
           onSaveExercise={(exIdx, field, value) => updateAutoExerciseField(sessionIdx, exIdx, field, value)}
           lang={lang} t={t}
+          customExercises={customExercises}
+          onAddCustom={addCustomExercise}
         />
       ))}
 
@@ -523,6 +534,8 @@ function ImportedContent({ state, importedTab, setImportedTab }) {
     importedProgramme, currentWeek, currentSession,
     editedKeys, updateImportedExerciseField, updateImportedSessionField,
     lang, t,
+    customExercises = [],
+    addCustomExercise,
   } = state;
 
   const weeks      = importedProgramme?.weeks || [];
@@ -637,6 +650,8 @@ function ImportedContent({ state, importedTab, setImportedTab }) {
               onSaveSession={(field, value) => updateImportedSessionField(weekNum, day, field, value)}
               onSaveExercise={(exIdx, field, value) => updateImportedExerciseField(weekNum, day, exIdx, field, value)}
               lang={lang} t={t}
+              customExercises={customExercises}
+              onAddCustom={addCustomExercise}
             />
           );
         })}

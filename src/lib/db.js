@@ -763,3 +763,19 @@ export async function loadFriendWeights(friendId) {
   if (error) { fail('loadFriendWeights', error); return {}; }
   return Object.fromEntries((data || []).map(r => [r.exercise_name, r.weight]));
 }
+
+// ── Custom exercises ──────────────────────────────────────────────────────────
+
+/**
+ * Persist user's custom exercises to profiles.custom_exercises (jsonb array).
+ * Each item: { name, key, muscle, category, isCustom, equipment, createdAt }
+ */
+export async function saveCustomExercises(userId, exercises) {
+  tag('saveCustomExercises', '▶', `user=${userId} count=${exercises.length}`);
+  const { error } = await supabase
+    .from('profiles')
+    .update({ custom_exercises: exercises })
+    .eq('id', userId);
+  if (error) { fail('saveCustomExercises', error); throw error; }
+  ok('saveCustomExercises', 'saved');
+}

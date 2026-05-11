@@ -267,7 +267,14 @@ export default function TodayTab({ state }) {
               {/* ── Card header: name + weight button ── */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ flex: 1, marginRight: lang === 'ar' ? 0 : 8, marginLeft: lang === 'ar' ? 8 : 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 3 }}>{ex.name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {ex.name}
+                    {ex.isCustom && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, background: 'rgba(184,255,0,0.12)', border: '1px solid rgba(184,255,0,0.3)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                        ✦
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: C.dim }}>
                     {ex.sets} × {ex.reps}{ex.rpe ? ` · ${t('RPE')} ${ex.rpe}` : ''}
                     {ex.tag && (

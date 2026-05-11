@@ -334,6 +334,8 @@ export default function ProgressTab({ state }) {
     lang, t,
     trackedLifts, updateTrackedLifts,
     user,
+    customExercises = [],
+    addCustomExercise,
   } = state;
 
   const [expandedSession, setExpandedSession] = useState(null);
@@ -702,6 +704,8 @@ export default function ProgressTab({ state }) {
         onSelect={handleExercisePick}
         lang={lang}
         t={t}
+        customExercises={customExercises}
+        onAddCustom={addCustomExercise}
       />
 
       {/* ── Exercise progress page (full-screen slide-over) ─────────────── */}

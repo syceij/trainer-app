@@ -100,6 +100,14 @@ const AR = {
   'SWAP EXERCISE': 'تبـديل التمـرين',
   'Search exercises…': 'ابحـث عن تمـرين…',
   'No exercises match': 'لا توجد تمارين تطابق',
+  'My Exercises': 'تمارين مخصصة',
+  'Add custom exercise': 'إضافة تمرين مخصص',
+  'NEW CUSTOM EXERCISE': 'تمرين مخصص جديد',
+  'Exercise name…': 'اسم التمرين…',
+  'MUSCLE CATEGORY *': '* فئة العضلة',
+  'Create & Select →': '← إنشاء واختيار',
+  'Creating…': 'جارٍ الإنشاء…',
+  'Pick a muscle category to track progress': 'اختر فئة العضلة لتتبع التقدم',
 
   // Welcome screen
   'Sign out': 'تسجيل الخروج',
