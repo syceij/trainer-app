@@ -19,7 +19,17 @@ function Logo() {
       transition={{ ...spring, delay: 0.05 }}
       style={{ marginBottom: 40, display: 'flex', justifyContent: 'center' }}
     >
-      <img src="/login-logo.png" alt="HEX" style={{ height: 100, width: 'auto', objectFit: 'contain', display: 'block' }} />
+      <img
+        src="/login-logo.png"
+        alt="HEX"
+        style={{
+          height: 160,
+          width: 'auto',
+          objectFit: 'contain',
+          display: 'block',
+          filter: 'brightness(0) saturate(100%) invert(87%) sepia(72%) saturate(500%) hue-rotate(46deg) brightness(108%)',
+        }}
+      />
     </motion.div>
   );
 }
