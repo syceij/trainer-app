@@ -642,7 +642,7 @@ export default function AuthScreen({ onAuth, lang = 'en' }) {
 
   return (
     <div style={{
-      width: '100%', height: '100%', background: C.bg,
+      width: '100%', height: '100%', background: `radial-gradient(ellipse 60% 45% at top left, rgba(200,255,0,0.10) 0%, transparent 100%), ${C.bg}`,
       display: 'flex', flexDirection: 'column', justifyContent: 'center',
       padding: '0 28px',
       paddingTop: 'max(env(safe-area-inset-top, 0px) + 20px, 40px)',
