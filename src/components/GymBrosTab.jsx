@@ -381,7 +381,7 @@ function ActivityItem({ item, currentUserId, onProfileTap, ar }) {
         fontSize: 12, fontWeight: 800, color: isMe ? LIME : C.dim,
         flexShrink: 0, marginTop: 1,
       }}>
-        {(isMe ? 'You' : name)[0].toUpperCase()}
+        {displayName.replace(/^@/, '')[0]?.toUpperCase() ?? '?'}
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, color: C.text, lineHeight: 1.4 }}>
