@@ -17,9 +17,9 @@ function Logo() {
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ ...spring, delay: 0.05 }}
-      style={{ marginBottom: 40 }}
+      style={{ marginBottom: 40, display: 'flex', justifyContent: 'center' }}
     >
-      <img src="/loading%20logo.png" alt="HEX" style={{ height: 70, width: 'auto', objectFit: 'contain', display: 'block' }} />
+      <img src="/loading%20logo.png" alt="HEX" style={{ height: 100, width: 'auto', objectFit: 'contain', display: 'block' }} />
     </motion.div>
   );
 }
