@@ -153,7 +153,7 @@ function SectionLabel({ children }) {
 
 // ── Exercise inline form ───────────────────────────────────────────────────────
 
-function ExerciseFormRow({ exerciseName, initialSets = 3, initialReps = '8-10', initialWeight = '', initialRpe = '', onSave, onCancel, saveLabel = 'Add to session' }) {
+function ExerciseFormRow({ exerciseName, initialSets = 3, initialReps = '8-10', initialWeight = '', initialRpe = '', onSave, onCancel, saveLabel = 'Add to session', cancelLabel = 'Cancel' }) {
   const [sets,   setSets]   = useState(String(initialSets || 3));
   const [reps,   setReps]   = useState(String(initialReps || '8-10'));
   const [weight, setWeight] = useState(initialWeight != null ? String(initialWeight) : '');
@@ -208,7 +208,7 @@ function ExerciseFormRow({ exerciseName, initialSets = 3, initialReps = '8-10', 
             color: C.dim, cursor: 'pointer',
           }}
         >
-          Cancel
+          {cancelLabel}
         </button>
         <button
           onClick={() => {
@@ -523,7 +523,8 @@ function Step4({ selectedDays, sessionNames, sessionExercises, setSessionExercis
                         initialReps={ex.reps}
                         initialWeight={ex.weight}
                         initialRpe={ex.rpe}
-                        saveLabel="Save changes"
+                        saveLabel={t('Save changes')}
+                        cancelLabel={t('Cancel')}
                         onSave={(params) => handleSaveEdit(dayKey, idx, params)}
                         onCancel={() => setEditingExercise(null)}
                       />
@@ -538,6 +539,8 @@ function Step4({ selectedDays, sessionNames, sessionExercises, setSessionExercis
               <div style={{ borderTop: exercises.length > 0 ? `1px solid ${C.border}` : 'none', padding: '4px 12px 12px' }}>
                 <ExerciseFormRow
                   exerciseName={pendingPick.exercise.name}
+                  saveLabel={t('Add to session')}
+                  cancelLabel={t('Cancel')}
                   onSave={handleSaveAdd}
                   onCancel={() => setPendingPick(null)}
                 />
@@ -559,7 +562,7 @@ function Step4({ selectedDays, sessionNames, sessionExercises, setSessionExercis
                 }}
               >
                 <Plus size={15} color={C.accent} strokeWidth={2.5} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.accent }}>Add exercise</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.accent }}>{t('Add exercise')}</span>
               </motion.button>
             )}
           </div>
@@ -988,7 +991,7 @@ export default function ManualProgrammeBuilder({ onComplete, onBack, lang = 'en'
                 border: `2.5px solid ${C.mute}`, borderTopColor: C.bg,
               }}
             />
-          ) : isLast ? 'Save programme' : 'Continue →'}
+          ) : isLast ? t('Save programme') : t('Continue →')}
         </motion.button>
       </div>
     </div>

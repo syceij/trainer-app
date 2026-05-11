@@ -990,7 +990,10 @@ export default function App() {
 
       {/* Auth screens */}
       {authState === 'unauthenticated' && !netError && (
-        <AuthScreen lang={lang} onAuth={() => {
+        <AuthScreen
+          lang={lang}
+          onLangChange={() => setLang(l => l === 'ar' ? 'en' : 'ar')}
+          onAuth={() => {
           supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
               setUser(session.user);

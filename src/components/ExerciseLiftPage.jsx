@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { loadSetsForExercise } from '../lib/db.js';
 import { C, springSoft } from '../tokens.js';
+import { getT } from '../lib/i18n.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,9 @@ function Stat({ label, value, accent }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ExerciseLiftPage({ exercise, userId, onBack }) {
+export default function ExerciseLiftPage({ exercise, userId, onBack, lang = 'en' }) {
+  const t = getT(lang);
+  const ar = lang === 'ar';
   const [rows,    setRows]    = useState(null); // null = loading
   const [error,   setError]   = useState(false);
 
@@ -278,8 +281,10 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
             </div>
             <div style={{ fontSize: 12, color: C.dim, marginTop: 1 }}>
               {rows === null
-                ? 'Loading…'
-                : `${uniqueSessions} session${uniqueSessions !== 1 ? 's' : ''} logged`}
+                ? t('Loading…')
+                : ar
+                  ? `${uniqueSessions} ${t('Sessions').toLowerCase()} مسجلة`
+                  : `${uniqueSessions} session${uniqueSessions !== 1 ? 's' : ''} logged`}
             </div>
           </div>
         </div>
@@ -308,7 +313,7 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
         {/* Error */}
         {error && (
           <p style={{ fontSize: 13, color: C.dim, textAlign: 'center', paddingTop: 60 }}>
-            Failed to load data. Please try again.
+            {t('Failed to load data. Please try again.')}
           </p>
         )}
 
@@ -317,10 +322,12 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
           <div style={{ textAlign: 'center', paddingTop: 60 }}>
             <div style={{ fontSize: 32, marginBottom: 16 }}>📊</div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-              No sessions logged yet
+              {t('No sessions logged yet')}
             </p>
             <p style={{ fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
-              Complete a session with {exercise?.name} to start tracking progress.
+              {ar
+                ? `أكمل جلسة مع ${exercise?.name} للبدء في تتبع التقدم.`
+                : `Complete a session with ${exercise?.name} to start tracking progress.`}
             </p>
           </div>
         )}
@@ -330,16 +337,16 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
           <>
             {/* Summary stats */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-              <Stat label="START" value={firstWeight !== null ? `${firstWeight} kg` : '—'} />
-              <Stat label="CURRENT" value={lastWeight !== null ? `${lastWeight} kg` : '—'} accent />
+              <Stat label={t('START')} value={firstWeight !== null ? `${firstWeight} kg` : '—'} />
+              <Stat label={t('CURRENT')} value={lastWeight !== null ? `${lastWeight} kg` : '—'} accent />
               <Stat
-                label="INCREASE"
+                label={t('INCREASE')}
                 value={increase !== null
                   ? `${increase >= 0 ? '+' : ''}${increase} kg`
                   : '—'}
                 accent={increase > 0}
               />
-              <Stat label="SESSIONS" value={uniqueSessions} />
+              <Stat label={t('SESSIONS')} value={uniqueSessions} />
             </div>
 
             {/* Percentage badge if improved */}
@@ -351,7 +358,9 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
               }}>
                 <span style={{ fontSize: 18 }}>📈</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>
-                  +{increasePct}% stronger since you started
+                  {ar
+                    ? `أقوى بنسبة +${increasePct}% منذ بدايتك`
+                    : `+${increasePct}% stronger since you started`}
                 </span>
               </div>
             )}
@@ -365,16 +374,16 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
               overflow: 'hidden',  // clip any SVG overflow within the card
               width: '100%', boxSizing: 'border-box',
             }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: '0.06em', marginBottom: 12 }}>
-                WEIGHT OVER TIME (kg)
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: ar ? '0' : '0.06em', marginBottom: 12 }}>
+                {t('WEIGHT OVER TIME (kg)')}
               </div>
               <LineChart data={chartData} />
             </div>
 
             {/* Data table */}
             <div style={{ width: '100%', boxSizing: 'border-box' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: '0.06em', marginBottom: 12 }}>
-                SESSION LOG
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: ar ? '0' : '0.06em', marginBottom: 12 }}>
+                {t('SESSION LOG')}
               </div>
 
               {/* Table header */}
@@ -383,8 +392,8 @@ export default function ExerciseLiftPage({ exercise, userId, onBack }) {
                 padding: '6px 14px', gap: 4,
                 width: '100%', boxSizing: 'border-box',
               }}>
-                {['Date', 'Sets × Reps', 'Weight', 'RPE'].map(h => (
-                  <div key={h} style={{ fontSize: 10, fontWeight: 700, color: C.mute, letterSpacing: '0.04em' }}>
+                {[t('Date'), t('Sets × Reps'), t('Weight'), t('RPE')].map(h => (
+                  <div key={h} style={{ fontSize: 10, fontWeight: 700, color: C.mute, letterSpacing: ar ? '0' : '0.04em' }}>
                     {h.toUpperCase()}
                   </div>
                 ))}

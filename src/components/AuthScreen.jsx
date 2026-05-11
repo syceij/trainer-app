@@ -626,7 +626,7 @@ function OtpView({ email, name, username, onSuccess, onBack, ar }) {
 }
 
 // ── Root export ───────────────────────────────────────────────────────────────
-export default function AuthScreen({ onAuth, lang = 'en' }) {
+export default function AuthScreen({ onAuth, lang = 'en', onLangChange = null }) {
   const ar = lang === 'ar';
   const [view,        setView]        = useState('login'); // 'login' | 'signup' | 'otp'
   const [otpEmail,    setOtpEmail]    = useState('');
@@ -649,7 +649,31 @@ export default function AuthScreen({ onAuth, lang = 'en' }) {
       paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 20px, 40px)',
       overflowY: 'auto', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box',
       direction: ar ? 'rtl' : 'ltr',
+      position: 'relative',
     }}>
+      {/* Language toggle — always top-right regardless of RTL */}
+      {onLangChange && (
+        <button
+          onClick={onLangChange}
+          style={{
+            position: 'absolute',
+            top: 'max(env(safe-area-inset-top, 0px) + 12px, 20px)',
+            right: 20,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 20,
+            padding: '5px 12px',
+            fontSize: 12, fontWeight: 700,
+            color: C.dim,
+            cursor: 'pointer',
+            letterSpacing: '0.06em',
+            WebkitTapHighlightColor: 'transparent',
+            zIndex: 10,
+          }}
+        >
+          {ar ? 'EN' : 'AR'}
+        </button>
+      )}
       <AnimatePresence mode="wait">
         {view === 'login' && (
           <LoginView key="login" onSwitch={() => setView('signup')} onSuccess={onAuth} ar={ar} />

@@ -938,10 +938,11 @@ export default function GymBrosTab({ state }) {
             key={profileFor.id}
             friendId={profileFor.id}
             currentUserId={uid}
+            lang={lang}
             onBack={() => setProfileFor(null)}
             onRemoved={() => {
               setFriends(f => f.filter(fr => fr.id !== profileFor.id));
-              showToast?.('Bro removed');
+              showToast?.(ar ? 'تمت إزالة الصديق' : 'Bro removed');
             }}
           />
         )}

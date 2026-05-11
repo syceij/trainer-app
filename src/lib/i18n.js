@@ -226,6 +226,61 @@ const AR = {
   'Appear on leaderboard': 'الظهور في قائمة المتصدرين',
   'Show your session count in the Bros leaderboard': 'أظهر نقاطك في قائمة متصدري الأصدقاء',
 
+  // BottomNav
+  'Bros': 'أصدقاء',
+
+  // ProgressTab
+  'Tap to add a lift to track': 'اضغط لإضافة رفعة للتتبع',
+  'TRACKED LIFT': 'الرفعة المتتبعة',
+  'Change exercise': 'تغيير التمرين',
+  'View progress': 'عرض التقدم',
+  'MUSCLE PROGRESS': 'تقدم العضلات',
+  'Keep training': 'استمر في التدريب',
+  'Improvements appear after more sessions': 'سيظهر التحسن بعد المزيد من الجلسات',
+  'NEEDS WORK': 'يحتاج تحسيناً',
+  'No gains yet': 'لا مكاسب بعد',
+  'Log your first session to see muscle progress': 'سجّل أول جلسة لرؤية تقدم العضلات',
+
+  // ExerciseLiftPage
+  'Loading…': 'جارٍ التحميل…',
+  'Failed to load data. Please try again.': 'فشل تحميل البيانات. يرجى المحاولة مجدداً.',
+  'No sessions logged yet': 'لا جلسات مسجلة بعد',
+  'START': 'البداية',
+  'CURRENT': 'الحالي',
+  'INCREASE': 'الزيادة',
+  'SESSIONS': 'الجلسات',
+  'WEIGHT OVER TIME (kg)': 'الوزن عبر الوقت (كجم)',
+  'SESSION LOG': 'سجل الجلسات',
+  'Date': 'التاريخ',
+  'Sets × Reps': 'مج × تكرار',
+
+  // MusclePage
+  'OVERALL': 'الإجمالي',
+  'TOTAL VOLUME': 'الحجم الكلي',
+  'EXERCISES': 'التمارين',
+  'STRONGEST MOVER': 'أقوى تحسّن',
+  'ALL EXERCISES': 'جميع التمارين',
+  'Complete a session to start tracking.': 'أكمل جلسة للبدء في التتبع.',
+
+  // FriendProfilePage
+  'Top muscle': 'أفضل عضلة',
+  'Lifts tracked': 'رفعات متتبعة',
+  'RECENT SESSIONS': 'الجلسات الأخيرة',
+  'WORKING WEIGHTS': 'أوزان العمل',
+  'No data yet': 'لا بيانات بعد',
+  'Remove': 'إزالة',
+  'Confirm?': 'تأكيد؟',
+  'Removing…': 'جارٍ الإزالة…',
+  'Bro removed': 'تمت إزالة الصديق',
+
+  // ManualProgrammeBuilder
+  'Add exercise': 'إضافة تمرين',
+  'Add to session': 'إضافة للجلسة',
+  'Save changes': 'حفظ التعديلات',
+  'Cancel': 'إلغاء',
+  'Continue →': 'متابعة →',
+  'Save programme': 'حفظ البرنامج',
+
   // Exercise categories
   'Chest': 'صـدر',
   'Front Shoulders': 'أكتـاف أمـامية',

@@ -42,7 +42,8 @@ function MuscleBar({ label, pct, isTop }) {
 }
 
 // ── FriendProfilePage ──────────────────────────────────────────────────────────
-export default function FriendProfilePage({ friendId, currentUserId, onBack, onRemoved }) {
+export default function FriendProfilePage({ friendId, currentUserId, onBack, onRemoved, lang = 'en' }) {
+  const ar = lang === 'ar';
   const [profile,  setProfile]  = useState(null);
   const [sessions, setSessions] = useState([]);
   const [weights,  setWeights]  = useState({});
@@ -160,7 +161,7 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
         </motion.button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>
-            {loading ? 'Loading…' : (profile?.username || profile?.name || 'Bro')}
+            {loading ? (ar ? 'جارٍ التحميل…' : 'Loading…') : (profile?.username || profile?.name || (ar ? 'صديق' : 'Bro'))}
           </div>
           {profile?.username && (
             <div style={{ fontSize: 11, color: C.mute }}>@{profile.username}</div>
@@ -181,7 +182,9 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
             }}
           >
             <UserMinus size={13} />
-            {confirm ? (removing ? 'Removing…' : 'Confirm?') : 'Remove'}
+            {confirm
+              ? (removing ? (ar ? 'جارٍ الإزالة…' : 'Removing…') : (ar ? 'تأكيد؟' : 'Confirm?'))
+              : (ar ? 'إزالة' : 'Remove')}
           </motion.button>
         )}
       </div>
@@ -195,7 +198,7 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: C.mute, fontSize: 14 }}>
-            Loading profile…
+            {ar ? 'جارٍ تحميل الملف الشخصي…' : 'Loading profile…'}
           </div>
         ) : (
           <>
@@ -221,17 +224,17 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
             {/* Stats */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
               <StatCard
-                label="Sessions"
+                label={ar ? 'جلسات' : 'Sessions'}
                 value={sessions.length}
-                sub={sessions.length > 0 ? 'logged' : null}
+                sub={sessions.length > 0 ? (ar ? 'مسجلة' : 'logged') : null}
               />
               <StatCard
-                label="Top muscle"
+                label={ar ? 'أفضل عضلة' : 'Top muscle'}
                 value={topMuscle ? topMuscle.label : '—'}
                 sub={topMuscle ? `+${topMuscle.pct}%` : null}
               />
               <StatCard
-                label="Lifts tracked"
+                label={ar ? 'رفعات متتبعة' : 'Lifts tracked'}
                 value={Object.keys(weights).length}
               />
             </div>
@@ -242,8 +245,8 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
                 background: C.surface2, borderRadius: 14,
                 border: `1px solid ${C.border}`, padding: '14px 16px', marginBottom: 16,
               }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: '0.06em', marginBottom: 12 }}>
-                  MUSCLE PROGRESS
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: ar ? '0' : '0.06em', marginBottom: 12 }}>
+                  {ar ? 'تقدم العضلات' : 'MUSCLE PROGRESS'}
                 </div>
                 {muscleImprovements.map((mg, i) => (
                   <MuscleBar key={mg.id} label={mg.label} pct={mg.pct} isTop={i === 0} />
@@ -259,9 +262,9 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
               }}>
                 <div style={{
                   padding: '12px 16px 8px',
-                  fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: '0.06em',
+                  fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: ar ? '0' : '0.06em',
                 }}>
-                  RECENT SESSIONS
+                  {ar ? 'الجلسات الأخيرة' : 'RECENT SESSIONS'}
                 </div>
                 {sessions.slice(0, 5).map((s, i) => {
                   const date = new Date(s.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
@@ -290,7 +293,7 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
                           {s.name || 'Session'}
                         </div>
                         <div style={{ fontSize: 11, color: C.mute }}>
-                          {exCount} exercise{exCount !== 1 ? 's' : ''}
+                          {ar ? `${exCount} تمرين` : `${exCount} exercise${exCount !== 1 ? 's' : ''}`}
                         </div>
                       </div>
                       <div style={{ fontSize: 12, color: C.mute, flexShrink: 0 }}>{date}</div>
@@ -308,9 +311,9 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
               }}>
                 <div style={{
                   padding: '12px 16px 8px',
-                  fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: '0.06em',
+                  fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: ar ? '0' : '0.06em',
                 }}>
-                  WORKING WEIGHTS
+                  {ar ? 'أوزان العمل' : 'WORKING WEIGHTS'}
                 </div>
                 {Object.entries(weights).slice(0, 8).map(([name, w], i, arr) => (
                   <div
@@ -344,8 +347,8 @@ export default function FriendProfilePage({ friendId, currentUserId, onBack, onR
              (!canSeeProgress || !muscleImprovements.length) && (
               <div style={{ textAlign: 'center', padding: '32px 0', color: C.mute, fontSize: 14 }}>
                 {(!canSeeSessions && !canSeeWeights && !canSeeProgress)
-                  ? 'This Bro keeps their stats private 🔒'
-                  : 'No data yet'}
+                  ? (ar ? 'هذا الصديق يبقي إحصاءاته خاصة 🔒' : 'This Bro keeps their stats private 🔒')
+                  : (ar ? 'لا بيانات بعد' : 'No data yet')}
               </div>
             )}
           </>

@@ -17,6 +17,7 @@ import { ChevronLeft }               from 'lucide-react';
 import { loadAllUserSets }           from '../lib/db.js';
 import { getMuscleGroup, resolveMuscleFromName } from '../lib/muscleUtils.js';
 import { C, springSoft }             from '../tokens.js';
+import { getT }                      from '../lib/i18n.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -192,7 +193,9 @@ function TrendChart({ data }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function MusclePage({ muscleId, userId, onBack }) {
+export default function MusclePage({ muscleId, userId, onBack, lang = 'en' }) {
+  const t = getT(lang);
+  const ar = lang === 'ar';
   const [allSets, setAllSets] = useState(null); // null = loading
   const [error,   setError]   = useState(false);
 
@@ -345,8 +348,10 @@ export default function MusclePage({ muscleId, userId, onBack }) {
             </div>
             <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>
               {allSets === null
-                ? 'Loading…'
-                : `${uniqueSessions} session${uniqueSessions !== 1 ? 's' : ''} · ${exerciseStats.length} exercise${exerciseStats.length !== 1 ? 's' : ''} tracked`}
+                ? t('Loading…')
+                : ar
+                  ? `${uniqueSessions} جلسة · ${exerciseStats.length} تمرين متتبع`
+                  : `${uniqueSessions} session${uniqueSessions !== 1 ? 's' : ''} · ${exerciseStats.length} exercise${exerciseStats.length !== 1 ? 's' : ''} tracked`}
             </div>
           </div>
         </div>
@@ -378,7 +383,7 @@ export default function MusclePage({ muscleId, userId, onBack }) {
         {/* Error */}
         {error && (
           <p style={{ fontSize: 13, color: C.dim, textAlign: 'center', paddingTop: 60 }}>
-            Failed to load data. Please try again.
+            {t('Failed to load data. Please try again.')}
           </p>
         )}
 
@@ -387,10 +392,12 @@ export default function MusclePage({ muscleId, userId, onBack }) {
           <div style={{ textAlign: 'center', paddingTop: 60 }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>💪</div>
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-              No sessions logged for {mg?.label} yet
+              {ar
+                ? `لا جلسات مسجلة لـ${mg?.label} بعد`
+                : `No sessions logged for ${mg?.label} yet`}
             </p>
             <p style={{ fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-              Complete a session to start tracking.
+              {t('Complete a session to start tracking.')}
             </p>
           </div>
         )}
@@ -401,16 +408,16 @@ export default function MusclePage({ muscleId, userId, onBack }) {
             {/* ── Summary 3-card row ───────────────────────────────────── */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
               <StatCard
-                label="OVERALL"
+                label={t('OVERALL')}
                 value={overallPct > 0 ? `+${overallPct}%` : '0%'}
                 accent={overallPct > 0}
               />
               <StatCard
-                label="TOTAL VOLUME"
+                label={t('TOTAL VOLUME')}
                 value={`${fmtVolume(totalVolume)} kg`}
               />
               <StatCard
-                label="EXERCISES"
+                label={t('EXERCISES')}
                 value={exerciseStats.length}
               />
             </div>
@@ -420,9 +427,9 @@ export default function MusclePage({ muscleId, userId, onBack }) {
               <div style={{ marginBottom: 24 }}>
                 <div style={{
                   fontSize: 11, fontWeight: 700, color: C.dim,
-                  letterSpacing: '0.08em', marginBottom: 10,
+                  letterSpacing: ar ? '0' : '0.08em', marginBottom: 10,
                 }}>
-                  STRONGEST MOVER
+                  {t('STRONGEST MOVER')}
                 </div>
                 <div style={{
                   background: C.surface2, border: `1px solid ${C.border}`,
@@ -440,9 +447,9 @@ export default function MusclePage({ muscleId, userId, onBack }) {
                       }}>
                         <span style={{
                           fontSize: 9, fontWeight: 800,
-                          color: '#000', letterSpacing: '0.04em',
+                          color: '#000', letterSpacing: ar ? '0' : '0.04em',
                         }}>
-                          MOST IMPROVED
+                          {t('MOST IMPROVED')}
                         </span>
                       </div>
                       <div style={{
@@ -475,9 +482,9 @@ export default function MusclePage({ muscleId, userId, onBack }) {
             <div style={{ marginBottom: 24 }}>
               <div style={{
                 fontSize: 11, fontWeight: 700, color: C.dim,
-                letterSpacing: '0.08em', marginBottom: 10,
+                letterSpacing: ar ? '0' : '0.08em', marginBottom: 10,
               }}>
-                ALL EXERCISES
+                {t('ALL EXERCISES')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {exerciseStats.map(ex => {
@@ -543,9 +550,9 @@ export default function MusclePage({ muscleId, userId, onBack }) {
               <div style={{ marginBottom: 24 }}>
                 <div style={{
                   fontSize: 11, fontWeight: 700, color: C.dim,
-                  letterSpacing: '0.08em', marginBottom: 10,
+                  letterSpacing: ar ? '0' : '0.08em', marginBottom: 10,
                 }}>
-                  {mg?.label.toUpperCase()} TREND
+                  {ar ? `اتجاه ${mg?.label}` : `${mg?.label.toUpperCase()} TREND`}
                 </div>
                 <div style={{
                   background: C.surface2, border: `1px solid ${C.border}`,

@@ -100,7 +100,7 @@ function calcMuscleImprovements(history) {
   });
 }
 
-function MuscleProgressChart({ history, onBarTap }) {
+function MuscleProgressChart({ history, onBarTap, lang = 'en', t = k => k }) {
   const groups  = calcMuscleImprovements(history);
 
   // Only consider groups with real improvement data for scaling
@@ -127,9 +127,9 @@ function MuscleProgressChart({ history, onBarTap }) {
     <div style={{ marginBottom: 24 }}>
       <div style={{
         fontSize: 12, fontWeight: 700,
-        letterSpacing: '0.08em', color: C.dim, marginBottom: 14,
+        letterSpacing: lang === 'ar' ? '0' : '0.08em', color: C.dim, marginBottom: 14,
       }}>
-        MUSCLE PROGRESS
+        {t('MUSCLE PROGRESS')}
       </div>
 
       {/* 6-bar chart */}
@@ -231,8 +231,8 @@ function MuscleProgressChart({ history, onBarTap }) {
               border: '1px solid rgba(173,255,47,0.22)',
               borderRadius: 10, padding: '10px 12px',
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#ADFF2F', letterSpacing: '0.06em', marginBottom: 4 }}>
-                MOST IMPROVED
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#ADFF2F', letterSpacing: lang === 'ar' ? '0' : '0.06em', marginBottom: 4 }}>
+                {t('MOST IMPROVED')}
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{mostImproved.label}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#ADFF2F', marginTop: 2 }}>+{mostImproved.rawPct}%</div>
@@ -242,11 +242,11 @@ function MuscleProgressChart({ history, onBarTap }) {
               flex: 1, background: C.surface2, border: `1px solid ${C.border}`,
               borderRadius: 10, padding: '10px 12px',
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: '0.06em', marginBottom: 4 }}>
-                PROGRESS
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: lang === 'ar' ? '0' : '0.06em', marginBottom: 4 }}>
+                {t('Progress')}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.dim }}>Keep training</div>
-              <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>Improvements appear after more sessions</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.dim }}>{t('Keep training')}</div>
+              <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>{t('Improvements appear after more sessions')}</div>
             </div>
           )}
           {needsWork && needsWork.id !== mostImproved?.id && (
@@ -254,19 +254,19 @@ function MuscleProgressChart({ history, onBarTap }) {
               flex: 1, background: C.surface2, border: `1px solid ${C.border}`,
               borderRadius: 10, padding: '10px 12px',
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: '0.06em', marginBottom: 4 }}>
-                NEEDS WORK
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.mute, letterSpacing: lang === 'ar' ? '0' : '0.06em', marginBottom: 4 }}>
+                {t('NEEDS WORK')}
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{needsWork.label}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.dim, marginTop: 2 }}>
-                {needsWork.rawPct > 0 ? `+${needsWork.rawPct}%` : 'No gains yet'}
+                {needsWork.rawPct > 0 ? `+${needsWork.rawPct}%` : t('No gains yet')}
               </div>
             </div>
           )}
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '6px 0', color: C.mute, fontSize: 12 }}>
-          Log your first session to see muscle progress
+          {t('Log your first session to see muscle progress')}
         </div>
       )}
     </div>
@@ -451,7 +451,7 @@ export default function ProgressTab({ state }) {
                   <Plus size={14} color={C.dim} strokeWidth={2.5} />
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: C.mute, textAlign: 'center' }}>
-                  Tap to add a lift to track
+                  {t('Tap to add a lift to track')}
                 </span>
               </motion.button>
             );
@@ -568,7 +568,7 @@ export default function ProgressTab({ state }) {
       })()}
 
       {/* ── Muscle Progress ─────────────────────────────────────────────── */}
-      <MuscleProgressChart history={history} onBarTap={setMusclePage} />
+      <MuscleProgressChart history={history} onBarTap={setMusclePage} lang={lang} t={t} />
 
       {/* ── Session history ─────────────────────────────────────────────── */}
       <div style={{
@@ -653,8 +653,8 @@ export default function ProgressTab({ state }) {
       <BottomSheet open={actionSheet !== null} onClose={() => setActionSheet(null)}>
         {actionSheet !== null && slots[actionSheet] && (
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: '0.06em', marginBottom: 4 }}>
-              TRACKED LIFT
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.dim, letterSpacing: lang === 'ar' ? '0' : '0.06em', marginBottom: 4 }}>
+              {t('TRACKED LIFT')}
             </div>
             <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 20 }}>
               {slots[actionSheet].name}
@@ -672,7 +672,7 @@ export default function ProgressTab({ state }) {
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
-              <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Change exercise</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{t('Change exercise')}</span>
               <Pencil size={16} color={C.dim} />
             </motion.button>
 
@@ -688,7 +688,7 @@ export default function ProgressTab({ state }) {
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#000' }}>View progress</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#000' }}>{t('View progress')}</span>
               <TrendingUp size={16} color="#000" />
             </motion.button>
           </div>
@@ -715,6 +715,7 @@ export default function ProgressTab({ state }) {
             key={liftPage.name}
             exercise={liftPage}
             userId={user?.id}
+            lang={lang}
             onBack={() => setLiftPage(null)}
           />
         )}
@@ -727,6 +728,7 @@ export default function ProgressTab({ state }) {
             key={musclePage}
             muscleId={musclePage}
             userId={user?.id}
+            lang={lang}
             onBack={() => setMusclePage(null)}
           />
         )}
