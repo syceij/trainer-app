@@ -19,7 +19,7 @@ function Logo() {
       transition={{ ...spring, delay: 0.05 }}
       style={{ marginBottom: 40, display: 'flex', justifyContent: 'center' }}
     >
-      <img src="/log%20inn%20.png" alt="HEX" style={{ height: 100, width: 'auto', objectFit: 'contain', display: 'block' }} />
+      <img src="/login-logo.png" alt="HEX" style={{ height: 100, width: 'auto', objectFit: 'contain', display: 'block' }} />
     </motion.div>
   );
 }
