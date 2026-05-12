@@ -671,7 +671,7 @@ function PointsInfoCard({ onClose, ar }) {
                 {ar ? 'كيف تُحسب النقاط؟' : 'How points are calculated'}
               </div>
               <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>
-                {ar ? 'نقاط من ١٠٠ — تُعاد شهرياً' : 'Score out of 100 · resets every month'}
+                {ar ? 'النقاط غير محدودة — تُعاد شهرياً' : 'Unlimited score · resets every month'}
               </div>
             </div>
             <motion.button whileTap={{ scale: 0.9 }} onClick={onClose} style={{
@@ -736,8 +736,8 @@ function PointsInfoCard({ onClose, ar }) {
                 ? { label: 'أتممت ١٤ من أصل ٢٠ مجموعة', value: '٧٠', highlight: false }
                 : { label: 'Complete 14 of 20 programmed sets', value: '70', highlight: false },
               ar
-                ? { label: 'تجاوزت البرنامج (أكثر من ١٠٠٪)', value: '١٠٠', highlight: true }
-                : { label: 'Exceed your programme (over 100%)', value: '100', highlight: true },
+                ? { label: 'تجاوزت البرنامج (أكثر من ١٠٠٪)', value: '١٠٠+', highlight: true }
+                : { label: 'Exceed your programme (over 100%)', value: '100+', highlight: true },
             ].map((row, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -774,8 +774,8 @@ function PointsInfoCard({ onClose, ar }) {
                 ? { label: 'حسّنت كل تمارينك بأكثر من ١٠٠٪', value: '٣٠ / ٣٠', highlight: true }
                 : { label: 'Improved every exercise by 100%+', value: '30 / 30', highlight: true },
               ar
-                ? { label: 'كل تمرين محدود بـ ١٠٠٪ كحد أقصى', value: '—', highlight: false }
-                : { label: 'Each exercise capped at 100% gain', value: '—', highlight: false },
+                ? { label: 'لا يوجد حد أقصى للتحسن', value: '∞', highlight: true }
+                : { label: 'No ceiling on improvement', value: '∞', highlight: true },
             ].map((row, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',

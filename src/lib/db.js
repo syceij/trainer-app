@@ -519,10 +519,9 @@ export async function calculateLeaderboardScore(userId) {
     setsProgrammed = setsCompleted > 0 ? Math.round(setsCompleted * 1.25) : 20;
   }
 
-  const consistencyScore = Math.min(
-    setsProgrammed > 0 ? (setsCompleted / setsProgrammed) * 100 : 0,
-    100
-  );
+  const consistencyScore = setsProgrammed > 0
+    ? (setsCompleted / setsProgrammed) * 100
+    : 0;
 
   // ── Improvement ──────────────────────────────────────────────────────────────
   // Group all historical sets by exercise_name (lowercase) — already oldest-first
@@ -550,7 +549,7 @@ export async function calculateLeaderboardScore(userId) {
 
     if (firstVolume > 0) {
       const improvement = ((currentVolume - firstVolume) / firstVolume) * 100;
-      totalImprovement += Math.min(Math.max(improvement, 0), 100); // clamp 0-100
+      totalImprovement += Math.max(improvement, 0); // floor at 0, no ceiling
       exerciseCount++;
     }
   }
