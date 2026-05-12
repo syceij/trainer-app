@@ -3,6 +3,9 @@ on:
   push:
     branches: [master]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: macos-latest
@@ -12,7 +15,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
         run: npm ci
@@ -27,10 +30,11 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync ios
 
-      - name: Install CocoaPods
+      - name: Resolve Swift Package dependencies
         run: |
-          cd ios/App
-          pod install
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App
 
       - name: Build iOS app
         run: |
