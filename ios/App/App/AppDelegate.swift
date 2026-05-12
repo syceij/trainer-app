@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -26,7 +27,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // Disable zoom on the WKWebView scroll view so the app feels native.
+        // We do this here (not in didFinishLaunching) because the Capacitor
+        // bridge creates the WebView during view controller setup, which
+        // completes before the first active transition.
+        disableWebViewZoom()
+    }
+
+    // MARK: - WebView zoom
+
+    private func disableWebViewZoom() {
+        guard let root = window?.rootViewController else { return }
+        disableZoom(in: root.view)
+    }
+
+    private func disableZoom(in view: UIView) {
+        for subview in view.subviews {
+            if let webView = subview as? WKWebView {
+                let sv = webView.scrollView
+                sv.isScrollEnabled        = false   // app handles scroll in CSS
+                sv.bouncesZoom            = false
+                sv.minimumZoomScale       = 1.0
+                sv.maximumZoomScale       = 1.0
+                sv.pinchGestureRecognizer?.isEnabled = false
+                return
+            }
+            disableZoom(in: subview)
+        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

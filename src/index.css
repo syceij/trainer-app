@@ -18,11 +18,17 @@
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  /* Allows single tap + scroll but blocks double-tap zoom on every element */
+  touch-action: manipulation;
 }
 
-input, textarea {
+input, textarea, select {
   -webkit-user-select: text;
   user-select: text;
+  /* iOS auto-zooms into any input with font-size < 16px.
+     Setting 16px here prevents that jarring zoom on focus.
+     Individual components can override with a larger size if needed. */
+  font-size: 16px !important;
 }
 
 /* ── Full-screen PWA / Capacitor baseline ─────────────────────────────────── */
