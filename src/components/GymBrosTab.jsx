@@ -571,7 +571,7 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
                   onChange={e => handleSearch(e.target.value)}
                   placeholder={ar ? 'ابحث باسم المستخدم أو الاسم…' : 'Search by username or name…'}
                   autoFocus
-                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14, fontFamily: 'inherit' }}
+                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 16, fontFamily: 'inherit' }}
                 />
                 {searching && <div style={{ fontSize: 11, color: C.mute }}>…</div>}
               </div>
