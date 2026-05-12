@@ -229,6 +229,11 @@ const AR = {
   // BottomNav
   'Bros': 'أصدقاء',
 
+  // Rest / off day
+  'Enjoy your off day': 'استمتع بيوم الراحة',
+  'REST DAY': 'يوم الراحة',
+  'Recovery is part of the programme': 'الراحة جزء من البرنامج',
+
   // ProgressTab
   'Tap to add a lift to track': 'اضغط لإضافة رفعة للتتبع',
   'TRACKED LIFT': 'الرفعة المتتبعة',

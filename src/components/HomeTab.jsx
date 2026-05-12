@@ -29,6 +29,16 @@ export default function HomeTab({ state }) {
   const FwdIcon = lang === 'ar' ? ChevronLeft : ChevronRight;
 
   const name       = profile?.name || 'there';
+
+  // Detect if today is a rest day
+  const todayKey = DAY_KEYS[new Date().getDay()];
+  const todaySession = programmeMode === 'imported'
+    ? getWeekSessions(importedProgramme, currentWeek).find(s => s.day === todayKey)
+    : null;
+  const isTodayRest = !!(
+    (todaySession?.isRest || (todaySession && !todaySession.name)) ||
+    (programmeMode === 'auto' && currentSession?.isRest)
+  );
   const totalWeeks = importedProgramme?.totalWeeks || importedProgramme?.weeks?.length || 1;
   const weekNum    = Math.max(1, Math.ceil((history.length + 1) / (programme.length || 1)));
 
@@ -88,7 +98,36 @@ export default function HomeTab({ state }) {
       </div>
 
       {/* ── Today card ── */}
-      {currentSession && (
+      {isTodayRest ? (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.08 }}
+          style={{
+            width: '100%', background: C.accent, borderRadius: 16,
+            padding: '18px 20px', marginBottom: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            textAlign: lang === 'ar' ? 'right' : 'left',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: lang === 'ar' ? '0' : '0.1em', color: 'rgba(0,0,0,0.6)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              {t('REST DAY')}
+            </div>
+            <div style={{
+              fontSize: 22, fontWeight: 800, color: '#000',
+              letterSpacing: lang === 'ar' ? '0' : '-0.02em', marginBottom: 4,
+              fontFamily: headingFont(lang),
+            }}>
+              {t('Enjoy your off day')} 🌴
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 500 }}>
+              {t('Recovery is part of the programme')}
+            </div>
+          </div>
+        </motion.div>
+      ) : currentSession && (
         <motion.button
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
