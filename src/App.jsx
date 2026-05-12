@@ -973,7 +973,7 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      position: 'relative', width: '100%', maxWidth: 390,
+      position: 'relative', width: '100%',
       height: '100%', display: 'flex', flexDirection: 'column',
       overflow: 'hidden', background: C.bg,
     }}>
@@ -1081,9 +1081,10 @@ function AppShell({ state }) {
               // PT tab owns its own scroll (messages area) and its own bottom bar,
               // so skip the global paddingBottom that reserves space for the nav.
               overflowY:     activeTab === 'pt' ? 'hidden' : 'auto',
-              paddingBottom: activeTab === 'pt' ? 0       : 49,
+              // Reserve space for nav bar (49px) + home indicator safe area so
+              // the last list item is never hidden behind the bottom nav.
+              paddingBottom: activeTab === 'pt' ? 0 : 'calc(49px + env(safe-area-inset-bottom))',
               WebkitOverflowScrolling: 'touch',
-              // Gymbros uses its own internal padding
             }}
           >
             {tabs[activeTab]}

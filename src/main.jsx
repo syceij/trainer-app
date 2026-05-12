@@ -9,9 +9,11 @@ import { Keyboard } from '@capacitor/keyboard';
 import { App as CapApp } from '@capacitor/app';
 
 if (Capacitor.isNativePlatform()) {
-  // Status bar — dark icons on black background
+  // Status bar — overlay the WebView so content fills edge-to-edge.
+  // safe-area-inset-top in CSS then pushes content below the bar.
+  StatusBar.setOverlaysWebView({ value: true });
   StatusBar.setStyle({ style: Style.Dark });
-  StatusBar.setBackgroundColor({ color: '#000000' });
+  StatusBar.setBackgroundColor({ color: '#00000000' }); // transparent
 
   // Android back button
   CapApp.addListener('backButton', ({ canGoBack }) => {
