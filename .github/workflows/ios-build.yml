@@ -63,6 +63,13 @@ jobs:
           mkdir -p "$PROFILES_DIR"
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILES_DIR/HEX_App_Store.mobileprovision"
 
+      - name: Set build number from CI run
+        run: |
+          BUILD_NUMBER=$(( $GITHUB_RUN_NUMBER + 200 ))
+          echo "Setting CURRENT_PROJECT_VERSION = $BUILD_NUMBER"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*/CURRENT_PROJECT_VERSION = $BUILD_NUMBER/g" \
+            ios/App/App.xcodeproj/project.pbxproj
+
       - name: Resolve Swift Package dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
