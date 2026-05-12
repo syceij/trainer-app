@@ -9,9 +9,13 @@ import { C, springSoft } from '../tokens.js';
 import {
   loadFriends, loadPendingRequests, sendFriendRequest,
   respondFriendRequest, createInviteLink, searchUsers,
-  loadActivityFeed, calculateLeaderboardScore, updateLeaderboardScore,
+  loadActivityFeed,
 } from '../lib/db.js';
 import FriendProfilePage from './FriendProfilePage.jsx';
+
+// ── Per-user in-memory cache (survives tab switches, cleared on app restart) ───
+const _cache = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const GOLD   = '#FFD700';
@@ -844,50 +848,59 @@ export default function GymBrosTab({ state }) {
     let cancelled = false;
 
     async function load() {
+      // Serve from cache if fresh — instant re-open with no network calls
+      const cached = _cache[uid];
+      if (cached && Date.now() - cached.ts < CACHE_TTL) {
+        setFriends(cached.friends);
+        setPending(cached.pending);
+        setFeed(cached.feed);
+        setLeaderboard(cached.leaderboard);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       const [fr, pend] = await Promise.all([loadFriends(uid), loadPendingRequests(uid)]);
       if (cancelled) return;
-      const frList  = fr   || [];
+      const frList   = fr   || [];
       const pendList = pend || [];
-      console.log('[GymBros] Friends:', frList);
-      console.log('[GymBros] Pending:', pendList);
       setFriends(frList);
       setPending(pendList);
 
       const friendIds = frList.map(f => f.id);
-      const [feedData, myScore] = await Promise.all([
-        friendIds.length > 0 ? loadActivityFeed(uid, friendIds) : Promise.resolve([]),
-        calculateLeaderboardScore(uid),
-      ]);
+      const feedData = friendIds.length > 0
+        ? await loadActivityFeed(uid, friendIds)
+        : [];
       if (cancelled) return;
-
       if (feedData?.length) setFeed(feedData);
-      updateLeaderboardScore(uid).catch(() => {});
 
-      // Build leaderboard
-      const now = new Date();
+      // Score comes from profile.leaderboard_data — written by finishSession
+      // after every workout. No need to recalculate here.
+      const now          = new Date();
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const myScore      = state.profile?.leaderboard_data;
+      const myIsCurrent  = myScore?.month === currentMonth;
 
       const myEntry = {
         id: uid,
-        name: state.profile?.name || 'You',
-        username: state.username || null,
-        score:          myScore?.score          ?? 0,
-        setsCompleted:  myScore?.setsCompleted  ?? 0,
+        name:           state.profile?.name || 'You',
+        username:       state.username || null,
+        score:          myIsCurrent ? (myScore?.score          ?? 0) : 0,
+        setsCompleted:  myIsCurrent ? (myScore?.setsCompleted  ?? 0) : 0,
         setsProgrammed: myScore?.setsProgrammed ?? 20,
-        improvementPct: myScore?.improvementPct ?? 0,
+        improvementPct: myIsCurrent ? (myScore?.improvementPct ?? 0) : 0,
         isMe: true,
       };
 
       const friendEntries = frList.map(f => {
-        const ld = f.leaderboard_data;
+        const ld        = f.leaderboard_data;
         const isCurrent = ld?.month === currentMonth;
         return {
           id: f.id, name: f.name, username: f.username,
           score:          isCurrent ? (ld?.score          ?? 0) : 0,
           setsCompleted:  isCurrent ? (ld?.setsCompleted  ?? 0) : 0,
           setsProgrammed: ld?.setsProgrammed ?? 20,
-          improvementPct: ld?.improvementPct ?? 0,
+          improvementPct: isCurrent ? (ld?.improvementPct ?? 0) : 0,
           isMe: false,
         };
       });
@@ -896,8 +909,11 @@ export default function GymBrosTab({ state }) {
         .sort((a, b) => b.score !== a.score ? b.score - a.score : (a.name || '').localeCompare(b.name || ''))
         .map((e, i) => ({ ...e, rank: i + 1 }));
 
-      console.log('[GymBros] Leaderboard:', sorted);
-      if (!cancelled) { setLeaderboard(sorted); setLoading(false); }
+      if (!cancelled) {
+        setLeaderboard(sorted);
+        setLoading(false);
+        _cache[uid] = { friends: frList, pending: pendList, feed: feedData || [], leaderboard: sorted, ts: Date.now() };
+      }
     }
 
     load();
