@@ -639,18 +639,6 @@ function SkeletonRow() {
 
 // ── Points info card (bottom sheet) ───────────────────────────────────────────
 function PointsInfoCard({ onClose, ar }) {
-  const rules = ar ? [
-    { icon: '🏋️', title: 'أكمل جلسة', desc: 'كل جلسة تكملها تمنحك نقاطاً بناءً على عدد المجموعات.' },
-    { icon: '📈', title: 'ارفع أثقالاً أكبر', desc: 'يتم مكافأة التحسن في الأوزان بنقاط إضافية.' },
-    { icon: '✅', title: 'التزم ببرنامجك', desc: 'كلما أتممت مجموعات أكثر مما هو مبرمج، زادت نقاطك.' },
-    { icon: '📅', title: 'التدريب المنتظم', desc: 'النقاط تُحسب شهرياً — ابدأ من جديد كل شهر.' },
-  ] : [
-    { icon: '🏋️', title: 'Complete sessions', desc: 'Every session you finish earns points based on sets completed.' },
-    { icon: '📈', title: 'Lift heavier', desc: 'Weight improvements are rewarded with bonus points.' },
-    { icon: '✅', title: 'Stick to your programme', desc: 'The more sets you hit vs. what\'s programmed, the higher your score.' },
-    { icon: '📅', title: 'Stay consistent', desc: 'Points reset monthly — climb the board every month.' },
-  ];
-
   return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -669,73 +657,171 @@ function PointsInfoCard({ onClose, ar }) {
           width: '100%', maxWidth: 390,
           background: '#161616',
           borderRadius: '20px 20px 0 0',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 16px, 24px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 16px, 28px)',
           direction: ar ? 'rtl' : 'ltr',
+          maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         }}
       >
-        {/* Handle */}
-        <div style={{ padding: '14px 20px 0' }}>
+        {/* Handle + header */}
+        <div style={{ padding: '14px 20px 0', flexShrink: 0 }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#2a2a2a', margin: '0 auto 16px' }} />
-
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: LIME }}>
-                {ar ? 'كيف تعمل النقاط؟' : 'How points work'}
+              <div style={{ fontSize: 18, fontWeight: 800, color: LIME }}>
+                {ar ? 'كيف تُحسب النقاط؟' : 'How points are calculated'}
               </div>
               <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>
-                {ar ? 'تنافس مع أصدقائك كل شهر' : 'Compete with your Bros every month'}
+                {ar ? 'نقاط من ١٠٠ — تُعاد شهرياً' : 'Score out of 100 · resets every month'}
               </div>
             </div>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={onClose}
-              style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: '#1e1e1e', border: '1.5px solid #2a2a2a',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', flexShrink: 0,
-              }}
-            >
+            <motion.button whileTap={{ scale: 0.9 }} onClick={onClose} style={{
+              width: 30, height: 30, borderRadius: 8,
+              background: '#1e1e1e', border: '1.5px solid #2a2a2a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+            }}>
               <X size={14} color="#555" />
             </motion.button>
           </div>
         </div>
 
-        {/* Rules */}
-        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {rules.map((rule, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: 14,
-                background: '#1e1e1e', borderRadius: 12,
-                border: '1px solid #2a2a2a',
-                padding: '12px 14px',
-              }}
-            >
-              <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1.2 }}>{rule.icon}</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: LIME, marginBottom: 3 }}>
-                  {rule.title}
-                </div>
-                <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
-                  {rule.desc}
-                </div>
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* ── Formula pill ── */}
+          <div style={{
+            background: '#111', border: `1.5px solid ${LIME}33`,
+            borderRadius: 14, padding: '14px 16px',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: LIME, letterSpacing: '0.08em', marginBottom: 10 }}>
+              {ar ? 'المعادلة' : 'THE FORMULA'}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#ccc', marginBottom: 12, lineHeight: 1.6 }}>
+              {ar
+                ? 'النقاط = (الالتزام × ٧٠٪) + (التحسن × ٣٠٪)'
+                : 'Score = (Consistency × 70%) + (Improvement × 30%)'}
+            </div>
+            {/* Visual bar */}
+            <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2 }}>
+              <div style={{ width: '70%', background: LIME, borderRadius: 4 }} />
+              <div style={{ width: '30%', background: '#ADFF2F88', borderRadius: 4 }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
+              <span style={{ fontSize: 10, color: LIME, fontWeight: 700 }}>{ar ? 'الالتزام ٧٠٪' : 'Consistency 70%'}</span>
+              <span style={{ fontSize: 10, color: '#ADFF2F88', fontWeight: 700 }}>{ar ? 'التحسن ٣٠٪' : 'Improvement 30%'}</span>
+            </div>
+          </div>
+
+          {/* ── Consistency block ── */}
+          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #222' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 18 }}>✅</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: LIME }}>
+                  {ar ? 'الالتزام — ٧٠ نقطة' : 'Consistency — 70 pts'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
+                {ar
+                  ? 'عدد المجموعات التي أتممتها هذا الشهر مقسوماً على المجموعات المبرمجة في برنامجك.'
+                  : 'Sets you completed this month divided by the sets programmed in your programme.'}
               </div>
             </div>
-          ))}
+            {/* Example rows */}
+            {[
+              ar
+                ? { label: 'أتممت ٢٠ من أصل ٢٠ مجموعة', value: '١٠٠', highlight: true }
+                : { label: 'Complete 20 of 20 programmed sets', value: '100', highlight: true },
+              ar
+                ? { label: 'أتممت ١٤ من أصل ٢٠ مجموعة', value: '٧٠', highlight: false }
+                : { label: 'Complete 14 of 20 programmed sets', value: '70', highlight: false },
+              ar
+                ? { label: 'تجاوزت البرنامج (أكثر من ١٠٠٪)', value: '١٠٠', highlight: true }
+                : { label: 'Exceed your programme (over 100%)', value: '100', highlight: true },
+            ].map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '9px 14px', borderTop: '1px solid #1e1e1e',
+              }}>
+                <span style={{ fontSize: 12, color: '#666' }}>{row.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: row.highlight ? LIME : '#aaa' }}>
+                  {row.value} {ar ? 'نقطة' : 'pts'}
+                </span>
+              </div>
+            ))}
+          </div>
 
-          {/* Footer note */}
+          {/* ── Improvement block ── */}
+          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #222' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 18 }}>📈</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#ADFF2F88' }}>
+                  {ar ? 'التحسن — ٣٠ نقطة' : 'Improvement — 30 pts'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
+                {ar
+                  ? 'متوسط نسبة تحسن الحجم لكل تمرين (الوزن × التكرارات) مقارنةً بأول تسجيل لك.'
+                  : 'Average volume gain per exercise (weight × reps) vs. your very first logged set — averaged across all your exercises.'}
+              </div>
+            </div>
+            {[
+              ar
+                ? { label: 'بدأت بـ ٥٠ كجم، والآن ٦٥ كجم (+٣٠٪)', value: '٩ / ٣٠', highlight: false }
+                : { label: 'Started 50 kg → now 65 kg (+30% vol.)', value: '9 / 30', highlight: false },
+              ar
+                ? { label: 'حسّنت كل تمارينك بأكثر من ١٠٠٪', value: '٣٠ / ٣٠', highlight: true }
+                : { label: 'Improved every exercise by 100%+', value: '30 / 30', highlight: true },
+              ar
+                ? { label: 'كل تمرين محدود بـ ١٠٠٪ كحد أقصى', value: '—', highlight: false }
+                : { label: 'Each exercise capped at 100% gain', value: '—', highlight: false },
+            ].map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '9px 14px', borderTop: '1px solid #1e1e1e',
+              }}>
+                <span style={{ fontSize: 12, color: '#666', flex: 1, paddingRight: 8 }}>{row.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: row.highlight ? LIME : '#aaa', flexShrink: 0 }}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Tips ── */}
+          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#555', letterSpacing: '0.07em', marginBottom: 10 }}>
+              {ar ? 'نصائح للتصدر' : 'TIPS TO CLIMB THE BOARD'}
+            </div>
+            {(ar ? [
+              'أكمل كل مجموعات البرنامج هذا الشهر',
+              'زِد الوزن التدريجي في كل تمرين',
+              'النقاط تُحدَّث تلقائياً بعد كل جلسة',
+              'النقاط تُعاد في أول كل شهر — ابدأ قوياً',
+            ] : [
+              'Complete every programmed set this month',
+              'Progressively add weight to each exercise',
+              'Your score updates automatically after every session',
+              'Scores reset on the 1st of each month — start strong',
+            ]).map((tip, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < 3 ? 8 : 0 }}>
+                <span style={{ color: LIME, fontSize: 12, flexShrink: 0, marginTop: 1 }}>→</span>
+                <span style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>{tip}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer */}
           <div style={{
-            marginTop: 4, padding: '10px 14px',
+            padding: '10px 14px', marginBottom: 4,
             background: `${LIME}0d`, border: `1px solid ${LIME}22`,
             borderRadius: 10, textAlign: 'center',
             fontSize: 12, color: '#888', lineHeight: 1.5,
           }}>
             {ar
-              ? '🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر'
-              : '🏆 The player with the most points by end of month wins'}
+              ? '🏆 أعلى نقطة ممكنة هي ١٠٠ — حقّقها بإتمام برنامجك ورفع أثقال أكبر'
+              : '🏆 Max score is 100 — hit it by completing your programme and lifting heavier'}
           </div>
         </div>
       </motion.div>
