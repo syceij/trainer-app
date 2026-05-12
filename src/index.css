@@ -12,6 +12,14 @@
   box-sizing: border-box;
 }
 
+/* ── Hide all scrollbars ──────────────────────────────────────────────────── */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Native feel ──────────────────────────────────────────────────────────── */
 * {
   -webkit-tap-highlight-color: transparent;

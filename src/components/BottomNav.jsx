@@ -86,10 +86,8 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                       inset: '4px 5px',
                       borderRadius: 26,
                       // Darker inset glass for the active state
-                      background: 'rgba(184,255,0,0.10)',
-                      backdropFilter: 'blur(16px)',
-                      WebkitBackdropFilter: 'blur(16px)',
-                      border: '1px solid rgba(184,255,0,0.22)',
+                      background: 'rgba(184,255,0,0.13)',
+                      border: '1px solid rgba(184,255,0,0.28)',
                       // Subtle lime glow behind active tab
                       boxShadow: '0 0 14px rgba(184,255,0,0.12)',
                     }}
