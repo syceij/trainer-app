@@ -789,28 +789,7 @@ function PointsInfoCard({ onClose, ar }) {
             ))}
           </div>
 
-          {/* ── Tips ── */}
-          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#555', letterSpacing: '0.07em', marginBottom: 10 }}>
-              {ar ? 'نصائح للتصدر' : 'TIPS TO CLIMB THE BOARD'}
-            </div>
-            {(ar ? [
-              'أكمل كل مجموعات البرنامج هذا الشهر',
-              'زِد الوزن التدريجي في كل تمرين',
-              'النقاط تُحدَّث تلقائياً بعد كل جلسة',
-              'النقاط تُعاد في أول كل شهر — ابدأ قوياً',
-            ] : [
-              'Complete every programmed set this month',
-              'Progressively add weight to each exercise',
-              'Your score updates automatically after every session',
-              'Scores reset on the 1st of each month — start strong',
-            ]).map((tip, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < 3 ? 8 : 0 }}>
-                <span style={{ color: LIME, fontSize: 12, flexShrink: 0, marginTop: 1 }}>→</span>
-                <span style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>{tip}</span>
-              </div>
-            ))}
-          </div>
+          {/* ── Tips ── (temporarily hidden) */}
 
           {/* Footer */}
           <div style={{
