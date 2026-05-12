@@ -120,7 +120,7 @@ export default function HomeTab({ state }) {
               letterSpacing: lang === 'ar' ? '0' : '-0.02em', marginBottom: 4,
               fontFamily: headingFont(lang),
             }}>
-              {t('Enjoy your off day')} 🌴
+              {t('Enjoy your off day')}
             </div>
             <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 500 }}>
               {t('Recovery is part of the programme')}
