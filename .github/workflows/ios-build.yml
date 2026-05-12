@@ -44,7 +44,7 @@ jobs:
           security set-keychain-settings -t 3600 -u build.keychain
 
           # Import distribution certificate
-          echo "$DISTRIBUTION_P12_BASE64" | base64 --decode -o distribution.p12
+          echo "$DISTRIBUTION_P12_BASE64" | base64 --decode > distribution.p12
           security import distribution.p12 \
             -k build.keychain \
             -P "$DISTRIBUTION_P12_PASSWORD" \
@@ -54,9 +54,9 @@ jobs:
             -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
           # Install provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode \
-            -o ~/Library/MobileDevice/Provisioning\ Profiles/HEX_App_Store.mobileprovision
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILES_DIR/HEX_App_Store.mobileprovision"
 
       - name: Resolve Swift Package dependencies
         run: |
