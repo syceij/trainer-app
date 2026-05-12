@@ -19,29 +19,29 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
     // ── Liquid Glass floating pill (iOS) ──────────────────────────────────────
     return (
       <div style={{
-        flexShrink: 0,
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
+        zIndex: 100,
         paddingLeft: 12,
         paddingRight: 12,
         paddingTop: 6,
-        // Sit above the home indicator, never flush to screen edge
         paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
         background: 'transparent',
+        pointerEvents: 'none',
       }}>
         {/* Floating glass pill container */}
         <div style={{
           display: 'flex',
           height: 64,
           borderRadius: 32,
-          // Liquid glass: semi-transparent dark with heavy blur
           background: 'rgba(22, 22, 22, 0.82)',
           backdropFilter: 'blur(40px) saturate(180%) brightness(1.1)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%) brightness(1.1)',
-          // Glass perimeter border — catches light all the way around
           border: '1px solid rgba(255, 255, 255, 0.10)',
-          // Outer glow from the lime accent
           boxShadow: '0 0 0 0.5px rgba(0,0,0,0.6), 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)',
           position: 'relative',
           overflow: 'hidden',
+          pointerEvents: 'auto',
         }}>
 
           {/* Inner glass sheen — top specular highlight */}

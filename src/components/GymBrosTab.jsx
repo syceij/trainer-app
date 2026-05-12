@@ -407,7 +407,7 @@ function ActivityItem({ item, currentUserId, onProfileTap, ar }) {
 }
 
 // ── Add Bro bottom sheet ───────────────────────────────────────────────────────
-function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
+function AddBroSheet({ show, currentUserId, username, onClose, onRequestSent, ar }) {
   const [tab,        setTab]        = useState('invite');
   const [inviteLink, setInviteLink] = useState(null);
   const [genLoading, setGenLoading] = useState(false);
@@ -417,6 +417,10 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
   const [searching,  setSearching]  = useState(false);
   const [sent,       setSent]       = useState({});
   const debounceRef = useRef(null);
+
+  useEffect(() => {
+    if (!show) { setQuery(''); setResults([]); setCopied(false); clearTimeout(debounceRef.current); }
+  }, [show]);
 
   const genLink = async () => {
     setGenLoading(true);
@@ -430,7 +434,7 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
     setGenLoading(false);
   };
 
-  useEffect(() => { if (tab === 'invite' && !inviteLink) genLink(); }, [tab]);
+  useEffect(() => { if (show && tab === 'invite' && !inviteLink) genLink(); }, [show, tab]);
 
   const copyLink = () => {
     navigator.clipboard?.writeText(inviteLink).catch(() => {});
@@ -467,18 +471,22 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
     onRequestSent?.();
   };
 
-  return (
+  return createPortal(
     <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose}
+      initial={false}
+      animate={{ opacity: show ? 1 : 0 }}
+      transition={{ duration: 0.22 }}
+      onClick={show ? onClose : undefined}
       style={{
         position: 'fixed', inset: 0, zIndex: 6000,
         background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        pointerEvents: show ? 'auto' : 'none',
       }}
     >
       <motion.div
-        initial={{ y: '-100%' }} animate={{ y: 0 }} exit={{ y: '-100%' }}
+        initial={false}
+        animate={{ y: show ? 0 : '-100%' }}
         transition={springSoft}
         onClick={e => e.stopPropagation()}
         style={{
@@ -616,7 +624,8 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -639,19 +648,23 @@ function SkeletonRow() {
 }
 
 // ── Points info card (bottom sheet) ───────────────────────────────────────────
-function PointsInfoCard({ onClose, ar }) {
+function PointsInfoCard({ show, onClose, ar }) {
   return createPortal(
     <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose}
+      initial={false}
+      animate={{ opacity: show ? 1 : 0 }}
+      transition={{ duration: 0.22 }}
+      onClick={show ? onClose : undefined}
       style={{
         position: 'fixed', inset: 0, zIndex: 7000,
         background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        pointerEvents: show ? 'auto' : 'none',
       }}
     >
       <motion.div
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        initial={false}
+        animate={{ y: show ? 0 : '100%' }}
         transition={springSoft}
         onClick={e => e.stopPropagation()}
         style={{
@@ -1100,18 +1113,14 @@ export default function GymBrosTab({ state }) {
       </div>
 
       {/* ── Sheets & pages ─────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showAdd && (
-          <AddBroSheet
-            key="add-bro"
-            currentUserId={uid}
-            username={state.username}
-            ar={ar}
-            onClose={() => setShowAdd(false)}
-            onRequestSent={() => showToast?.(ar ? 'تم إرسال طلب الصداقة ✓' : 'Friend request sent ✓')}
-          />
-        )}
-      </AnimatePresence>
+      <AddBroSheet
+        show={showAdd}
+        currentUserId={uid}
+        username={state.username}
+        ar={ar}
+        onClose={() => setShowAdd(false)}
+        onRequestSent={() => showToast?.(ar ? 'تم إرسال طلب الصداقة ✓' : 'Friend request sent ✓')}
+      />
 
       <AnimatePresence>
         {showAllFriends && (
@@ -1126,15 +1135,11 @@ export default function GymBrosTab({ state }) {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showPointsInfo && (
-          <PointsInfoCard
-            key="points-info"
-            ar={ar}
-            onClose={() => setShowPointsInfo(false)}
-          />
-        )}
-      </AnimatePresence>
+      <PointsInfoCard
+        show={showPointsInfo}
+        ar={ar}
+        onClose={() => setShowPointsInfo(false)}
+      />
 
       <AnimatePresence>
         {profileFor && (
