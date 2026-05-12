@@ -691,22 +691,22 @@ function PointsInfoCard({ onClose, ar }) {
           {/* ── Formula pill ── */}
           <div style={{
             background: '#111', border: `1.5px solid ${LIME}33`,
-            borderRadius: 14, padding: '14px 16px',
+            borderRadius: 14, padding: '8px 14px',
           }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: LIME, letterSpacing: '0.08em', marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: LIME, letterSpacing: '0.08em', marginBottom: 5 }}>
               {ar ? 'المعادلة' : 'THE FORMULA'}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#ccc', marginBottom: 12, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#ccc', marginBottom: 6, lineHeight: 1.3 }}>
               {ar
                 ? 'النقاط = (الالتزام × ٧٠٪) + (التحسن × ٣٠٪)'
                 : 'Score = (Consistency × 70%) + (Improvement × 30%)'}
             </div>
             {/* Visual bar */}
-            <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2 }}>
+            <div style={{ display: 'flex', height: 4, borderRadius: 4, overflow: 'hidden', gap: 2 }}>
               <div style={{ width: '70%', background: LIME, borderRadius: 4 }} />
               <div style={{ width: '30%', background: '#ADFF2F88', borderRadius: 4 }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
               <span style={{ fontSize: 10, color: LIME, fontWeight: 700 }}>{ar ? 'الالتزام ٧٠٪' : 'Consistency 70%'}</span>
               <span style={{ fontSize: 10, color: '#ADFF2F88', fontWeight: 700 }}>{ar ? 'التحسن ٣٠٪' : 'Improvement 30%'}</span>
             </div>
