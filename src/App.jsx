@@ -1083,7 +1083,7 @@ function AppShell({ state }) {
               overflowY:     activeTab === 'pt' ? 'hidden' : 'auto',
               // Reserve space for nav bar (49px) + home indicator safe area so
               // the last list item is never hidden behind the bottom nav.
-              paddingBottom: activeTab === 'pt' ? 0 : 'calc(49px + env(safe-area-inset-bottom))',
+              paddingBottom: activeTab === 'pt' ? 0 : Capacitor.isNativePlatform() ? 'calc(78px + max(env(safe-area-inset-bottom), 8px))' : 'calc(49px + env(safe-area-inset-bottom))',
               WebkitOverflowScrolling: 'touch',
             }}
           >
