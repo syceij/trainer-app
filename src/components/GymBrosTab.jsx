@@ -812,17 +812,6 @@ function PointsInfoCard({ onClose, ar }) {
             ))}
           </div>
 
-          {/* Footer */}
-          <div style={{
-            padding: '10px 14px', marginBottom: 4,
-            background: `${LIME}0d`, border: `1px solid ${LIME}22`,
-            borderRadius: 10, textAlign: 'center',
-            fontSize: 12, color: '#888', lineHeight: 1.5,
-          }}>
-            {ar
-              ? '🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر'
-              : '🏆 The player with the most points by end of month wins'}
-          </div>
         </div>
       </motion.div>
     </motion.div>,
