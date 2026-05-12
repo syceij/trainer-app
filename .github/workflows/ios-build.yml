@@ -139,6 +139,8 @@ jobs:
           echo "Uploading: $IPA_PATH"
 
           # Upload to TestFlight
+          # Note: xcrun altool is known to exit 0 even on failure, so we also
+          # grep the output for known error strings as a second safety net.
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_PATH" \
@@ -147,15 +149,21 @@ jobs:
             --verbose 2>&1 | tee upload_output.log
           UPLOAD_EXIT=${PIPESTATUS[0]}
 
+          # Catch altool silent failures (exits 0 but prints ERROR / Failed to upload)
+          if grep -qE "Failed to upload|ERROR:.*upload|bundle version must be higher" upload_output.log; then
+            echo "------- altool reported a failure — full log below -------"
+            cat upload_output.log
+            echo "----------------------------------------------------------"
+            echo "ERROR: TestFlight upload failed (altool exited $UPLOAD_EXIT but output contains failure message)"
+            echo "Most likely cause: build number already uploaded. Bump CURRENT_PROJECT_VERSION."
+            exit 1
+          fi
+
           if [ $UPLOAD_EXIT -ne 0 ]; then
             echo "------- Upload failed — full log below -------"
             cat upload_output.log
             echo "----------------------------------------------"
             echo "ERROR: TestFlight upload failed with exit code $UPLOAD_EXIT"
-            echo "Common causes:"
-            echo "  - APPLE_API_KEY_ID / APPLE_API_ISSUER_ID mismatch"
-            echo "  - .p8 key does not have App Manager or Developer role"
-            echo "  - Bundle ID com.hexapp.training not registered in App Store Connect"
             exit $UPLOAD_EXIT
           fi
 
