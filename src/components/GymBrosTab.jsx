@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserPlus, Search, Check, X, ChevronRight, Plus,
-  Trophy, Dumbbell, Share2, Copy,
+  Trophy, Dumbbell, Share2, Copy, Info,
 } from 'lucide-react';
 import { C, springSoft } from '../tokens.js';
 import {
@@ -637,6 +637,113 @@ function SkeletonRow() {
   );
 }
 
+// ── Points info card (bottom sheet) ───────────────────────────────────────────
+function PointsInfoCard({ onClose, ar }) {
+  const rules = ar ? [
+    { icon: '🏋️', title: 'أكمل جلسة', desc: 'كل جلسة تكملها تمنحك نقاطاً بناءً على عدد المجموعات.' },
+    { icon: '📈', title: 'ارفع أثقالاً أكبر', desc: 'يتم مكافأة التحسن في الأوزان بنقاط إضافية.' },
+    { icon: '✅', title: 'التزم ببرنامجك', desc: 'كلما أتممت مجموعات أكثر مما هو مبرمج، زادت نقاطك.' },
+    { icon: '📅', title: 'التدريب المنتظم', desc: 'النقاط تُحسب شهرياً — ابدأ من جديد كل شهر.' },
+  ] : [
+    { icon: '🏋️', title: 'Complete sessions', desc: 'Every session you finish earns points based on sets completed.' },
+    { icon: '📈', title: 'Lift heavier', desc: 'Weight improvements are rewarded with bonus points.' },
+    { icon: '✅', title: 'Stick to your programme', desc: 'The more sets you hit vs. what\'s programmed, the higher your score.' },
+    { icon: '📅', title: 'Stay consistent', desc: 'Points reset monthly — climb the board every month.' },
+  ];
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 7000,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+    >
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={springSoft}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 390,
+          background: '#161616',
+          borderRadius: '20px 20px 0 0',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 16px, 24px)',
+          direction: ar ? 'rtl' : 'ltr',
+        }}
+      >
+        {/* Handle */}
+        <div style={{ padding: '14px 20px 0' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#2a2a2a', margin: '0 auto 16px' }} />
+
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: LIME }}>
+                {ar ? 'كيف تعمل النقاط؟' : 'How points work'}
+              </div>
+              <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>
+                {ar ? 'تنافس مع أصدقائك كل شهر' : 'Compete with your Bros every month'}
+              </div>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onClose}
+              style={{
+                width: 30, height: 30, borderRadius: 8,
+                background: '#1e1e1e', border: '1.5px solid #2a2a2a',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <X size={14} color="#555" />
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Rules */}
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {rules.map((rule, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 14,
+                background: '#1e1e1e', borderRadius: 12,
+                border: '1px solid #2a2a2a',
+                padding: '12px 14px',
+              }}
+            >
+              <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1.2 }}>{rule.icon}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: LIME, marginBottom: 3 }}>
+                  {rule.title}
+                </div>
+                <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
+                  {rule.desc}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Footer note */}
+          <div style={{
+            marginTop: 4, padding: '10px 14px',
+            background: `${LIME}0d`, border: `1px solid ${LIME}22`,
+            borderRadius: 10, textAlign: 'center',
+            fontSize: 12, color: '#888', lineHeight: 1.5,
+          }}>
+            {ar
+              ? '🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر'
+              : '🏆 The player with the most points by end of month wins'}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
 // ── GymBrosTab ─────────────────────────────────────────────────────────────────
 export default function GymBrosTab({ state }) {
   const { user, showToast, lang = 'en' } = state;
@@ -651,6 +758,7 @@ export default function GymBrosTab({ state }) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showAllFriends, setShowAllFriends] = useState(false);
   const [profileFor,   setProfileFor]   = useState(null);
+  const [showPointsInfo, setShowPointsInfo] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -831,7 +939,27 @@ export default function GymBrosTab({ state }) {
         {/* Leaderboard */}
         {leaderboard.length > 1 && (
           <div style={{ marginTop: 14 }}>
-            <SectionLabel>{ar ? 'المتصدرون · هذا الشهر' : 'LEADERBOARD · THIS MONTH'}</SectionLabel>
+            <SectionLabel
+              right={
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowPointsInfo(true)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '2px 0',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#444' }}>
+                    {ar ? 'كيف تعمل النقاط؟' : 'How points work'}
+                  </span>
+                  <Info size={13} color="#444" />
+                </motion.button>
+              }
+            >
+              {ar ? 'المتصدرون · هذا الشهر' : 'LEADERBOARD · THIS MONTH'}
+            </SectionLabel>
             <div style={{
               background: '#161616', borderRadius: 12,
               border: '1px solid #1e1e1e', overflow: 'hidden',
@@ -928,6 +1056,16 @@ export default function GymBrosTab({ state }) {
             ar={ar}
             onTap={(f) => { setShowAllFriends(false); setProfileFor(f); }}
             onBack={() => setShowAllFriends(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPointsInfo && (
+          <PointsInfoCard
+            key="points-info"
+            ar={ar}
+            onClose={() => setShowPointsInfo(false)}
           />
         )}
       </AnimatePresence>
