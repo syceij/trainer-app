@@ -17,13 +17,14 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
       position: 'relative',
       flexShrink: 0,
       display: 'flex',
+      flexDirection: 'column',
       background: C.surface,
       borderTop: `1px solid ${C.border}`,
-      // Explicit calc height so the nav visually covers the home-indicator zone.
-      // box-sizing:border-box is set globally but repeated here for clarity.
-      height: 49,
       willChange: 'transform',
+      // Pad the bottom so buttons sit above the home indicator
+      paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
+      <div style={{ display: 'flex', height: 49 }}>
       {TABS.map(({ key, label, Icon }) => {
         const active = activeTab === key;
         return (
@@ -73,6 +74,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
