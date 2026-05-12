@@ -657,89 +657,172 @@ function PointsInfoCard({ onClose, ar }) {
           width: '100%', maxWidth: 390,
           background: '#161616',
           borderRadius: '20px 20px 0 0',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 8px, 14px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 16px, 28px)',
           direction: ar ? 'rtl' : 'ltr',
+          maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         }}
       >
         {/* Handle + header */}
-        <div style={{ padding: '8px 16px 0' }}>
-          <div style={{ width: 32, height: 3, borderRadius: 2, background: '#2a2a2a', margin: '0 auto 8px' }} />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: LIME }}>
-              {ar ? 'كيف تُحسب النقاط؟' : 'How points work'}
+        <div style={{ padding: '14px 20px 0', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#2a2a2a', margin: '0 auto 16px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: LIME }}>
+                {ar ? 'كيف تُحسب النقاط؟' : 'How points are calculated'}
+              </div>
+              <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>
+                {ar ? 'نقاط من ١٠٠ — تُعاد شهرياً' : 'Score out of 100 · resets every month'}
+              </div>
             </div>
             <motion.button whileTap={{ scale: 0.9 }} onClick={onClose} style={{
-              width: 26, height: 26, borderRadius: 7,
+              width: 30, height: 30, borderRadius: 8,
               background: '#1e1e1e', border: '1.5px solid #2a2a2a',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
+              cursor: 'pointer', flexShrink: 0,
             }}>
-              <X size={12} color="#555" />
+              <X size={14} color="#555" />
             </motion.button>
           </div>
         </div>
 
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          {/* Formula pill */}
+          {/* ── Formula pill ── */}
           <div style={{
             background: '#111', border: `1.5px solid ${LIME}33`,
-            borderRadius: 8, padding: '3px 12px',
-            display: 'flex', alignItems: 'center', gap: 10,
-            minHeight: 20,
+            borderRadius: 14, padding: '14px 16px',
           }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#ccc', flex: 1, lineHeight: 1 }}>
-              {ar ? 'النقاط = (الالتزام × ٧٠٪) + (التحسن × ٣٠٪)' : 'Score = (Consistency × 70%) + (Improvement × 30%)'}
+            <div style={{ fontSize: 10, fontWeight: 700, color: LIME, letterSpacing: '0.08em', marginBottom: 10 }}>
+              {ar ? 'المعادلة' : 'THE FORMULA'}
             </div>
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, width: 44 }}>
-              <div style={{ height: 3, borderRadius: 2, background: LIME }} />
-              <div style={{ height: 3, borderRadius: 2, background: `${LIME}44`, width: '43%' }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#ccc', marginBottom: 12, lineHeight: 1.6 }}>
+              {ar
+                ? 'النقاط = (الالتزام × ٧٠٪) + (التحسن × ٣٠٪)'
+                : 'Score = (Consistency × 70%) + (Improvement × 30%)'}
             </div>
-          </div>
-
-          {/* Two-column cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {/* Consistency */}
-            <div style={{ background: '#1a1a1a', borderRadius: 10, border: '1px solid #2a2a2a', padding: '7px 11px' }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: LIME, marginBottom: 3 }}>
-                ✅ {ar ? 'الالتزام' : 'Consistency'}
-              </div>
-              <div style={{ fontSize: 10, color: '#555', lineHeight: 1.4, marginBottom: 4 }}>
-                {ar ? 'مجموعاتك المنجزة ÷ مجموعاتك المبرمجة × ١٠٠' : 'Sets done ÷ sets programmed × 100'}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: LIME }}>70 {ar ? 'نقطة' : 'pts'}</div>
+            {/* Visual bar */}
+            <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2 }}>
+              <div style={{ width: '70%', background: LIME, borderRadius: 4 }} />
+              <div style={{ width: '30%', background: '#ADFF2F88', borderRadius: 4 }} />
             </div>
-            {/* Improvement */}
-            <div style={{ background: '#1a1a1a', borderRadius: 10, border: '1px solid #2a2a2a', padding: '7px 11px' }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: `${LIME}88`, marginBottom: 3 }}>
-                📈 {ar ? 'التحسن' : 'Improvement'}
-              </div>
-              <div style={{ fontSize: 10, color: '#555', lineHeight: 1.4, marginBottom: 4 }}>
-                {ar ? 'متوسط نمو الحجم مقارنةً بأول تسجيل لك' : 'Avg. volume gain vs. your first ever log'}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: `${LIME}88` }}>30 {ar ? 'نقطة' : 'pts'}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
+              <span style={{ fontSize: 10, color: LIME, fontWeight: 700 }}>{ar ? 'الالتزام ٧٠٪' : 'Consistency 70%'}</span>
+              <span style={{ fontSize: 10, color: '#ADFF2F88', fontWeight: 700 }}>{ar ? 'التحسن ٣٠٪' : 'Improvement 30%'}</span>
             </div>
           </div>
 
-          {/* Tips */}
-          <div style={{ background: '#1a1a1a', borderRadius: 10, border: '1px solid #2a2a2a', padding: '6px 11px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#444', letterSpacing: '0.07em', marginBottom: 1 }}>
-              {ar ? 'نصائح' : 'TIPS'}
+          {/* ── Consistency block ── */}
+          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #222' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 18 }}>✅</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: LIME }}>
+                  {ar ? 'الالتزام — ٧٠ نقطة' : 'Consistency — 70 pts'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
+                {ar
+                  ? 'عدد المجموعات التي أتممتها هذا الشهر مقسوماً على المجموعات المبرمجة في برنامجك.'
+                  : 'Sets you completed this month divided by the sets programmed in your programme.'}
+              </div>
             </div>
-            {(ar ? [
-              'أكمل كل مجموعات البرنامج هذا الشهر',
-              'زِد الوزن تدريجياً لرفع نقاط التحسن',
-            ] : [
-              'Complete every programmed set this month',
-              'Add weight each session to boost improvement pts',
-            ]).map((tip, i) => (
-              <div key={i} style={{ display: 'flex', gap: 6 }}>
-                <span style={{ color: LIME, fontSize: 10, flexShrink: 0, marginTop: 1 }}>→</span>
-                <span style={{ fontSize: 11, color: '#666', lineHeight: 1.4 }}>{tip}</span>
+            {/* Example rows */}
+            {[
+              ar
+                ? { label: 'أتممت ٢٠ من أصل ٢٠ مجموعة', value: '١٠٠', highlight: true }
+                : { label: 'Complete 20 of 20 programmed sets', value: '100', highlight: true },
+              ar
+                ? { label: 'أتممت ١٤ من أصل ٢٠ مجموعة', value: '٧٠', highlight: false }
+                : { label: 'Complete 14 of 20 programmed sets', value: '70', highlight: false },
+              ar
+                ? { label: 'تجاوزت البرنامج (أكثر من ١٠٠٪)', value: '١٠٠', highlight: true }
+                : { label: 'Exceed your programme (over 100%)', value: '100', highlight: true },
+            ].map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '9px 14px', borderTop: '1px solid #1e1e1e',
+              }}>
+                <span style={{ fontSize: 12, color: '#666' }}>{row.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: row.highlight ? LIME : '#aaa' }}>
+                  {row.value} {ar ? 'نقطة' : 'pts'}
+                </span>
               </div>
             ))}
           </div>
 
+          {/* ── Improvement block ── */}
+          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #222' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 18 }}>📈</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#ADFF2F88' }}>
+                  {ar ? 'التحسن — ٣٠ نقطة' : 'Improvement — 30 pts'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
+                {ar
+                  ? 'متوسط نسبة تحسن الحجم لكل تمرين (الوزن × التكرارات) مقارنةً بأول تسجيل لك.'
+                  : 'Average volume gain per exercise (weight × reps) vs. your very first logged set — averaged across all your exercises.'}
+              </div>
+            </div>
+            {[
+              ar
+                ? { label: 'بدأت بـ ٥٠ كجم، والآن ٦٥ كجم (+٣٠٪)', value: '٩ / ٣٠', highlight: false }
+                : { label: 'Started 50 kg → now 65 kg (+30% vol.)', value: '9 / 30', highlight: false },
+              ar
+                ? { label: 'حسّنت كل تمارينك بأكثر من ١٠٠٪', value: '٣٠ / ٣٠', highlight: true }
+                : { label: 'Improved every exercise by 100%+', value: '30 / 30', highlight: true },
+              ar
+                ? { label: 'كل تمرين محدود بـ ١٠٠٪ كحد أقصى', value: '—', highlight: false }
+                : { label: 'Each exercise capped at 100% gain', value: '—', highlight: false },
+            ].map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '9px 14px', borderTop: '1px solid #1e1e1e',
+              }}>
+                <span style={{ fontSize: 12, color: '#666', flex: 1, paddingRight: 8 }}>{row.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: row.highlight ? LIME : '#aaa', flexShrink: 0 }}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Tips ── */}
+          <div style={{ background: '#1a1a1a', borderRadius: 14, border: '1px solid #2a2a2a', padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#555', letterSpacing: '0.07em', marginBottom: 10 }}>
+              {ar ? 'نصائح للتصدر' : 'TIPS TO CLIMB THE BOARD'}
+            </div>
+            {(ar ? [
+              'أكمل كل مجموعات البرنامج هذا الشهر',
+              'زِد الوزن التدريجي في كل تمرين',
+              'النقاط تُحدَّث تلقائياً بعد كل جلسة',
+              'النقاط تُعاد في أول كل شهر — ابدأ قوياً',
+            ] : [
+              'Complete every programmed set this month',
+              'Progressively add weight to each exercise',
+              'Your score updates automatically after every session',
+              'Scores reset on the 1st of each month — start strong',
+            ]).map((tip, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < 3 ? 8 : 0 }}>
+                <span style={{ color: LIME, fontSize: 12, flexShrink: 0, marginTop: 1 }}>→</span>
+                <span style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>{tip}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            padding: '10px 14px', marginBottom: 4,
+            background: `${LIME}0d`, border: `1px solid ${LIME}22`,
+            borderRadius: 10, textAlign: 'center',
+            fontSize: 12, color: '#888', lineHeight: 1.5,
+          }}>
+            {ar
+              ? '🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر'
+              : '🏆 The player with the most points by end of month wins'}
+          </div>
         </div>
       </motion.div>
     </motion.div>,
