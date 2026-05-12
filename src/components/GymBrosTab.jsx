@@ -820,8 +820,8 @@ function PointsInfoCard({ onClose, ar }) {
             fontSize: 12, color: '#888', lineHeight: 1.5,
           }}>
             {ar
-              ? '🏆 أعلى نقطة ممكنة هي ١٠٠ — حقّقها بإتمام برنامجك ورفع أثقال أكبر'
-              : '🏆 Max score is 100 — hit it by completing your programme and lifting heavier'}
+              ? '🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر'
+              : '🏆 The player with the most points by end of month wins'}
           </div>
         </div>
       </motion.div>
