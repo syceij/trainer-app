@@ -1,9 +1,9 @@
 {
-  "appId": "com.hex.app",
+  "appId": "com.hexapp.training",
   "appName": "HEX",
   "webDir": "dist",
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "allowsLinkPreview": false,
     "scrollEnabled": false,
     "limitsNavigationsToAppBoundDomains": true

@@ -18,36 +18,33 @@
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  /* Allows single tap + scroll but blocks double-tap zoom on every element */
+  /* Blocks double-tap zoom on every element */
   touch-action: manipulation;
 }
 
 input, textarea, select {
   -webkit-user-select: text;
   user-select: text;
-  /* iOS auto-zooms into any input with font-size < 16px.
-     Setting 16px here prevents that jarring zoom on focus.
-     Individual components can override with a larger size if needed. */
+  /* iOS auto-zooms any input with font-size < 16px — this prevents it */
   font-size: 16px !important;
 }
 
-/* ── Full-screen PWA / Capacitor baseline ─────────────────────────────────── */
-html {
-  height: 100%;
-  /* iOS Safari fill-available fills the viewport including safe areas */
-  height: -webkit-fill-available;
-  background: #0A0A0A;
-}
-
-body {
+/* ── Full-screen Capacitor baseline ───────────────────────────────────────── */
+/*
+ * capacitor.config.json uses contentInset:"never" so iOS does NOT shrink
+ * the WKWebView viewport for safe areas — the viewport equals the full
+ * physical screen height.  We handle all safe-area offsets here in CSS
+ * using env(safe-area-inset-*) which always reflects the real device values.
+ */
+html, body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  height: -webkit-fill-available;
   background: #0A0A0A;
   overflow: hidden;
-  /* position:fixed stops iOS rubber-band scroll on the body layer */
+  /* position:fixed anchors body to the viewport and prevents rubber-band
+     scroll from resizing the layout on iOS */
   position: fixed;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
@@ -55,14 +52,17 @@ body {
 
 #root {
   width: 100%;
+  /* 100dvh = dynamic viewport height — fills the screen on every iPhone
+     and falls back to 100% (= body height) on older WebKit */
   height: 100%;
-  height: -webkit-fill-available;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #0A0A0A;
-  /* Safe area: top + sides only.
-     Bottom is handled exclusively by BottomNav so we don't double-count. */
+  /* Push content clear of status bar and Dynamic Island at the top.
+     Left/right handles notch in landscape.
+     Bottom is handled by BottomNav only — never add it here too. */
   padding-top:   env(safe-area-inset-top);
   padding-left:  env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
