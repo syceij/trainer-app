@@ -1,11 +1,6 @@
-// CAPACITOR SETUP (run after npm run build):
-// 1. npm install @capacitor/core @capacitor/cli @capacitor/ios
-// 2. npx cap init Trainer com.yourname.trainer --web-dir dist
-// 3. npx cap add ios
-// 4. npx cap copy
-// 5. npx cap open ios  (requires Mac + Xcode)
-
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { AnimatePresence, motion } from 'framer-motion';
 import WelcomeScreen from './components/WelcomeScreen.jsx';
 import ManualProgrammeBuilder from './components/ManualProgrammeBuilder.jsx';
@@ -234,6 +229,9 @@ export default function App() {
         loadUserData(session.user);
       } else {
         setAuthState('unauthenticated');
+        if (Capacitor.isNativePlatform()) {
+          SplashScreen.hide({ fadeOutDuration: 500 });
+        }
       }
     });
 
@@ -439,6 +437,9 @@ export default function App() {
       setNetError(true);
     } finally {
       setDataLoading(false);
+      if (Capacitor.isNativePlatform()) {
+        SplashScreen.hide({ fadeOutDuration: 500 });
+      }
     }
   }, []);
 

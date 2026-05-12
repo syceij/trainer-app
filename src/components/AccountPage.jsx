@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, User, Mail, Calendar, Dumbbell, Globe, LogOu
 import { C, spring, springSoft } from '../tokens.js';
 import { upsertProfile, updatePrivacySettings } from '../lib/db.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
+import { hapticHeavy } from '../lib/haptics.js';
 
 // ── Privacy toggle row ─────────────────────────────────────────────────────────
 function PrivacyRow({ label, description, enabled, onToggle, last }) {
@@ -226,11 +227,13 @@ export default function AccountPage({ state, onBack }) {
   // ── Logout ─────────────────────────────────────────────────────────────────
   const handleLogout = async () => {
     if (!logoutConfirm) { setLogoutConfirm(true); setResetConfirm(false); return; }
+    hapticHeavy();
     await logout();
   };
 
   // ── Reset all data ─────────────────────────────────────────────────────────
   const handleReset = async () => {
+    hapticHeavy();
     setResetting(true);
     try {
       await resetAllData();
@@ -249,6 +252,7 @@ export default function AccountPage({ state, onBack }) {
   // finally block and transitions authState → 'unauthenticated', which unmounts
   // this component. setDeleting(true) just shows the spinner while it runs.
   const handleDeleteAccount = async () => {
+    hapticHeavy();
     setDeleting(true);
     await deleteAccount();
     // Component will unmount via auth state change — no need to reset local state

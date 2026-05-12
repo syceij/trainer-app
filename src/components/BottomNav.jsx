@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Home, Dumbbell, TrendingUp, Users, MessageCircle } from 'lucide-react';
 import { C, spring } from '../tokens.js';
+import { hapticLight } from '../lib/haptics.js';
 
 const TABS = [
   { key: 'home',     label: 'Home',     Icon: Home },
@@ -28,7 +29,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
         return (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => { hapticLight(); setActiveTab(key); }}
             style={{
               flex: 1,
               display: 'flex',

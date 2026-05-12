@@ -6,6 +6,7 @@ import WeightStepper from './shared/WeightStepper.jsx';
 import RestTimer, { TIMER_PRESETS, getDefaultRestDuration, isCustomDuration } from './shared/RestTimer.jsx';
 import { C, spring, springSoft } from '../tokens.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
+import { hapticLight, hapticMedium, hapticSuccess } from '../lib/haptics.js';
 
 export default function TodayTab({ state }) {
   const {
@@ -80,6 +81,7 @@ export default function TodayTab({ state }) {
     setTimerRemaining(duration);
     setTimerDuration(duration);
     setTimerPaused(false);
+    hapticLight();
     startTimerInterval();
   }, [startTimerInterval]);
 
@@ -172,6 +174,7 @@ export default function TodayTab({ state }) {
   };
 
   const handleSave = () => {
+    hapticSuccess();
     const finalExercises = exercises.map(ex => {
       const base = {
         ...ex,
@@ -447,6 +450,7 @@ export default function TodayTab({ state }) {
                         // Guard: swallow the synthetic click that fires after a touch long-press
                         onClick={() => {
                           if (lpFiredRef.current) { lpFiredRef.current = false; return; }
+                          hapticLight();
                           toggleSet(ex.key, si, ex);
                         }}
                         onTouchStart={(e) => {
@@ -516,7 +520,7 @@ export default function TodayTab({ state }) {
       {/* ── Finish button — inline below last exercise ── */}
       <motion.button
         whileTap={{ scale: 0.97 }}
-        onClick={() => setShowSummary(true)}
+        onClick={() => { hapticMedium(); setShowSummary(true); }}
         style={{
           width: '100%', background: C.accent, border: 'none',
           borderRadius: 14, padding: '16px 0', fontSize: 15, fontWeight: 800, color: '#000',
