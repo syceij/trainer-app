@@ -474,23 +474,24 @@ function AddBroSheet({ currentUserId, username, onClose, onRequestSent, ar }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 6000,
         background: 'rgba(0,0,0,0.75)',
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
       }}
     >
       <motion.div
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        initial={{ y: '-100%' }} animate={{ y: 0 }} exit={{ y: '-100%' }}
         transition={springSoft}
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 390,
           background: '#161616',
-          borderRadius: '20px 20px 0 0',
+          borderRadius: '0 0 20px 20px',
           maxHeight: '85vh',
           display: 'flex', flexDirection: 'column',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 16px, 24px)',
+          paddingTop: 'max(env(safe-area-inset-top, 0px) + 16px, 24px)',
+          paddingBottom: 16,
         }}
       >
-        <div style={{ padding: '16px 20px 0' }}>
+        <div style={{ padding: '0 20px 0' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#2a2a2a', margin: '0 auto 16px' }} />
           <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 14 }}>{ar ? 'إضافة صديق' : 'Add a Bro'}</div>
           <div style={{ display: 'flex', background: '#1e1e1e', borderRadius: 10, padding: 3, marginBottom: 16 }}>
