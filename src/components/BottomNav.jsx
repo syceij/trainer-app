@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Home, Dumbbell, TrendingUp, Users, MessageCircle } from 'lucide-react';
+import { Home, Dumbbell, TrendingUp, Users, User } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { C, spring } from '../tokens.js';
 import { hapticLight } from '../lib/haptics.js';
@@ -9,7 +9,7 @@ const TABS = [
   { key: 'today',    label: 'Train',    Icon: Dumbbell },
   { key: 'progress', label: 'Progress', Icon: TrendingUp },
   { key: 'gymbros',  label: 'Bros',     Icon: Users },
-  { key: 'pt',       label: 'PT',       Icon: MessageCircle },
+  { key: 'profile',  label: 'Profile',  Icon: User },
 ];
 
 const isNative = Capacitor.isNativePlatform();

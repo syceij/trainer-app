@@ -10,7 +10,7 @@ import AuthScreen from './components/AuthScreen.jsx';
 import HomeTab from './components/HomeTab.jsx';
 import TodayTab from './components/TodayTab.jsx';
 import ProgressTab from './components/ProgressTab.jsx';
-import PTTab from './components/PTTab.jsx';
+import ProfileTab from './components/ProfileTab.jsx';
 import GymBrosTab from './components/GymBrosTab.jsx';
 import UsernameModal from './components/shared/UsernameModal.jsx';
 import ProgrammePage from './components/ProgrammePage.jsx';
@@ -179,6 +179,7 @@ export default function App() {
   const [privacySettings, setPrivacySettings]     = useState(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [customExercises, setCustomExercises]     = useState([]);
+  const [avatarUrl,        setAvatarUrl]           = useState(() => localStorage.getItem('hex_avatar') || null);
 
   // Refs so callbacks always see the latest values without stale closures
   const userRef        = useRef(user);
@@ -292,6 +293,11 @@ export default function App() {
         // Custom exercises
         if (Array.isArray(profileRow.custom_exercises)) {
           setCustomExercises(profileRow.custom_exercises);
+        }
+        // Load avatar — also cache locally for instant display on next open
+        if (profileRow.avatar_url) {
+          setAvatarUrl(profileRow.avatar_url);
+          try { localStorage.setItem('hex_avatar', profileRow.avatar_url); } catch {}
         }
 
         // One-time email backfill: populate profiles.email for users who signed up
@@ -635,6 +641,17 @@ export default function App() {
     });
   }, []);
 
+  // ── Avatar ────────────────────────────────────────────────────────────────
+  const saveAvatarUrl = useCallback(async (url) => {
+    setAvatarUrl(url);
+    try { localStorage.setItem('hex_avatar', url); } catch {}
+    const uid = userRef.current?.id;
+    if (uid) {
+      try { await upsertProfile(uid, { avatar_url: url }); }
+      catch (err) { console.warn('[App] saveAvatarUrl DB write failed (non-fatal):', err); }
+    }
+  }, []);
+
   // ── Programme field editors (AUTO) ────────────────────────────────────────
   const updateAutoExerciseField = useCallback((sessionIdx, exIdx, field, value) => {
     const editKey = `auto_s${sessionIdx}_e${exIdx}_${field}`;
@@ -968,6 +985,7 @@ export default function App() {
     privacySettings, setPrivacySettings,
     showUsernameModal, setShowUsernameModal,
     customExercises, addCustomExercise,
+    avatarUrl, saveAvatarUrl,
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1059,7 +1077,7 @@ function AppShell({ state }) {
     today:    <TodayTab    state={state} />,
     progress: <ProgressTab state={state} />,
     gymbros:  <GymBrosTab  state={state} />,
-    pt:       <PTTab       state={state} />,
+    profile:  <ProfileTab  state={state} />,
   };
 
   return (
@@ -1080,10 +1098,10 @@ function AppShell({ state }) {
               height: '100%',
               // PT tab owns its own scroll (messages area) and its own bottom bar,
               // so skip the global paddingBottom that reserves space for the nav.
-              overflowY:     activeTab === 'pt' ? 'hidden' : 'auto',
+              overflowY: 'auto',
               // Reserve space for nav bar (49px) + home indicator safe area so
               // the last list item is never hidden behind the bottom nav.
-              paddingBottom: activeTab === 'pt' ? 0 : Capacitor.isNativePlatform() ? 'calc(78px + max(env(safe-area-inset-bottom), 8px))' : 'calc(49px + env(safe-area-inset-bottom))',
+              paddingBottom: Capacitor.isNativePlatform() ? 'calc(78px + max(env(safe-area-inset-bottom), 8px))' : 'calc(49px + env(safe-area-inset-bottom))',
               WebkitOverflowScrolling: 'touch',
             }}
           >

@@ -80,16 +80,17 @@ export async function loadProfile(userId) {
   return data;
 }
 
-export async function upsertProfile(userId, { name, lang, email, username } = {}) {
-  // profiles columns: id, name, language, email, username, created_at
+export async function upsertProfile(userId, { name, lang, email, username, avatar_url } = {}) {
+  // profiles columns: id, name, language, email, username, avatar_url, created_at
   // Only include fields that are explicitly provided so we never accidentally
   // overwrite existing values with undefined/null.
   tag('upsertProfile', '▶', `user=${userId} name="${name}" lang=${lang}`);
   const payload = { id: userId };
-  if (name     !== undefined) payload.name     = name;
-  if (lang     !== undefined) payload.language = lang;
-  if (email    !== undefined) payload.email    = email;
-  if (username !== undefined) payload.username = username;
+  if (name       !== undefined) payload.name       = name;
+  if (lang       !== undefined) payload.language   = lang;
+  if (email      !== undefined) payload.email      = email;
+  if (username   !== undefined) payload.username   = username;
+  if (avatar_url !== undefined) payload.avatar_url = avatar_url;
   const { data, error } = await supabase
     .from('profiles')
     .upsert(payload, { onConflict: 'id' })
@@ -426,7 +427,7 @@ export async function loadFriends(userId) {
   // Also fetch leaderboard_data so the leaderboard can show cached scores
   // without needing to query each friend's private tables.
   const { data: profiles, error: pErr } = await supabase
-    .from('profiles').select('id, name, username, leaderboard_data').in('id', friendIds);
+    .from('profiles').select('id, name, username, leaderboard_data, avatar_url').in('id', friendIds);
   if (pErr) { fail('loadFriends (profiles)', pErr); return []; }
   ok('loadFriends', `${profiles?.length ?? 0} friends`);
   return profiles || [];

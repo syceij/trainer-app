@@ -24,6 +24,34 @@ const BRONZE = '#CD7F32';
 const LIME   = '#ADFF2F';
 const RANK_COLORS = { 1: GOLD, 2: SILVER, 3: BRONZE };
 
+// ── Shared avatar circle (photo or initial fallback) ──────────────────────────
+function AvatarCircle({ url, initial, size = 48, ring = '#2a2a2a', bg, textColor, fontSize }) {
+  const fs = fontSize ?? Math.round(size * 0.36);
+  if (url) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        border: `2.5px solid ${ring}`, overflow: 'hidden',
+        transition: 'border-color 0.2s',
+      }}>
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: bg || `${LIME}18`,
+      border: `2.5px solid ${ring}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: fs, fontWeight: 800, color: textColor || C.dim,
+      transition: 'border-color 0.2s',
+    }}>
+      {initial}
+    </div>
+  );
+}
+
 // ── Section label ──────────────────────────────────────────────────────────────
 function SectionLabel({ children, right }) {
   return (
@@ -57,14 +85,15 @@ function RequestRow({ req, onAccept, onDecline, ar }) {
       border: `1px solid ${C.border}`,
       marginBottom: 6,
     }}>
-      <div style={{
-        width: 34, height: 34, borderRadius: '50%',
-        background: C.surface, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 13, fontWeight: 800, color: C.dim,
-      }}>
-        {(req.username || req.name || '?')[0].toUpperCase()}
-      </div>
+      <AvatarCircle
+        url={req.avatar_url}
+        initial={(req.username || req.name || '?')[0].toUpperCase()}
+        size={34}
+        ring={C.border}
+        bg={C.surface}
+        textColor={C.dim}
+        fontSize={13}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{req.name || req.username || 'Gym Bro'}</div>
         <div style={{ fontSize: 11, color: C.mute }}>{ar ? 'يريد أن يكون صديقاً لك' : 'Wants to be your Bro'}</div>
@@ -92,7 +121,7 @@ function RequestRow({ req, onAccept, onDecline, ar }) {
 
 // ── Friend avatar bubble (horizontal row) ──────────────────────────────────────
 function FriendBubble({ friend, trainedToday, onTap }) {
-  const initial = (friend.name || friend.username || '?')[0].toUpperCase();
+  const initial   = (friend.name || friend.username || '?')[0].toUpperCase();
   const firstName = (friend.name || friend.username || 'Bro').split(' ')[0].slice(0, 8);
   const ringColor = trainedToday ? LIME : '#2a2a2a';
   return (
@@ -105,16 +134,13 @@ function FriendBubble({ friend, trainedToday, onTap }) {
         WebkitTapHighlightColor: 'transparent',
       }}
     >
-      <div style={{
-        width: 48, height: 48, borderRadius: '50%',
-        background: `${LIME}18`,
-        border: `2.5px solid ${ringColor}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 17, fontWeight: 800, color: trainedToday ? LIME : C.dim,
-        transition: 'border-color 0.2s',
-      }}>
-        {initial}
-      </div>
+      <AvatarCircle
+        url={friend.avatar_url}
+        initial={initial}
+        size={48}
+        ring={ringColor}
+        textColor={trainedToday ? LIME : C.dim}
+      />
       <div style={{
         fontSize: 10, fontWeight: 600, color: C.mute,
         textAlign: 'center', maxWidth: 56,
@@ -212,14 +238,13 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack, ar }) {
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
-              <div style={{
-                width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
-                background: `${LIME}18`, border: `2px solid #2a2a2a`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, fontWeight: 800, color: C.dim,
-              }}>
-                {(f.name || f.username || '?')[0].toUpperCase()}
-              </div>
+              <AvatarCircle
+                url={f.avatar_url}
+                initial={(f.name || f.username || '?')[0].toUpperCase()}
+                size={42}
+                ring="#2a2a2a"
+                fontSize={15}
+              />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.text,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -243,8 +268,8 @@ function AllFriendsPage({ friends, currentUserId, onTap, onBack, ar }) {
 // ── Compact leaderboard row ────────────────────────────────────────────────────
 function LeaderboardRow({ rank, user, isMe, onTap, ar }) {
   const rankColor = isMe ? LIME : (RANK_COLORS[rank] || '#444');
-  const initial = (user.name || user.username || '?')[0].toUpperCase();
-  const subtitle = `${user.setsCompleted ?? 0} sets · +${user.improvementPct ?? 0}% volume`;
+  const initial   = (user.name || user.username || '?')[0].toUpperCase();
+  const subtitle  = `${user.setsCompleted ?? 0} sets · +${user.improvementPct ?? 0}% volume`;
 
   return (
     <motion.div
@@ -270,16 +295,15 @@ function LeaderboardRow({ rank, user, isMe, onTap, ar }) {
       </div>
 
       {/* Avatar 28px */}
-      <div style={{
-        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        background: isMe ? `${LIME}22` : '#1e1e1e',
-        border: `1.5px solid ${isMe ? LIME + '55' : '#2a2a2a'}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 800,
-        color: isMe ? LIME : '#666',
-      }}>
-        {initial}
-      </div>
+      <AvatarCircle
+        url={user.avatar_url}
+        initial={initial}
+        size={28}
+        ring={isMe ? LIME + '55' : '#2a2a2a'}
+        bg={isMe ? `${LIME}22` : '#1e1e1e'}
+        textColor={isMe ? LIME : '#666'}
+        fontSize={11}
+      />
 
       {/* Name @username · subtitle */}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -885,6 +909,7 @@ export default function GymBrosTab({ state }) {
         id: uid,
         name:           state.profile?.name || 'You',
         username:       state.username || null,
+        avatar_url:     state.avatarUrl || null,
         score:          myIsCurrent ? (myScore?.score          ?? 0) : 0,
         setsCompleted:  myIsCurrent ? (myScore?.setsCompleted  ?? 0) : 0,
         setsProgrammed: myScore?.setsProgrammed ?? 20,
@@ -897,6 +922,7 @@ export default function GymBrosTab({ state }) {
         const isCurrent = ld?.month === currentMonth;
         return {
           id: f.id, name: f.name, username: f.username,
+          avatar_url:     f.avatar_url || null,
           score:          isCurrent ? (ld?.score          ?? 0) : 0,
           setsCompleted:  isCurrent ? (ld?.setsCompleted  ?? 0) : 0,
           setsProgrammed: ld?.setsProgrammed ?? 20,
