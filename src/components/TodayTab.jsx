@@ -70,7 +70,7 @@ export default function TodayTab({ state }) {
     laStartedRef.current = true;
     const ex    = exs[0];
     const total = exs.reduce((s, e) => s + e.sets, 0);
-    await liveActivity.start({
+    const result = await liveActivity.start({
       sessionName:  currentSession.name || 'Workout',
       exerciseName: ex.name || 'Exercise',
       setsDone:     0,
@@ -79,9 +79,18 @@ export default function TodayTab({ state }) {
       weightKg:     ex.weight || 0,
       reps:         ex.reps   || 0,
     });
-    setLaActive(true);
+    if (result === 'started') {
+      setLaActive(true);
+    } else if (result === 'disabled_settings') {
+      laStartedRef.current = false; // allow retry after user fixes settings
+      showToast('Enable Live Activities for HEX in iOS Settings to use this feature.');
+    } else if (result === 'error') {
+      laStartedRef.current = false;
+      showToast('Live Activity could not start. Try again.');
+    }
+    // 'unsupported' and 'disabled_pref' are intentional no-ops — no toast needed
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSession]);
+  }, [currentSession, showToast]);
 
   // Auto-start when session first loads
   useEffect(() => {

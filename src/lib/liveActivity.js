@@ -40,15 +40,16 @@ export const liveActivity = {
   /**
    * Start a new Live Activity for the given workout session.
    * Replaces any existing activity automatically (native side handles this).
+   * Returns: 'started' | 'disabled_settings' | 'disabled_pref' | 'unsupported' | 'error'
    */
   async start(params) {
     if (!isNative) {
       console.log('[LiveActivity] skipped — not native');
-      return;
+      return 'unsupported';
     }
     if (!isLiveActivityEnabled()) {
       console.log('[LiveActivity] skipped — disabled by user pref');
-      return;
+      return 'disabled_pref';
     }
     // Check authorization before attempting to start
     try {
@@ -56,10 +57,11 @@ export const liveActivity = {
       console.log('[LiveActivity] isSupported:', JSON.stringify(support));
       if (!support?.supported) {
         console.error('[LiveActivity] Live Activities not supported or disabled in iOS Settings → HEX → Live Activities');
-        return;
+        return 'disabled_settings';
       }
     } catch (e) {
       console.error('[LiveActivity] isSupported check failed:', e);
+      return 'error';
     }
     try {
       const result = await _plugin.start({
@@ -72,8 +74,10 @@ export const liveActivity = {
         reps:          params.reps          ?? 0,
       });
       console.log('[LiveActivity] started, id:', result?.activityId);
+      return 'started';
     } catch (e) {
       console.error('[LiveActivity] start failed:', e?.message ?? e);
+      return 'error';
     }
   },
 
