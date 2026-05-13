@@ -58,17 +58,19 @@ export default function TodayTab({ state }) {
     ) ?? exs[exs.length - 1] ?? exs[0];
   };
 
-  // Start live activity when TodayTab first mounts with a session.
-  // We use a ref so we only start once even if the component re-renders.
+  // ── Live Activity state & manual trigger ─────────────────────────────────
+  const [laActive, setLaActive] = useState(false);
   const laStartedRef = useRef(false);
-  useEffect(() => {
-    if (!currentSession || laStartedRef.current) return;
+
+  const triggerLiveActivity = useCallback(async () => {
+    if (!currentSession) return;
     const exs = currentSession.exercises || [];
     if (exs.length === 0) return;
+    hapticLight();
     laStartedRef.current = true;
-    const ex = exs[0];
+    const ex    = exs[0];
     const total = exs.reduce((s, e) => s + e.sets, 0);
-    liveActivity.start({
+    await liveActivity.start({
       sessionName:  currentSession.name || 'Workout',
       exerciseName: ex.name || 'Exercise',
       setsDone:     0,
@@ -77,6 +79,14 @@ export default function TodayTab({ state }) {
       weightKg:     ex.weight || 0,
       reps:         ex.reps   || 0,
     });
+    setLaActive(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSession]);
+
+  // Auto-start when session first loads
+  useEffect(() => {
+    if (!currentSession || laStartedRef.current) return;
+    triggerLiveActivity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!currentSession]);
 
@@ -283,6 +293,7 @@ export default function TodayTab({ state }) {
     // Dismiss the Live Activity now that the workout is complete
     liveActivity.end();
     laStartedRef.current = false; // allow re-start for next session
+    setLaActive(false);
   };
 
   const isWeek1  = history.length < 4;
@@ -309,6 +320,34 @@ export default function TodayTab({ state }) {
           {translateContent(currentSession.focus, lang)}{currentSession.block ? ` · ${translateContent(currentSession.block, lang)}` : ''}
         </p>
       )}
+
+      {/* ── Live Activity trigger button ── */}
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={triggerLiveActivity}
+        style={{
+          width: '100%',
+          background: laActive ? 'rgba(184,255,0,0.12)' : 'rgba(184,255,0,0.06)',
+          border: `1.5px solid ${laActive ? 'rgba(184,255,0,0.5)' : 'rgba(184,255,0,0.2)'}`,
+          borderRadius: 12,
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          cursor: 'pointer',
+          marginBottom: 14,
+          touchAction: 'manipulation',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <Zap size={14} color={C.accent} fill={laActive ? C.accent : 'none'} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: laActive ? C.accent : C.dim }}>
+          {laActive ? 'Live Activity Active' : 'Start Live Activity'}
+        </span>
+        {laActive && (
+          <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: C.accent }} />
+        )}
+      </motion.button>
 
       {/* ── Progress bar ── */}
       <div style={{ marginBottom: 8 }}>
