@@ -328,7 +328,7 @@ export default function ExercisePickerSheet({
                   {/* Scrollable list */}
                   <div style={{
                     flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-                    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+                    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
                   }}>
 
                     {isSearching ? (
