@@ -17,6 +17,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */; };
 		AABB0004CCDD0004EEFF0004 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */; };
+		AABB001BCCDD001BEEFF001B /* LiveActivityPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */; };
 		AABB000ACCDD000AEEFF000A /* WorkoutWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0009CCDD0009EEFF0009 /* WorkoutWidgetBundle.swift */; };
 		AABB000CCCDD000CEEFF000C /* WorkoutWidgetLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB000BCCDD000BEEFF000B /* WorkoutWidgetLiveActivity.swift */; };
 		AABB000FCCDD000FEEFF000F /* WorkoutWidget.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB000ECCDD000EEEFF000E /* WorkoutWidget.xcassets */; };
@@ -37,6 +38,7 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
 		AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
+		AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveActivityPlugin.m; sourceTree = "<group>"; };
 		AABB0007CCDD0007EEFF0007 /* WorkoutWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AABB0009CCDD0009EEFF0009 /* WorkoutWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetBundle.swift; sourceTree = "<group>"; };
 		AABB000BCCDD000BEEFF000B /* WorkoutWidgetLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetLiveActivity.swift; sourceTree = "<group>"; };
@@ -117,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */,
+				AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */,
 			);
 			path = Plugins;
 			sourceTree = "<group>";
@@ -248,6 +251,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 				AABB0004CCDD0004EEFF0004 /* LiveActivityPlugin.swift in Sources */,
+				AABB001BCCDD001BEEFF001B /* LiveActivityPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
