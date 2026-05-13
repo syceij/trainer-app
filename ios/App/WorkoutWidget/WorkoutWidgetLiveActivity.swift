@@ -3,10 +3,10 @@ import WidgetKit
 import SwiftUI
 
 // ── Design tokens matching the HEX app ───────────────────────────────────────
-private let accentColor   = Color(red: 0.722, green: 1.0,   blue: 0.0)    // #B8FF00
-private let bgColor       = Color(red: 0.039, green: 0.039, blue: 0.039)  // #0A0A0A
-private let dimColor      = Color.white.opacity(0.38)
-private let mutedBg       = Color.white.opacity(0.07)
+private let hexAccent     = Color(red: 0.722, green: 1.0,   blue: 0.0)    // #B8FF00
+private let hexBg         = Color(red: 0.039, green: 0.039, blue: 0.039)  // #0A0A0A
+private let hexDim        = Color.white.opacity(0.38)
+private let hexMutedBg    = Color.white.opacity(0.07)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 private func formatTime(_ date: Date) -> String {
@@ -28,11 +28,11 @@ struct WorkoutLockScreenView: View {
             // Left column: icon circle
             ZStack {
                 Circle()
-                    .fill(accentColor.opacity(0.14))
+                    .fill(hexAccent.opacity(0.14))
                     .frame(width: 44, height: 44)
                 Image(systemName: "dumbbell.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(accentColor)
+                    .foregroundStyle(hexAccent)
             }
 
             // Right column: content
@@ -41,7 +41,7 @@ struct WorkoutLockScreenView: View {
                 // Session name
                 Text(s.sessionName.uppercased())
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(dimColor)
+                    .foregroundStyle(hexDim)
                     .kerning(1.2)
                     .lineLimit(1)
 
@@ -58,7 +58,7 @@ struct WorkoutLockScreenView: View {
                     HStack(spacing: 3) {
                         ForEach(0..<min(s.setsTotal, 8), id: \.self) { i in
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(i < s.setsDone ? accentColor : mutedBg)
+                                .fill(i < s.setsDone ? hexAccent : hexMutedBg)
                                 .frame(width: 14, height: 5)
                         }
                     }
@@ -69,11 +69,11 @@ struct WorkoutLockScreenView: View {
                     if s.weightKg > 0 {
                         Text("\(Int(s.weightKg)) kg × \(s.reps)")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(dimColor)
+                            .foregroundStyle(hexDim)
                     } else if s.reps > 0 {
                         Text("\(s.reps) reps")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(dimColor)
+                            .foregroundStyle(hexDim)
                     }
                 }
 
@@ -82,16 +82,16 @@ struct WorkoutLockScreenView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "timer")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(accentColor)
+                            .foregroundStyle(hexAccent)
 
                         Text(s.timerEndsAt, style: .timer)
                             .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(accentColor)
+                            .foregroundStyle(hexAccent)
                             .contentTransition(.numericText(countsDown: true))
 
                         Text("rest")
                             .font(.system(size: 11))
-                            .foregroundStyle(dimColor)
+                            .foregroundStyle(hexDim)
                     }
                 }
             }
@@ -100,7 +100,7 @@ struct WorkoutLockScreenView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(bgColor)
+        .background(hexBg)
     }
 }
 
@@ -124,7 +124,7 @@ struct WorkoutLiveActivity: Widget {
                     HStack(spacing: 6) {
                         Image(systemName: "dumbbell.fill")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(accentColor)
+                            .foregroundStyle(hexAccent)
 
                         Text(s.exerciseName)
                             .font(.system(size: 14, weight: .semibold))
@@ -136,7 +136,7 @@ struct WorkoutLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     Text("\(s.setsDone)/\(s.setsTotal)")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(accentColor)
+                        .foregroundStyle(hexAccent)
                         .monospacedDigit()
                 }
 
@@ -145,11 +145,11 @@ struct WorkoutLiveActivity: Widget {
                         if s.weightKg > 0 {
                             Text("\(Int(s.weightKg)) kg × \(s.reps)")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(dimColor)
+                                .foregroundStyle(hexDim)
                         } else if s.reps > 0 {
                             Text("\(s.reps) reps")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(dimColor)
+                                .foregroundStyle(hexDim)
                         }
 
                         Spacer()
@@ -158,10 +158,10 @@ struct WorkoutLiveActivity: Widget {
                             HStack(spacing: 4) {
                                 Image(systemName: "timer")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(accentColor)
+                                    .foregroundStyle(hexAccent)
                                 Text(s.timerEndsAt, style: .timer)
                                     .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                    .foregroundStyle(accentColor)
+                                    .foregroundStyle(hexAccent)
                                     .contentTransition(.numericText(countsDown: true))
                             }
                         }
@@ -172,19 +172,19 @@ struct WorkoutLiveActivity: Widget {
                 // ── Compact leading ───────────────────────────────────────────
                 Image(systemName: "dumbbell.fill")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(accentColor)
+                    .foregroundStyle(hexAccent)
 
             } compactTrailing: {
                 // ── Compact trailing ─────────────────────────────────────────
                 if hasTimer {
                     Text(s.timerEndsAt, style: .timer)
                         .font(.system(size: 11, weight: .bold).monospacedDigit())
-                        .foregroundStyle(accentColor)
+                        .foregroundStyle(hexAccent)
                         .contentTransition(.numericText(countsDown: true))
                 } else {
                     Text("\(s.setsDone)/\(s.setsTotal)")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(accentColor)
+                        .foregroundStyle(hexAccent)
                         .monospacedDigit()
                 }
 
@@ -192,7 +192,7 @@ struct WorkoutLiveActivity: Widget {
                 // ── Minimal (stacked) ─────────────────────────────────────────
                 Image(systemName: "dumbbell.fill")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(accentColor)
+                    .foregroundStyle(hexAccent)
             }
         }
     }
