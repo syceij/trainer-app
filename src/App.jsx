@@ -294,10 +294,12 @@ export default function App() {
         if (Array.isArray(profileRow.custom_exercises)) {
           setCustomExercises(profileRow.custom_exercises);
         }
-        // Load avatar — also cache locally for instant display on next open
+        // Always overwrite avatar — null clears a previous user's cached photo
+        setAvatarUrl(profileRow.avatar_url || null);
         if (profileRow.avatar_url) {
-          setAvatarUrl(profileRow.avatar_url);
           try { localStorage.setItem('hex_avatar', profileRow.avatar_url); } catch {}
+        } else {
+          try { localStorage.removeItem('hex_avatar'); } catch {}
         }
 
         // One-time email backfill: populate profiles.email for users who signed up
@@ -466,6 +468,9 @@ export default function App() {
     setLastWeightAdded(null);
     setEditedKeys([]);
     setTrackedLifts(null);
+    // Clear avatar so the next user who logs in starts with a blank slate
+    setAvatarUrl(null);
+    try { localStorage.removeItem('hex_avatar'); } catch {}
   }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
