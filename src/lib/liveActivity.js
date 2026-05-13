@@ -42,9 +42,27 @@ export const liveActivity = {
    * Replaces any existing activity automatically (native side handles this).
    */
   async start(params) {
-    if (!isNative || !isLiveActivityEnabled()) return;
+    if (!isNative) {
+      console.log('[LiveActivity] skipped — not native');
+      return;
+    }
+    if (!isLiveActivityEnabled()) {
+      console.log('[LiveActivity] skipped — disabled by user pref');
+      return;
+    }
+    // Check authorization before attempting to start
     try {
-      await _plugin.start({
+      const support = await _plugin.isSupported();
+      console.log('[LiveActivity] isSupported:', JSON.stringify(support));
+      if (!support?.supported) {
+        console.error('[LiveActivity] Live Activities not supported or disabled in iOS Settings → HEX → Live Activities');
+        return;
+      }
+    } catch (e) {
+      console.error('[LiveActivity] isSupported check failed:', e);
+    }
+    try {
+      const result = await _plugin.start({
         sessionName:   params.sessionName   ?? 'Workout',
         exerciseName:  params.exerciseName  ?? 'Exercise',
         setsDone:      params.setsDone      ?? 0,
@@ -53,9 +71,9 @@ export const liveActivity = {
         weightKg:      params.weightKg      ?? 0,
         reps:          params.reps          ?? 0,
       });
+      console.log('[LiveActivity] started, id:', result?.activityId);
     } catch (e) {
-      // Live Activities can be denied by user; swallow silently
-      console.warn('[LiveActivity] start failed:', e);
+      console.error('[LiveActivity] start failed:', e?.message ?? e);
     }
   },
 
@@ -76,7 +94,7 @@ export const liveActivity = {
         reps:          params.reps          ?? 0,
       });
     } catch (e) {
-      console.warn('[LiveActivity] update failed:', e);
+      console.error('[LiveActivity] update failed:', e?.message ?? e);
     }
   },
 
@@ -85,8 +103,9 @@ export const liveActivity = {
     if (!isNative) return;
     try {
       await _plugin.end();
+      console.log('[LiveActivity] ended');
     } catch (e) {
-      console.warn('[LiveActivity] end failed:', e);
+      console.error('[LiveActivity] end failed:', e?.message ?? e);
     }
   },
 };
