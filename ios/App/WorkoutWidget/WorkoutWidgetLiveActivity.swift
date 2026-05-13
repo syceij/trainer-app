@@ -20,6 +20,7 @@ struct WorkoutLockScreenView: View {
     let context: ActivityViewContext<WorkoutActivityAttributes>
 
     private var s: WorkoutActivityAttributes.ContentState { context.state }
+    private var a: WorkoutActivityAttributes { context.attributes }
     private var hasTimer: Bool { s.timerEndsAt > Date() }
 
     var body: some View {
@@ -39,7 +40,7 @@ struct WorkoutLockScreenView: View {
             VStack(alignment: .leading, spacing: 4) {
 
                 // Session name
-                Text(s.sessionName.uppercased())
+                Text(a.sessionName.uppercased())
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(hexDim)
                     .kerning(1.2)
