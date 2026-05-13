@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase.js';
@@ -11,12 +11,32 @@ const RED   = '#E24B4A';
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
-function Logo() {
+function Logo({ hidden }) {
   return (
-    <div style={{ marginBottom: 40, display: 'flex', justifyContent: 'center' }}>
-      <img src="/login-logo.png" alt="HEX" style={{ height: 160, width: 'auto' }} />
-    </div>
+    <motion.div
+      animate={hidden
+        ? { height: 0, opacity: 0, marginBottom: 0 }
+        : { height: 160, opacity: 1, marginBottom: 32 }}
+      transition={{ duration: 0.22, ease: 'easeInOut' }}
+      style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center' }}
+    >
+      <img src="/login-logo.png" alt="HEX" style={{ height: 160, width: 'auto', flexShrink: 0 }} />
+    </motion.div>
   );
+}
+
+// ── Keyboard-aware focus tracking (debounced so switching fields doesn't flicker)
+function useKbFocus(onKbChange) {
+  const timerRef = useRef(null);
+  return {
+    onFocus: useCallback(() => {
+      clearTimeout(timerRef.current);
+      onKbChange(true);
+    }, [onKbChange]),
+    onBlur: useCallback(() => {
+      timerRef.current = setTimeout(() => onKbChange(false), 180);
+    }, [onKbChange]),
+  };
 }
 
 function Field({ label, type, value, onChange, autoComplete, placeholder }) {
@@ -186,7 +206,7 @@ function ErrorBanner({ msg }) {
 }
 
 // ── Login view ────────────────────────────────────────────────────────────────
-function LoginView({ onSwitch, onSuccess, ar }) {
+function LoginView({ onSwitch, onSuccess, ar, kbOpen, onKbChange }) {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password,        setPassword]        = useState('');
   const [error,           setError]           = useState('');
@@ -238,6 +258,7 @@ function LoginView({ onSwitch, onSuccess, ar }) {
   };
 
   const handleKey = (e) => { if (e.key === 'Enter') handleLogin(); };
+  const kbProps   = useKbFocus(onKbChange);
 
   return (
     <motion.div
@@ -245,7 +266,7 @@ function LoginView({ onSwitch, onSuccess, ar }) {
       initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
       transition={springSoft}
     >
-      <Logo />
+      <Logo hidden={kbOpen} />
       <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, marginBottom: 6, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
         {ar ? 'مرحباً بعودتك' : 'Welcome back'}
       </h2>
@@ -255,24 +276,24 @@ function LoginView({ onSwitch, onSuccess, ar }) {
 
       <ErrorBanner msg={error} />
 
-      <Field
-        label={ar ? 'البريد الإلكتروني أو اسم المستخدم' : 'Email or username'}
-        type="text"
-        value={emailOrUsername}
-        onChange={setEmailOrUsername}
-        autoComplete="email"
-        placeholder={ar ? 'البريد الإلكتروني أو @اسم_المستخدم' : 'Email or @username'}
-      />
-      <Field
-        label={ar ? 'كلمة المرور' : 'Password'}
-        type="password"
-        value={password}
-        onChange={setPassword}
-        autoComplete="current-password"
-        placeholder="••••••••"
-      />
-
-      <div onKeyDown={handleKey}>
+      {/* Wrap fields so focus bubbles up to keyboard tracker */}
+      <div {...kbProps} onKeyDown={handleKey}>
+        <Field
+          label={ar ? 'البريد الإلكتروني أو اسم المستخدم' : 'Email or username'}
+          type="text"
+          value={emailOrUsername}
+          onChange={setEmailOrUsername}
+          autoComplete="email"
+          placeholder={ar ? 'البريد الإلكتروني أو @اسم_المستخدم' : 'Email or @username'}
+        />
+        <Field
+          label={ar ? 'كلمة المرور' : 'Password'}
+          type="password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+          placeholder="••••••••"
+        />
         <PrimaryButton onClick={handleLogin} loading={loading} disabled={!emailOrUsername || !password}>
           {ar ? 'تسجيل الدخول' : 'Sign in'}
         </PrimaryButton>
@@ -289,7 +310,7 @@ function LoginView({ onSwitch, onSuccess, ar }) {
 }
 
 // ── Signup view ───────────────────────────────────────────────────────────────
-function SignupView({ onSwitch, onConfirm, ar }) {
+function SignupView({ onSwitch, onConfirm, ar, kbOpen, onKbChange }) {
   const [name,           setName]           = useState('');
   const [username,       setUsername]       = useState('');
   const [usernameStatus, setUsernameStatus] = useState('idle');
@@ -368,7 +389,8 @@ function SignupView({ onSwitch, onConfirm, ar }) {
     }
   };
 
-  const ready = name.trim() && username && usernameStatus === 'available' && email && password.length >= 6;
+  const ready    = name.trim() && username && usernameStatus === 'available' && email && password.length >= 6;
+  const kbProps  = useKbFocus(onKbChange);
 
   return (
     <motion.div
@@ -376,7 +398,7 @@ function SignupView({ onSwitch, onConfirm, ar }) {
       initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
       transition={springSoft}
     >
-      <Logo />
+      <Logo hidden={kbOpen} />
       <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, marginBottom: 6, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
         {ar ? 'إنشاء حساب' : 'Create account'}
       </h2>
@@ -386,14 +408,15 @@ function SignupView({ onSwitch, onConfirm, ar }) {
 
       <ErrorBanner msg={error} />
 
-      <Field label={ar ? 'الاسم' : 'Name'} type="text" value={name} onChange={setName} autoComplete="given-name" placeholder={ar ? 'اسمك' : 'Your name'} />
-      <UsernameField value={username} onChange={handleUsernameChange} status={usernameStatus} ar={ar} />
-      <Field label={ar ? 'البريد الإلكتروني' : 'Email'} type="email" value={email} onChange={setEmail} autoComplete="email" placeholder="you@example.com" />
-      <Field label={ar ? 'كلمة المرور' : 'Password'} type="password" value={password} onChange={setPassword} autoComplete="new-password" placeholder={ar ? 'الحد الأدنى ٦ أحرف' : 'Min. 6 characters'} />
-
-      <PrimaryButton onClick={handleSignup} loading={loading} disabled={!ready}>
-        {ar ? 'إنشاء حساب' : 'Create account'}
-      </PrimaryButton>
+      <div {...kbProps}>
+        <Field label={ar ? 'الاسم' : 'Name'} type="text" value={name} onChange={setName} autoComplete="given-name" placeholder={ar ? 'اسمك' : 'Your name'} />
+        <UsernameField value={username} onChange={handleUsernameChange} status={usernameStatus} ar={ar} />
+        <Field label={ar ? 'البريد الإلكتروني' : 'Email'} type="email" value={email} onChange={setEmail} autoComplete="email" placeholder="you@example.com" />
+        <Field label={ar ? 'كلمة المرور' : 'Password'} type="password" value={password} onChange={setPassword} autoComplete="new-password" placeholder={ar ? 'الحد الأدنى ٦ أحرف' : 'Min. 6 characters'} />
+        <PrimaryButton onClick={handleSignup} loading={loading} disabled={!ready}>
+          {ar ? 'إنشاء حساب' : 'Create account'}
+        </PrimaryButton>
+      </div>
 
       <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: C.dim }}>
         {ar ? 'لديك حساب بالفعل؟' : 'Already have an account?'}{' '}
@@ -406,7 +429,7 @@ function SignupView({ onSwitch, onConfirm, ar }) {
 }
 
 // ── OTP verification view ─────────────────────────────────────────────────────
-function OtpView({ email, name, username, onSuccess, onBack, ar }) {
+function OtpView({ email, name, username, onSuccess, onBack, ar, kbOpen, onKbChange }) {
   const [digits,    setDigits]    = useState(['', '', '', '', '', '']);
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -505,7 +528,8 @@ function OtpView({ email, name, username, onSuccess, onBack, ar }) {
     }
   };
 
-  const filled = digits.every(d => d !== '');
+  const filled   = digits.every(d => d !== '');
+  const kbProps  = useKbFocus(onKbChange);
 
   return (
     <motion.div
@@ -527,7 +551,7 @@ function OtpView({ email, name, username, onSuccess, onBack, ar }) {
         {ar ? '→ رجوع' : '← Back'}
       </button>
 
-      <Logo />
+      <Logo hidden={kbOpen} />
 
       <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: ar ? '0' : '-0.02em', color: C.text, marginBottom: 8, fontFamily: ar ? "'ThmanyahSans', sans-serif" : undefined }}>
         {ar ? 'تحقق من بريدك الإلكتروني' : 'Check your email'}
@@ -542,6 +566,7 @@ function OtpView({ email, name, username, onSuccess, onBack, ar }) {
       <div
         style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28 }}
         onPaste={handlePaste}
+        {...kbProps}
       >
         {digits.map((d, i) => (
           <input
@@ -627,6 +652,7 @@ export default function AuthScreen({ onAuth, lang = 'en', onLangChange = null })
   const [otpEmail,    setOtpEmail]    = useState('');
   const [otpName,     setOtpName]     = useState('');
   const [otpUsername, setOtpUsername] = useState('');
+  const [kbOpen,      setKbOpen]      = useState(false);
 
   const goToOtp = ({ email, name, username }) => {
     setOtpEmail(email);
@@ -637,10 +663,15 @@ export default function AuthScreen({ onAuth, lang = 'en', onLangChange = null })
 
   return (
     <div style={{
-      width: '100%', height: '100%', background: `radial-gradient(ellipse 60% 45% at top left, rgba(200,255,0,0.10) 0%, transparent 100%), ${C.bg}`,
-      display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      width: '100%', height: '100%',
+      background: `radial-gradient(ellipse 60% 45% at top left, rgba(200,255,0,0.10) 0%, transparent 100%), ${C.bg}`,
+      display: 'flex', flexDirection: 'column',
+      // Top-align when keyboard is open so the form isn't half off-screen
+      justifyContent: kbOpen ? 'flex-start' : 'center',
       padding: '0 28px',
-      paddingTop: 'max(env(safe-area-inset-top, 0px) + 20px, 40px)',
+      paddingTop: kbOpen
+        ? 'max(env(safe-area-inset-top, 0px) + 12px, 20px)'
+        : 'max(env(safe-area-inset-top, 0px) + 20px, 40px)',
       paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 20px, 40px)',
       overflowY: 'auto', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box',
       direction: ar ? 'rtl' : 'ltr',
@@ -671,20 +702,19 @@ export default function AuthScreen({ onAuth, lang = 'en', onLangChange = null })
       )}
       <AnimatePresence mode="wait">
         {view === 'login' && (
-          <LoginView key="login" onSwitch={() => setView('signup')} onSuccess={onAuth} ar={ar} />
+          <LoginView key="login" onSwitch={() => setView('signup')} onSuccess={onAuth} ar={ar}
+            kbOpen={kbOpen} onKbChange={setKbOpen} />
         )}
         {view === 'signup' && (
-          <SignupView key="signup" onSwitch={() => setView('login')} onConfirm={goToOtp} ar={ar} />
+          <SignupView key="signup" onSwitch={() => setView('login')} onConfirm={goToOtp} ar={ar}
+            kbOpen={kbOpen} onKbChange={setKbOpen} />
         )}
         {view === 'otp' && (
           <OtpView
             key="otp"
-            email={otpEmail}
-            name={otpName}
-            username={otpUsername}
-            ar={ar}
-            onSuccess={onAuth}
-            onBack={() => setView('signup')}
+            email={otpEmail} name={otpName} username={otpUsername} ar={ar}
+            onSuccess={onAuth} onBack={() => setView('signup')}
+            kbOpen={kbOpen} onKbChange={setKbOpen}
           />
         )}
       </AnimatePresence>
