@@ -35,11 +35,12 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync ios
 
-      - name: Install Apple certificate and provisioning profile
+      - name: Install Apple certificate and provisioning profiles
         env:
           DISTRIBUTION_P12_BASE64: ${{ secrets.DISTRIBUTION_P12_BASE64 }}
           DISTRIBUTION_P12_PASSWORD: ${{ secrets.DISTRIBUTION_P12_PASSWORD }}
           PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          WIDGET_PP_BASE64: ${{ secrets.WIDGET_PP_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           # Create temporary keychain
@@ -58,10 +59,18 @@ jobs:
             -S apple-tool:,apple: \
             -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
-          # Install provisioning profile
+          # Install provisioning profiles
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILES_DIR"
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILES_DIR/HEX_App_Store.mobileprovision"
+          # Widget extension provisioning profile (required for Live Activities)
+          if [ -n "$WIDGET_PP_BASE64" ]; then
+            echo "$WIDGET_PP_BASE64" | base64 --decode > "$PROFILES_DIR/HEX_WorkoutWidget_App_Store.mobileprovision"
+            echo "Widget provisioning profile installed."
+          else
+            echo "WARNING: WIDGET_PP_BASE64 secret not set — widget extension will fail to sign."
+            echo "Create a provisioning profile for com.hexapp.training.WorkoutWidget and add it as WIDGET_PP_BASE64."
+          fi
 
       - name: Set build number from CI run
         run: |
@@ -85,8 +94,10 @@ jobs:
             archive \
             DEVELOPMENT_TEAM=YKN5BXC893 \
             CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="HEX App Store"
+            CODE_SIGN_IDENTITY="Apple Distribution"
+          # Note: per-target PROVISIONING_PROFILE_SPECIFIER values are set in
+          # the Xcode project build settings (not here) so each target uses its
+          # own profile: "HEX App Store" (App) and "HEX WorkoutWidget App Store" (widget).
 
       - name: Export IPA
         run: |
@@ -111,6 +122,8 @@ jobs:
             <dict>
               <key>com.hexapp.training</key>
               <string>HEX App Store</string>
+              <key>com.hexapp.training.WorkoutWidget</key>
+              <string>HEX WorkoutWidget App Store</string>
             </dict>
           </dict>
           </plist>

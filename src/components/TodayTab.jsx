@@ -7,6 +7,7 @@ import RestTimer, { TIMER_PRESETS, getDefaultRestDuration, isCustomDuration } fr
 import { C, spring, springSoft } from '../tokens.js';
 import { headingFont, translateContent } from '../lib/i18n.js';
 import { hapticLight, hapticMedium, hapticSuccess } from '../lib/haptics.js';
+import { liveActivity } from '../lib/liveActivity.js';
 
 export default function TodayTab({ state }) {
   const {
@@ -46,6 +47,39 @@ export default function TodayTab({ state }) {
     clearTimeout(lpTimerRef.current);
   }, []);
 
+  // ── Live Activity helpers ─────────────────────────────────────────────────
+  // Returns the "most relevant" exercise to show: the one with an active timer,
+  // or the first incomplete exercise, or the last exercise if all done.
+  const getActiveExerciseRef = useRef(null);
+  getActiveExerciseRef.current = (exs, cs, timerKey) => {
+    if (timerKey) return exs.find(e => e.key === timerKey) ?? exs[0];
+    return exs.find(e =>
+      !Array.from({ length: e.sets }, (_, si) => cs[`${e.key}_${si}`]).every(Boolean)
+    ) ?? exs[exs.length - 1] ?? exs[0];
+  };
+
+  // Start live activity when TodayTab first mounts with a session.
+  // We use a ref so we only start once even if the component re-renders.
+  const laStartedRef = useRef(false);
+  useEffect(() => {
+    if (!currentSession || laStartedRef.current) return;
+    const exs = currentSession.exercises || [];
+    if (exs.length === 0) return;
+    laStartedRef.current = true;
+    const ex = exs[0];
+    const total = exs.reduce((s, e) => s + e.sets, 0);
+    liveActivity.start({
+      sessionName:  currentSession.name || 'Workout',
+      exerciseName: ex.name || 'Exercise',
+      setsDone:     0,
+      setsTotal:    total,
+      timerEndsAt:  0,
+      weightKg:     ex.weight || 0,
+      reps:         ex.reps   || 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!currentSession]);
+
   // Start the raw setInterval tick (call after setting up refs/state)
   const startTimerInterval = useCallback(() => {
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
@@ -71,7 +105,25 @@ export default function TodayTab({ state }) {
     setTimerRemaining(0);
     setTimerDuration(0);
     setTimerPaused(false);
-  }, []);
+    // Clear rest timer from Live Activity (widget hides the countdown)
+    if (currentSession) {
+      const exs = currentSession.exercises || [];
+      const cs  = completedSets;
+      const ex  = getActiveExerciseRef.current(exs, cs, null);
+      const total = exs.reduce((s, e) => s + e.sets, 0);
+      const done  = Object.values(cs).filter(Boolean).length;
+      liveActivity.update({
+        sessionName:  currentSession.name || 'Workout',
+        exerciseName: ex?.name  || 'Exercise',
+        setsDone:     done,
+        setsTotal:    total,
+        timerEndsAt:  0,
+        weightKg:     ex?.weight || 0,
+        reps:         ex?.reps   || 0,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSession, completedSets]);
 
   const startTimer = useCallback((exKey, duration) => {
     if (!duration || duration <= 0) return;
@@ -83,7 +135,25 @@ export default function TodayTab({ state }) {
     setTimerPaused(false);
     hapticLight();
     startTimerInterval();
-  }, [startTimerInterval]);
+    // Push rest timer start to Live Activity — widget shows a live countdown
+    if (currentSession) {
+      const exs   = currentSession.exercises || [];
+      const cs    = completedSets;
+      const ex    = exs.find(e => e.key === exKey) ?? getActiveExerciseRef.current(exs, cs, exKey);
+      const total = exs.reduce((s, e) => s + e.sets, 0);
+      const done  = Object.values(cs).filter(Boolean).length;
+      liveActivity.update({
+        sessionName:  currentSession.name || 'Workout',
+        exerciseName: ex?.name  || 'Exercise',
+        setsDone:     done,
+        setsTotal:    total,
+        timerEndsAt:  Date.now() / 1000 + duration,   // Unix seconds
+        weightKg:     ex?.weight || 0,
+        reps:         ex?.reps   || 0,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startTimerInterval, currentSession, completedSets]);
 
   const togglePause = useCallback(() => {
     setTimerPaused(paused => {
@@ -151,14 +221,15 @@ export default function TodayTab({ state }) {
 
   // Toggle set done; start/stop timer accordingly
   const toggleSet = (exKey, setIdx, ex) => {
-    const k            = `${exKey}_${setIdx}`;
+    const k              = `${exKey}_${setIdx}`;
     const wasAlreadyDone = !!completedSets[k];
-    setCompletedSets(cs => ({ ...cs, [k]: !cs[k] }));
+    const newCompletedSets = { ...completedSets, [k]: !completedSets[k] };
+    setCompletedSets(() => newCompletedSets);
 
     if (!wasAlreadyDone) {
       // Set just completed — check if ALL sets for this exercise are now done
-      const newSets  = { ...completedSets, [k]: true };
-      const allDone  = Array.from({ length: ex.sets }).every((_, si) => newSets[`${exKey}_${si}`]);
+      const newSets = newCompletedSets;
+      const allDone = Array.from({ length: ex.sets }).every((_, si) => newSets[`${exKey}_${si}`]);
 
       if (allDone) {
         // All sets finished — hide timer for this exercise
@@ -170,6 +241,24 @@ export default function TodayTab({ state }) {
           : ex.restTimer !== undefined ? ex.restTimer : getDefaultRestDuration(ex);
         if (restDur > 0) startTimer(exKey, restDur);
       }
+    }
+
+    // Update Live Activity with new set count
+    if (currentSession) {
+      const exs   = exercises;
+      const done  = Object.values(newCompletedSets).filter(Boolean).length;
+      const total = exs.reduce((s, e) => s + e.sets, 0);
+      // Show the exercise we just interacted with
+      const activeEx = getActiveExerciseRef.current(exs, newCompletedSets, null);
+      liveActivity.update({
+        sessionName:  currentSession.name || 'Workout',
+        exerciseName: ex.name || activeEx?.name || 'Exercise',
+        setsDone:     done,
+        setsTotal:    total,
+        timerEndsAt:  0,   // timer update comes separately via startTimer/stopTimer
+        weightKg:     ex.weight || 0,
+        reps:         ex.reps   || 0,
+      });
     }
   };
 
@@ -191,6 +280,9 @@ export default function TodayTab({ state }) {
     setShowSummary(false);
     setEditWeights({});
     stopTimer();
+    // Dismiss the Live Activity now that the workout is complete
+    liveActivity.end();
+    laStartedRef.current = false; // allow re-start for next session
   };
 
   const isWeek1  = history.length < 4;
