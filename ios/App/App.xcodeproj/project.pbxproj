@@ -41,6 +41,8 @@
 		B1A2C3D40000000000240001 /* ProgrammeBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000240002 /* ProgrammeBuilder.swift */; };
 		B1A2C3D40000000000250001 /* ImportHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000250002 /* ImportHelpers.swift */; };
 		B1A2C3D40000000000260001 /* ExerciseLiftPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000260002 /* ExerciseLiftPage.swift */; };
+		B1A2C3D40000000000270001 /* MuscleUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000270002 /* MuscleUtils.swift */; };
+		B1A2C3D40000000000280001 /* MusclePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000280002 /* MusclePage.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -93,6 +95,8 @@
 		B1A2C3D40000000000240002 /* ProgrammeBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammeBuilder.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000250002 /* ImportHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportHelpers.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000260002 /* ExerciseLiftPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLiftPage.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000270002 /* MuscleUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuscleUtils.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000280002 /* MusclePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusclePage.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -160,6 +164,8 @@
 				B1A2C3D40000000000240002 /* ProgrammeBuilder.swift */,
 				B1A2C3D40000000000250002 /* ImportHelpers.swift */,
 				B1A2C3D40000000000260002 /* ExerciseLiftPage.swift */,
+				B1A2C3D40000000000270002 /* MuscleUtils.swift */,
+				B1A2C3D40000000000280002 /* MusclePage.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -313,6 +319,8 @@
 				B1A2C3D40000000000240001 /* ProgrammeBuilder.swift in Sources */,
 				B1A2C3D40000000000250001 /* ImportHelpers.swift in Sources */,
 				B1A2C3D40000000000260001 /* ExerciseLiftPage.swift in Sources */,
+				B1A2C3D40000000000270001 /* MuscleUtils.swift in Sources */,
+				B1A2C3D40000000000280001 /* MusclePage.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -203,31 +203,23 @@ struct ProgressTabView: View {
 
     private var muscleProgressCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Bar chart placeholder — 6 muscle group bars
+            // 6 muscle group bars — each is a NavigationLink to MusclePage
             HStack(alignment: .bottom, spacing: 10) {
-                ForEach(muscleGroups, id: \.id) { group in
-                    VStack(spacing: 6) {
-                        Spacer(minLength: 0)
-                        // Bar
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(HexTheme.border)
-                            .frame(height: 8)
-                        // Label
-                        Text(group.label)
-                            .font(.system(size: 10, weight: .heavy))
-                            .foregroundColor(HexTheme.mute)
-                            .lineLimit(1)
+                ForEach(muscleStats, id: \.id) { stat in
+                    NavigationLink {
+                        MusclePage(muscleId: stat.id)
+                            .environmentObject(app)
+                    } label: {
+                        muscleBar(stat: stat)
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
                 }
             }
             .frame(height: 130)
 
             // Legend
             HStack {
-                Text(ar
-                     ? "سجّل تمرينين على الأقل لرؤية تقدمك"
-                     : "Log 2+ workouts to see your progress")
+                Text(legendText)
                     .font(.system(size: 11))
                     .foregroundColor(HexTheme.mute)
                 Spacer()
@@ -242,6 +234,43 @@ struct ProgressTabView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(HexTheme.border, lineWidth: 1)
         )
+    }
+
+    /// One bar in the chart — height proportional to pct (clamped 0-100).
+    /// Inactive look matches the original placeholder when pct is 0.
+    private func muscleBar(stat: MuscleStat) -> some View {
+        let label = barLabel(forId: stat.id)
+        let pctClamped = max(min(stat.pct, 100), 0)
+        // Reserve a small minimum so even "0%" muscles read as a bar.
+        let frac = stat.seen ? max(CGFloat(pctClamped) / 100.0, 0.06) : 0.04
+        let isActive = stat.pct > 0
+
+        return VStack(spacing: 6) {
+            Spacer(minLength: 0)
+            GeometryReader { geo in
+                VStack {
+                    Spacer(minLength: 0)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isActive ? HexTheme.accent : HexTheme.border)
+                        .frame(height: max(8, geo.size.height * frac))
+                }
+            }
+            // Label
+            Text(label)
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundColor(isActive ? HexTheme.text : HexTheme.mute)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Subtitle under the muscle chart — copy from React.
+    private var legendText: String {
+        let hasData = muscleStats.contains(where: { $0.pct > 0 })
+        if hasData {
+            return ar ? "اضغط على عضلة لعرض التفاصيل" : "Tap a muscle to see details"
+        }
+        return ar ? "سجّل تمرينين على الأقل لرؤية تقدمك" : "Log 2+ workouts to see your progress"
     }
 
     private var mostImprovedCard: some View {
@@ -277,22 +306,79 @@ struct ProgressTabView: View {
         )
     }
 
-    // MARK: - Muscle group labels
+    // MARK: - Muscle bar data
 
-    private struct MuscleGroup { let id: String; let label: String }
-    private var muscleGroups: [MuscleGroup] {
-        ar
-        ? [.init(id: "chest", label: "صدر"),
-           .init(id: "back",  label: "ظهر"),
-           .init(id: "legs",  label: "أرجل"),
-           .init(id: "shldr", label: "كتف"),
-           .init(id: "arms",  label: "ذراع"),
-           .init(id: "core",  label: "بطن")]
-        : [.init(id: "chest", label: "Chest"),
-           .init(id: "back",  label: "Back"),
-           .init(id: "legs",  label: "Legs"),
-           .init(id: "shldr", label: "Shldr"),
-           .init(id: "arms",  label: "Arms"),
-           .init(id: "core",  label: "Core")]
+    /// One row of the muscle progress chart.
+    /// - `id`: group key from MuscleUtils (chest | back | shoulders | arms | legs | core)
+    /// - `pct`: average improvement % across exercises mapped to this group
+    /// - `seen`: true when the user has logged at least one set tagged to
+    ///           this group, even if not enough sessions for an improvement.
+    private struct MuscleStat { let id: String; let pct: Int; let seen: Bool }
+
+    /// Aggregate stats per muscle group computed from `workoutHistory`.
+    /// Mirrors the MuscleProgressChart aggregator in ProgressTab.jsx.
+    private var muscleStats: [MuscleStat] {
+        // 1. exercises grouped by name across all sessions → list of weights
+        struct Entry { var muscle: String; var weights: [Double] = [] }
+        var byName: [String: Entry] = [:]
+        // workoutHistory is newest-first; reverse so we accumulate oldest → newest
+        for session in app.workoutHistory.reversed() {
+            for ex in session.data?.exercises ?? [] {
+                guard let muscle = MuscleUtils.resolveMuscle(name: ex.name) else { continue }
+                var e = byName[ex.name] ?? Entry(muscle: muscle)
+                if let w = ex.weight, w > 0 { e.weights.append(w) }
+                byName[ex.name] = e
+            }
+        }
+
+        // 2. Per group: collect improvement % from exercises with ≥2 weights;
+        //    also mark a group as "seen" if any logged exercise maps to it.
+        var pctsByGroup: [String: [Double]] = [:]
+        var seenByGroup: Set<String>        = []
+        for (_, entry) in byName {
+            for mg in MuscleUtils.groups where mg.muscles.contains(entry.muscle) {
+                seenByGroup.insert(mg.id)
+                if entry.weights.count >= 2,
+                   let first = entry.weights.first, first > 0,
+                   let last = entry.weights.last {
+                    pctsByGroup[mg.id, default: []].append((last - first) / first * 100)
+                }
+            }
+        }
+
+        // 3. Final per-group average (clamped to 0 for bar height).
+        return MuscleUtils.groups.map { mg in
+            let pcts = pctsByGroup[mg.id] ?? []
+            let avg  = pcts.isEmpty ? 0 : pcts.reduce(0, +) / Double(pcts.count)
+            return MuscleStat(
+                id:   mg.id,
+                pct:  Int(max(avg, 0).rounded()),
+                seen: seenByGroup.contains(mg.id)
+            )
+        }
+    }
+
+    /// Short label used under each chart bar — keeps the original UI text.
+    private func barLabel(forId id: String) -> String {
+        if ar {
+            switch id {
+            case "chest":     return "صدر"
+            case "back":      return "ظهر"
+            case "shoulders": return "كتف"
+            case "arms":      return "ذراع"
+            case "legs":      return "أرجل"
+            case "core":      return "بطن"
+            default:          return id
+            }
+        }
+        switch id {
+        case "chest":     return "Chest"
+        case "back":      return "Back"
+        case "shoulders": return "Shldr"
+        case "arms":      return "Arms"
+        case "legs":      return "Legs"
+        case "core":      return "Core"
+        default:          return id.capitalized
+        }
     }
 }
