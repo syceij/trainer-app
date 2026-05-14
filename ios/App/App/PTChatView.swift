@@ -27,7 +27,7 @@ struct PTChatView: View {
                     }
                     .padding(HexTheme.padBase)
                 }
-                .onChange(of: messages.count) { _, _ in
+                .onChange(of: messages.count) { _ in
                     if let last = messages.last?.id {
                         withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                     }
