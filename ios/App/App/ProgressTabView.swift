@@ -240,15 +240,22 @@ struct ProgressTabView: View {
     }
 
     private var muscleProgressCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        // Compute stats + derived scaling values once per render so the
+        // 6 ForEach iterations don't each re-walk workoutHistory.
+        let stats  = muscleStats
+        let maxPct = max(stats.map(\.pct).max() ?? 1, 1)
+        let bestId = stats.filter { $0.seen && $0.pct > 0 }
+                          .max(by: { $0.pct < $1.pct })?.id
+
+        return VStack(alignment: .leading, spacing: 16) {
             // 6 muscle group bars — each is a NavigationLink to MusclePage
             HStack(alignment: .bottom, spacing: 10) {
-                ForEach(muscleStats, id: \.id) { stat in
+                ForEach(stats, id: \.id) { stat in
                     NavigationLink {
                         MusclePage(muscleId: stat.id)
                             .environmentObject(app)
                     } label: {
-                        muscleBar(stat: stat)
+                        muscleBar(stat: stat, maxPct: maxPct, bestId: bestId)
                     }
                     .buttonStyle(.plain)
                 }
@@ -281,14 +288,12 @@ struct ProgressTabView: View {
     ///   - groups with data + pct>0: bar scaled to maxPct, accent colour for
     ///     the single top group, neutral for the rest
     ///   - "+X%" / "0%" / "—" label above each bar
-    private func muscleBar(stat: MuscleStat) -> some View {
+    ///
+    /// `maxPct` and `bestId` are passed in from `muscleProgressCard` so
+    /// the 6 iterations don't each re-walk `workoutHistory` to recompute
+    /// them.
+    private func muscleBar(stat: MuscleStat, maxPct: Int, bestId: String?) -> some View {
         let label = barLabel(forId: stat.id)
-
-        // Scale max — match the React `maxPct = Math.max(...groups.map(g=>g.pct), 1)`
-        let maxPct = max(muscleStats.map(\.pct).max() ?? 1, 1)
-        let bestId = muscleStats.filter { $0.seen && $0.pct > 0 }
-                                .max(by: { $0.pct < $1.pct })?.id
-
         let pctClamped = max(min(stat.pct, 100), 0)
         // CGFloat fractions: seen + data → 0.10 minimum; seen no-pair → 0.10 too
         // (matches React MIN_BAR=12 / MAX_H=110 ≈ 0.11); no data → 0.06 stub.
