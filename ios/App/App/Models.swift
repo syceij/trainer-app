@@ -65,6 +65,12 @@ struct ProgrammeSession: Codable, Hashable, Identifiable {
     var day: String           // "mon" | "tue" | ...
     var name: String
     var exercises: [Exercise]
+    /// Optional sub-header (e.g. "Power" / "Hypertrophy" / "Recovery").
+    /// Mirrors the JS `session.focus` field. Edited via ProgrammePage.
+    var focus: String?
+    /// Optional block label this session falls under (e.g. "Block 1" or
+    /// "Week 1-4 — Volume"). Mirrors the JS `session.block` field.
+    var block: String?
 }
 
 struct Exercise: Codable, Hashable, Identifiable {

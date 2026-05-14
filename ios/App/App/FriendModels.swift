@@ -169,6 +169,36 @@ struct LeaderboardEntry: Identifiable, Hashable {
     var isMe: Bool
 }
 
+// MARK: - Custom exercise
+
+/// User-created exercise. Persisted as a JSON array on `profiles.custom_exercises`.
+/// Shape mirrors the React `CustomExercise` shape from src/components/ExercisePickerSheet.jsx.
+struct CustomExercise: Codable, Identifiable, Hashable {
+    var name: String
+    var key: String           // generated from name (slug)
+    var muscle: String        // primary muscle slug
+    var category: String      // category label (matches picker categories)
+    var isCustom: Bool        // always true; preserved so JSON roundtrips cleanly
+    var equipment: String     // "custom" by default
+    var createdAt: String?
+
+    /// Use the slug-style key for SwiftUI identity.
+    var id: String { key }
+
+    init(name: String, muscle: String, category: String) {
+        self.name = name
+        self.key = "custom_" + name
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "_")
+            .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+        self.muscle = muscle
+        self.category = category
+        self.isCustom = true
+        self.equipment = "custom"
+        self.createdAt = ISO8601DateFormatter().string(from: Date())
+    }
+}
+
 // MARK: - Activity feed enriched row
 
 /// `ActivityFeedItem` plus the attached profile data the React app joins

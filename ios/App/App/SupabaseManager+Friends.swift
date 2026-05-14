@@ -359,6 +359,39 @@ extension SupabaseManager {
         return Dictionary(uniqueKeysWithValues: rows.map { ($0.exerciseName, $0.weight) })
     }
 
+    /// Fetch the user's custom exercises (stored as a JSON array on
+    /// `profiles.custom_exercises`).
+    func fetchOwnCustomExercises() async throws -> [CustomExercise] {
+        guard let uid = currentUser?.id else { return [] }
+        struct Row: Decodable {
+            let customExercises: [CustomExercise]?
+            enum CodingKeys: String, CodingKey {
+                case customExercises = "custom_exercises"
+            }
+        }
+        let rows: [Row] = try await client
+            .from("profiles")
+            .select("custom_exercises")
+            .eq("id", value: uid)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.customExercises ?? []
+    }
+
+    /// Persist the full custom-exercises array (replace-all semantics — the
+    /// React side uses the same pattern so two clients editing concurrently
+    /// converge predictably).
+    func saveCustomExercises(_ exercises: [CustomExercise]) async throws {
+        guard let uid = currentUser?.id else { return }
+        struct Patch: Encodable { let custom_exercises: [CustomExercise] }
+        _ = try await client
+            .from("profiles")
+            .update(Patch(custom_exercises: exercises))
+            .eq("id", value: uid)
+            .execute()
+    }
+
     /// Fetch just the leaderboard_data jsonb column for the current user.
     /// Returns nil if no row or no data.
     func fetchOwnLeaderboardData() async throws -> LeaderboardData? {

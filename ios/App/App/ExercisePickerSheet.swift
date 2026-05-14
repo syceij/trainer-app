@@ -14,8 +14,9 @@ import SwiftUI
 ///   • per-row equipment badge (BB / DB / Cable / Machine / BW) and a
 ///     checkmark on the currently-selected exercise.
 ///
-/// Custom-exercise creation (the "Create custom" inline row in the JS)
-/// is deferred — it needs a new custom_exercises Supabase table.
+/// Custom-exercise creation: search for a name with no match → a
+/// "Create '<name>'" row appears, opens an inline category picker.
+/// On save we persist the array to `profiles.custom_exercises` (jsonb).
 struct ExercisePickerSheet: View {
     /// Key of the exercise currently in the slot (drives the open-state
     /// auto-expansion + the checkmark). May be nil when the slot was
@@ -30,6 +31,11 @@ struct ExercisePickerSheet: View {
     @State private var search: String = ""
     @State private var expanded: Set<String> = []
     @FocusState private var searchFocused: Bool
+
+    // Custom-exercise creation
+    @State private var creatingForName: String? = nil
+    @State private var newExerciseCategory: String? = nil
+    @State private var savingCustom = false
 
     private var ar: Bool { app.language == "ar" }
 
@@ -186,8 +192,13 @@ struct ExercisePickerSheet: View {
     @ViewBuilder
     private var searchResultsList: some View {
         let q = search.lowercased().trimmingCharacters(in: .whitespaces)
-        let results = ProgrammeBuilder.exercises.filter { $0.name.lowercased().contains(q) }
-        if results.isEmpty {
+        let customMatches = app.customExercises.filter { $0.name.lowercased().contains(q) }
+        let builtinResults = ProgrammeBuilder.exercises.filter { $0.name.lowercased().contains(q) }
+        let exact = builtinResults.contains { $0.name.lowercased() == q }
+            || customMatches.contains { $0.name.lowercased() == q }
+        let showCreateRow = q.count >= 2 && !exact
+
+        if customMatches.isEmpty && builtinResults.isEmpty && !showCreateRow {
             Text((ar ? "لا تمارين مطابقة لـ " : "No exercises match ") + "\"\(search)\"")
                 .font(.system(size: 13))
                 .foregroundColor(HexTheme.mute)
@@ -197,12 +208,200 @@ struct ExercisePickerSheet: View {
                 .padding(.horizontal, 20)
         } else {
             let currentKey = Self.resolveKey(forName: currentName)
-            ForEach(results, id: \.key) { ex in
+            // Custom matches first
+            ForEach(customMatches) { ce in
+                customExerciseRow(ce: ce, indent: false)
+            }
+            // Then built-in matches
+            ForEach(builtinResults, id: \.key) { ex in
                 exerciseRow(ex: ex,
                             selected: ex.key == currentKey,
                             indent: false)
             }
+            // "+ Create custom" row at the bottom
+            if showCreateRow {
+                createCustomRow(forName: search.trimmingCharacters(in: .whitespaces))
+            }
         }
+    }
+
+    // MARK: - Custom exercise rows + form
+
+    @ViewBuilder
+    private func customExerciseRow(ce: CustomExercise, indent: Bool) -> some View {
+        Button {
+            // Bridge into a LibraryExercise so the existing onSelect callback works.
+            let bridged = ProgrammeBuilder.LibraryExercise(
+                ce.key, ce.name, ce.muscle, ce.equipment,
+                isMain: false, bodyweight: false
+            )
+            onSelect(bridged)
+            dismiss()
+        } label: {
+            HStack(spacing: 10) {
+                Text(ce.name)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(HexTheme.text)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(ar ? "خاص" : "Custom")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(HexTheme.accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(HexTheme.accent.opacity(0.12))
+                    )
+            }
+            .padding(.leading, indent ? 30 : 16)
+            .padding(.trailing, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .overlay(
+                Rectangle().fill(HexTheme.border).frame(height: 1),
+                alignment: .top
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func createCustomRow(forName name: String) -> some View {
+        if creatingForName == name {
+            // Inline category picker
+            VStack(alignment: .leading, spacing: 10) {
+                Text((ar ? "إنشاء \"" : "Create \"") + name + "\"")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.accent)
+                Text(ar ? "اختر العضلة المستهدفة:" : "Pick the target muscle:")
+                    .font(.system(size: 12))
+                    .foregroundColor(HexTheme.dim)
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 6),
+                              GridItem(.flexible(), spacing: 6)],
+                    spacing: 6
+                ) {
+                    ForEach(Self.categories, id: \.label) { cat in
+                        Button {
+                            newExerciseCategory = cat.label
+                        } label: {
+                            Text(localizedCategory(cat.label))
+                                .font(.system(size: 12, weight: .heavy))
+                                .foregroundColor(newExerciseCategory == cat.label
+                                                 ? .black : HexTheme.text)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 9)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(newExerciseCategory == cat.label
+                                              ? HexTheme.accent
+                                              : HexTheme.surface2)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(HexTheme.border, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Button {
+                        creatingForName = nil
+                        newExerciseCategory = nil
+                    } label: {
+                        Text(ar ? "إلغاء" : "Cancel")
+                            .font(.system(size: 13, weight: .heavy))
+                            .foregroundColor(HexTheme.mute)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(HexTheme.surface2)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        Task { await saveCustom(name: name) }
+                    } label: {
+                        HStack {
+                            if savingCustom {
+                                ProgressView().tint(.black).scaleEffect(0.75)
+                            } else {
+                                Text(ar ? "حفظ" : "Save")
+                                    .font(.system(size: 13, weight: .heavy))
+                                    .foregroundColor(canSaveCustom ? .black : HexTheme.mute)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(canSaveCustom ? HexTheme.accent : HexTheme.surface2)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSaveCustom)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(HexTheme.accent.opacity(0.04))
+            .overlay(
+                Rectangle().fill(HexTheme.accent.opacity(0.30)).frame(height: 1),
+                alignment: .top
+            )
+        } else {
+            Button {
+                creatingForName = name
+                newExerciseCategory = nil
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(HexTheme.accent)
+                    Text((ar ? "إنشاء \"" : "Create \"") + name + "\"")
+                        .font(.system(size: 14, weight: .heavy))
+                        .foregroundColor(HexTheme.accent)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity)
+                .background(HexTheme.accent.opacity(0.06))
+                .overlay(
+                    Rectangle().fill(HexTheme.accent.opacity(0.30)).frame(height: 1),
+                    alignment: .top
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var canSaveCustom: Bool {
+        newExerciseCategory != nil && !savingCustom
+    }
+
+    @MainActor
+    private func saveCustom(name: String) async {
+        guard let categoryLabel = newExerciseCategory,
+              let cat = Self.categories.first(where: { $0.label == categoryLabel })
+        else { return }
+        savingCustom = true
+        let new = CustomExercise(name: name, muscle: cat.muscle, category: categoryLabel)
+        await app.addCustomExercise(new)
+        savingCustom = false
+        creatingForName = nil
+        newExerciseCategory = nil
+        // Auto-pick the new exercise (matches React handleCreate behaviour)
+        let bridged = ProgrammeBuilder.LibraryExercise(
+            new.key, new.name, new.muscle, new.equipment,
+            isMain: false, bodyweight: false
+        )
+        onSelect(bridged)
+        dismiss()
     }
 
     // MARK: - Categories accordion

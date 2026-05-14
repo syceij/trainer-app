@@ -31,6 +31,11 @@ final class AppState: ObservableObject {
     /// Used by PT chat for the "current lifts" snapshot.
     @Published var workingWeights: [String: Double] = [:]
 
+    /// User-created exercises that show up in `ExercisePickerSheet`. Loaded
+    /// once on sign-in, then mutated in-memory and replace-written by
+    /// `addCustomExercise(_:)`.
+    @Published var customExercises: [CustomExercise] = []
+
     // MARK: - Social state (friends / requests / activity)
 
     @Published var friends: [FriendListEntry] = []
@@ -46,6 +51,21 @@ final class AppState: ObservableObject {
 
     @Published var language: String = "en"   // "en" | "ar"
     @Published var toast: String?
+    /// One-shot confetti trigger — TrainView increments this on session save
+    /// and ContentView watches it to play the burst animation.
+    @Published var confettiTrigger: Int = 0
+    /// True when the user has signed up but hasn't picked a username yet.
+    /// ContentView shows the username-picker sheet whenever this is true.
+    @Published var needsUsername: Bool = false
+    /// Invite code captured from a `hex://invite/...` deep link while signed
+    /// out. Replayed automatically once `loadUserData` finishes.
+    var pendingInviteCode: String?
+
+    // MARK: - Realtime
+
+    /// Subscriptions to friendships + activity_feed. Lifetime tied to
+    /// signed-in state — started in `loadUserData`, stopped on sign-out.
+    private lazy var realtimeSync = RealtimeSync(app: self)
 
     // MARK: - Init / session restore
 
@@ -74,7 +94,22 @@ final class AppState: ObservableObject {
         async let history:   () = loadHistory()
         async let social:    () = loadSocial()
         async let weights:   () = loadWorkingWeights()
-        _ = await (profile, programme, history, social, weights)
+        async let custom:    () = loadCustomExercises()
+        _ = await (profile, programme, history, social, weights, custom)
+        // Open Realtime listeners so the Bros tab + activity feed update live.
+        await realtimeSync.start()
+        // Username-picker gate: if the user signed up without a username,
+        // surface the modal so they can pick one before friend-search works.
+        needsUsername = (currentProfile?.username ?? "").isEmpty
+        // Replay any invite code captured while the user was signed out.
+        if let code = pendingInviteCode {
+            pendingInviteCode = nil
+            if let name = await acceptInvite(code: code) {
+                toast = language == "ar"
+                    ? "أنت الآن صديق \(name) ✓"
+                    : "You're now Bros with \(name) ✓"
+            }
+        }
         // Once the active programme is loaded, pre-stage today's session
         // so the Train tab has something to show without an extra round-trip.
         if currentSession == nil {
@@ -315,11 +350,18 @@ final class AppState: ObservableObject {
     }
 
     func signOut() async {
+        await realtimeSync.stop()
         try? await SupabaseManager.shared.signOut()
         currentProfile = nil
         activeProgramme = nil
         currentSession = nil
         workoutHistory = []
+        friends = []
+        pendingRequests = []
+        activityFeed = []
+        leaderboard = []
+        workingWeights = [:]
+        needsUsername = false
         authPhase = .signedOut
     }
 
@@ -370,6 +412,31 @@ final class AppState: ObservableObject {
             workingWeights = try await SupabaseManager.shared.fetchWorkingWeights()
         } catch {
             print("[AppState] loadWorkingWeights failed:", error)
+        }
+    }
+
+    /// Pull user-created exercises from the profile jsonb column.
+    func loadCustomExercises() async {
+        do {
+            customExercises = try await SupabaseManager.shared.fetchOwnCustomExercises()
+        } catch {
+            print("[AppState] loadCustomExercises failed:", error)
+        }
+    }
+
+    /// Append a new custom exercise, persist the full array, and mirror
+    /// it in-memory so the picker shows it immediately.
+    func addCustomExercise(_ ex: CustomExercise) async {
+        // Dedupe by lowercased name
+        let exists = customExercises.contains { $0.name.lowercased() == ex.name.lowercased() }
+        guard !exists else { return }
+        var next = customExercises
+        next.append(ex)
+        do {
+            try await SupabaseManager.shared.saveCustomExercises(next)
+            customExercises = next
+        } catch {
+            print("[AppState] saveCustomExercises failed:", error)
         }
     }
 
@@ -503,16 +570,11 @@ final class AppState: ObservableObject {
         case .name:
             session.name = value
         case .focus:
-            // Repurposes the optional `notes` field in our session model
-            // since the iOS ProgrammeSession struct doesn't carry a
-            // separate `focus` value (parity with React-import data).
-            // We piggyback on the first exercise's notes, no-op for now.
-            // Stored as session.name comment for future use.
-            _ = value
+            session.focus = value.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil : value
         case .block:
-            // No structural field for "block" in iOS ProgrammeSession;
-            // keep as no-op so the UI editor doesn't crash on commit.
-            _ = value
+            session.block = value.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil : value
         }
         week.sessions[sessionIdx] = session
         data.weeks[weekIdx] = week

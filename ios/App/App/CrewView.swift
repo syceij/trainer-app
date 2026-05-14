@@ -221,6 +221,7 @@ struct CrewView: View {
             }
             Spacer()
             Button {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 Task { await app.respondToRequest(req, accept: true) }
             } label: {
                 Image(systemName: "checkmark")
@@ -238,6 +239,7 @@ struct CrewView: View {
             }
             .buttonStyle(.plain)
             Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 Task { await app.respondToRequest(req, accept: false) }
             } label: {
                 Image(systemName: "xmark")
@@ -713,7 +715,7 @@ private struct AddBroSheet: View {
                             .fill(HexTheme.surface2)
                     )
             } else if let link = inviteLink {
-                Text("https://hex.app/invite/\(link.code)")
+                Text("hex://invite/\(link.code)")
                     .font(.system(size: 12))
                     .foregroundColor(HexTheme.dim)
                     .padding(14)
@@ -729,7 +731,7 @@ private struct AddBroSheet: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        UIPasteboard.general.string = "https://hex.app/invite/\(link.code)"
+                        UIPasteboard.general.string = "hex://invite/\(link.code)"
                         copied = true
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
@@ -755,7 +757,7 @@ private struct AddBroSheet: View {
                     }
                     .buttonStyle(.plain)
 
-                    ShareLink(item: URL(string: "https://hex.app/invite/\(link.code)")!) {
+                    ShareLink(item: URL(string: "hex://invite/\(link.code)")!) {
                         HStack(spacing: 7) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 12, weight: .heavy))

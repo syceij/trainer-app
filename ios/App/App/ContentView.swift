@@ -23,9 +23,18 @@ struct ContentView: View {
                     }
                 case .signedIn:
                     MainTabView()
+                        .sheet(isPresented: $app.needsUsername) {
+                            UsernameModal()
+                                .environmentObject(app)
+                                .interactiveDismissDisabled(true)
+                        }
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: app.authPhase)
+
+            // Confetti overlay — fires when AppState.confettiTrigger changes
+            ConfettiBurst(trigger: app.confettiTrigger)
+                .allowsHitTesting(false)
 
             // Toast overlay
             if let msg = app.toast {

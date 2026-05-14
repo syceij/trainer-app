@@ -19,6 +19,39 @@ struct HEXApp: App {
                 .tint(HexTheme.accent)
                 .environment(\.layoutDirection,
                              appState.language == "ar" ? .rightToLeft : .leftToRight)
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
+        }
+    }
+
+    /// Handle a `hex://invite/<CODE>` deep link by extracting the code and
+    /// asking AppState to redeem it once the user is signed in. If they're
+    /// not signed in yet, we stash the code and replay it on signedIn.
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "hex" else { return }
+        // Path is either /invite/CODE or .host == "invite" + /CODE — accept both
+        let parts = url.pathComponents.filter { $0 != "/" }
+        let code: String?
+        if (url.host?.lowercased() ?? "") == "invite", let first = parts.first {
+            code = first
+        } else if let invite = parts.first(where: { $0.lowercased() == "invite" }),
+                  let idx = parts.firstIndex(of: invite), idx + 1 < parts.count {
+            code = parts[idx + 1]
+        } else {
+            code = nil
+        }
+        guard let code, !code.isEmpty else { return }
+        Task { @MainActor in
+            if appState.authPhase == .signedIn {
+                if let name = await appState.acceptInvite(code: code) {
+                    appState.toast = appState.language == "ar"
+                        ? "أنت الآن صديق \(name) ✓"
+                        : "You're now Bros with \(name) ✓"
+                }
+            } else {
+                appState.pendingInviteCode = code
+            }
         }
     }
 

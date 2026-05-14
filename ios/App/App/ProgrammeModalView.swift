@@ -5,8 +5,8 @@ import SwiftUI
 /// schedule grid + all sessions as expandable cards) and "imported"
 /// (multi-week programme with a tab strip across weeks).
 ///
-/// Until AppState wires real programme data, this renders a placeholder
-/// state explaining what'll show here once a programme exists.
+/// Backed by `app.activeProgramme` which holds either shape via its
+/// `data: ProgrammeData?` blob.
 struct ProgrammeModalView: View {
     @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss

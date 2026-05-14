@@ -318,7 +318,8 @@ struct TrainView: View {
 
     private func expandPanel(ex: Exercise, exKey: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Weight stepper (placeholder UI — full stepper TBD)
+            // Weight stepper (±2.5 kg, persisted in editedWeights for the
+            // duration of the session; baked into the saved Exercise on finish).
             if (ex.weight ?? 0) > 0 {
                 weightStepper(ex: ex, exKey: exKey)
             }
@@ -460,14 +461,21 @@ struct TrainView: View {
         completedSets[key] = !wasDone
 
         if !wasDone {
+            // Light haptic confirms the tap registered as "set done".
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             // Set just completed — check if all done
             let allDone = (0..<ex.sets).allSatisfy { completedSets["\(exKey)_\($0)"] == true }
             if allDone {
+                // Stronger haptic when the whole exercise is finished.
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 if activeTimerKey == exKey { stopTimer() }
             } else {
                 let dur = restTimerChoice[exKey] ?? 90
                 startTimer(exKey: exKey, duration: dur)
             }
+        } else {
+            // Undo — softer feedback.
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }
 
@@ -620,6 +628,10 @@ struct TrainView: View {
         timerDuration  = 0
         timerPaused    = false
         liveActivityActive = false
+
+        // Fire the confetti burst + haptic immediately for snappy feedback.
+        app.confettiTrigger &+= 1
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
 
         Task {
             // End any running Live Activity first so the lock-screen widget
