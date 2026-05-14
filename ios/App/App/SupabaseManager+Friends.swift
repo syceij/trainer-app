@@ -323,7 +323,7 @@ extension SupabaseManager {
     /// FriendProfilePage uses (no individual sets).
     func fetchFriendSessions(friendId: UUID, limit: Int = 10) async throws -> [FriendSession] {
         let rows: [WorkoutSession] = try await client
-            .from("workout_sessions")
+            .from("sessions")
             .select()
             .eq("user_id", value: friendId)
             .order("date", ascending: false)

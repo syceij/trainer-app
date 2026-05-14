@@ -94,20 +94,103 @@ struct Programme: Codable, Identifiable, Hashable {
 }
 
 /// Programme content (stored as JSONB in `programmes.data`).
+///
+/// Decoded from THREE possible shapes that may exist in the database:
+///   • iOS-built:   `{name, totalWeeks, weeks: [...]}`
+///   • React auto:  `{mode: 'auto', programme: [session1, session2, ...]}`
+///                  (flat session array, no week wrapper)
+///   • React imp:   `{mode: 'imported', importedProgramme: {name, weeks: [...]}, ...}`
+///
+/// All three normalise to the same in-memory shape (`{name, totalWeeks, weeks}`)
+/// so the rest of the app can treat them uniformly.
 struct ProgrammeData: Codable, Hashable {
     var name: String
     var totalWeeks: Int
     var weeks: [ProgrammeWeek]
+
+    init(name: String, totalWeeks: Int, weeks: [ProgrammeWeek]) {
+        self.name = name
+        self.totalWeeks = totalWeeks
+        self.weeks = weeks
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name, totalWeeks, weeks
+        case mode, programme, importedProgramme
+    }
+    enum ImportedKeys: String, CodingKey {
+        case name, weeks
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Shape 1 — iOS-built: top-level `weeks`. Easiest path.
+        if let w = try? c.decode([ProgrammeWeek].self, forKey: .weeks), !w.isEmpty {
+            self.weeks = w
+            self.name = (try? c.decode(String.self, forKey: .name)) ?? "Programme"
+            self.totalWeeks = (try? c.decode(Int.self, forKey: .totalWeeks)) ?? max(w.count, 1)
+            return
+        }
+
+        // Shape 2 — React imported: nested `importedProgramme.weeks`.
+        if let imported = try? c.nestedContainer(keyedBy: ImportedKeys.self,
+                                                  forKey: .importedProgramme) {
+            let w = (try? imported.decode([ProgrammeWeek].self, forKey: .weeks)) ?? []
+            self.weeks = w
+            self.name = (try? imported.decode(String.self, forKey: .name)) ?? "Imported Programme"
+            self.totalWeeks = max(w.count, 1)
+            return
+        }
+
+        // Shape 3 — React auto: flat `programme: [session, session, ...]`.
+        // Wrap the sessions into a single 1-week container.
+        if let sessions = try? c.decode([ProgrammeSession].self, forKey: .programme) {
+            self.weeks = [ProgrammeWeek(weekNumber: 1, sessions: sessions)]
+            let mode = (try? c.decode(String.self, forKey: .mode)) ?? "Programme"
+            self.name = mode.capitalized
+            self.totalWeeks = 1
+            return
+        }
+
+        // Fallback — empty programme so the row at least decodes.
+        self.name = "Programme"
+        self.totalWeeks = 1
+        self.weeks = []
+    }
+
+    // Re-implement encode so the synthesized version isn't suppressed.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name,       forKey: .name)
+        try c.encode(totalWeeks, forKey: .totalWeeks)
+        try c.encode(weeks,      forKey: .weeks)
+    }
 }
 
 struct ProgrammeWeek: Codable, Hashable {
     var weekNumber: Int
     var sessions: [ProgrammeSession]
+
+    init(weekNumber: Int, sessions: [ProgrammeSession]) {
+        self.weekNumber = weekNumber
+        self.sessions = sessions
+    }
+
+    enum CodingKeys: String, CodingKey { case weekNumber, sessions }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.weekNumber = (try? c.decode(Int.self, forKey: .weekNumber)) ?? 1
+        self.sessions   = (try? c.decode([ProgrammeSession].self, forKey: .sessions)) ?? []
+    }
 }
 
 struct ProgrammeSession: Codable, Hashable, Identifiable {
     var id: UUID { UUID() }
-    var day: String           // "mon" | "tue" | ...
+    /// "mon" | "tue" | ... — empty string when the programme came from
+    /// React's auto flow (which doesn't carry weekday slugs).
+    var day: String
     var name: String
     var exercises: [Exercise]
     /// Optional sub-header (e.g. "Power" / "Hypertrophy" / "Recovery").
@@ -116,6 +199,28 @@ struct ProgrammeSession: Codable, Hashable, Identifiable {
     /// Optional block label this session falls under (e.g. "Block 1" or
     /// "Week 1-4 — Volume"). Mirrors the JS `session.block` field.
     var block: String?
+
+    init(day: String, name: String, exercises: [Exercise],
+         focus: String? = nil, block: String? = nil) {
+        self.day = day
+        self.name = name
+        self.exercises = exercises
+        self.focus = focus
+        self.block = block
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case day, name, exercises, focus, block
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.day       = (try? c.decode(String.self, forKey: .day)) ?? ""
+        self.name      = (try? c.decode(String.self, forKey: .name)) ?? ""
+        self.exercises = (try? c.decode([Exercise].self, forKey: .exercises)) ?? []
+        self.focus     = try? c.decode(String.self, forKey: .focus)
+        self.block     = try? c.decode(String.self, forKey: .block)
+    }
 }
 
 struct Exercise: Codable, Hashable, Identifiable {
@@ -138,7 +243,10 @@ struct WorkoutSession: Codable, Identifiable, Hashable {
     var name: String
     var date: Date
     var weekNumber: Int?
-    var block: Int?
+    /// Free-form block label (e.g. "Block 1" / "Week 1-4 — Volume").
+    /// React stores this as text — historically I had it as Int? which
+    /// caused every row to fail decode.
+    var block: String?
     var completed: Bool
     var data: WorkoutSessionData?
     var createdAt: Date?
@@ -157,7 +265,7 @@ struct WorkoutSession: Codable, Identifiable, Hashable {
     }
 
     init(id: UUID, userId: UUID, programmeId: UUID?, name: String,
-         date: Date, weekNumber: Int?, block: Int?, completed: Bool,
+         date: Date, weekNumber: Int?, block: String?, completed: Bool,
          data: WorkoutSessionData?, createdAt: Date?) {
         self.id = id; self.userId = userId; self.programmeId = programmeId
         self.name = name; self.date = date; self.weekNumber = weekNumber
@@ -173,7 +281,15 @@ struct WorkoutSession: Codable, Identifiable, Hashable {
         self.name        = (try? c.decode(String.self, forKey: .name)) ?? ""
         self.date        = try LenientDate.required(c, .date)
         self.weekNumber  = try? c.decode(Int.self,   forKey: .weekNumber)
-        self.block       = try? c.decode(Int.self,   forKey: .block)
+        // `block` may be text ("Block 1") or — defensively — an integer.
+        // Accept either to survive schema drift.
+        if let s = try? c.decode(String.self, forKey: .block) {
+            self.block = s
+        } else if let i = try? c.decode(Int.self, forKey: .block) {
+            self.block = String(i)
+        } else {
+            self.block = nil
+        }
         self.completed   = (try? c.decode(Bool.self, forKey: .completed)) ?? false
         self.data        = try? c.decode(WorkoutSessionData.self, forKey: .data)
         self.createdAt   = LenientDate.optional(c, .createdAt)

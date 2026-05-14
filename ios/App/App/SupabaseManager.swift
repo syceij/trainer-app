@@ -204,7 +204,7 @@ final class SupabaseManager {
         // — if one of these tables doesn't exist yet, the others still get
         // wiped.
         async let p1: Void = deleteAll(table: "programmes", uid: uid)
-        async let p2: Void = deleteAll(table: "workout_sessions", uid: uid)
+        async let p2: Void = deleteAll(table: "sessions", uid: uid)
         async let p3: Void = deleteAll(table: "sets", uid: uid)
         async let p4: Void = deleteAll(table: "working_weights", uid: uid)
         async let p5: Void = deleteAll(table: "activity_feed", uid: uid)
@@ -316,7 +316,7 @@ final class SupabaseManager {
     func fetchHistory(limit: Int = 200) async throws -> [WorkoutSession] {
         guard let uid = currentUser?.id else { return [] }
         let rows: [WorkoutSession] = try await client
-            .from("workout_sessions")
+            .from("sessions")
             .select()
             .eq("user_id", value: uid)
             .order("date", ascending: false)
@@ -326,10 +326,11 @@ final class SupabaseManager {
         return rows
     }
 
-    /// Insert (or upsert by id) a workout session row.
+    /// Insert (or upsert by id) a workout session row. The DB table is
+    /// named `sessions` (singular) — the React side calls it the same.
     func saveWorkoutSession(_ session: WorkoutSession) async throws {
         _ = try await client
-            .from("workout_sessions")
+            .from("sessions")
             .upsert(session)
             .execute()
     }
