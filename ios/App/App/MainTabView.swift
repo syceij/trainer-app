@@ -1,16 +1,19 @@
 import SwiftUI
 
-/// Root tabbed interface — 5 tabs match src/components/BottomNav.jsx
-/// (Home / Train / Progress / Bros / Profile). Standard SwiftUI TabView
-/// chrome — the global UITabBarAppearance set in HEXApp tints it to the
-/// HEX palette. PT chat is accessible from inside Profile, not as a
-/// top-level tab (matches the React design).
+/// Root tabbed interface — 5 tabs match the React BottomNav design:
+/// Home / Train / Progress / Bros / PT. AccountView is reachable from the
+/// chip in PTChatView's header (matches WelcomeScreen + ProfileTab routing
+/// in the React app).
+///
+/// Icons use the outline SF Symbol variants to match the Lucide-style
+/// stroke look of the React app — SwiftUI's TabView fills + tints them
+/// on selection automatically via `.tint(HexTheme.accent)`.
 struct MainTabView: View {
     @EnvironmentObject var app: AppState
     @State private var selection: Tab = .home
 
     enum Tab: Hashable {
-        case home, train, progress, bros, profile
+        case home, train, progress, bros, pt
     }
 
     var body: some View {
@@ -18,14 +21,14 @@ struct MainTabView: View {
             NavigationStack { HomeView() }
                 .tabItem {
                     Label(app.language == "ar" ? "الرئيسية" : "Home",
-                          systemImage: "house.fill")
+                          systemImage: "house")
                 }
                 .tag(Tab.home)
 
             NavigationStack { TrainView() }
                 .tabItem {
                     Label(app.language == "ar" ? "تدريب" : "Train",
-                          systemImage: "dumbbell.fill")
+                          systemImage: "dumbbell")
                 }
                 .tag(Tab.train)
 
@@ -39,16 +42,16 @@ struct MainTabView: View {
             NavigationStack { CrewView() }
                 .tabItem {
                     Label(app.language == "ar" ? "أصدقاء" : "Bros",
-                          systemImage: "person.3.fill")
+                          systemImage: "person.3")
                 }
                 .tag(Tab.bros)
 
-            NavigationStack { AccountView() }
+            NavigationStack { PTChatView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "الحساب" : "Profile",
-                          systemImage: "person.fill")
+                    Label(app.language == "ar" ? "المدرب" : "PT",
+                          systemImage: "bubble.left")
                 }
-                .tag(Tab.profile)
+                .tag(Tab.pt)
         }
         .tint(HexTheme.accent)
         .onChange(of: selection) { _ in

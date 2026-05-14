@@ -13,6 +13,9 @@ struct AccountView: View {
     @State private var liveActivitiesEnabled = LiveActivityService.shared.isEnabled
     @State private var showSignOutConfirm    = false
     @State private var showDeleteConfirm     = false
+    @State private var showResetConfirm      = false
+    @State private var resetting             = false
+    @State private var deleting              = false
 
     // Avatar picker state
     @State private var avatarPick: PhotosPickerItem? = nil
@@ -457,26 +460,147 @@ struct AccountView: View {
 
     private var dangerSection: some View {
         VStack(spacing: 10) {
-            Button { showSignOutConfirm = true } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 14, weight: .heavy))
-                    Text(ar ? "تسجيل الخروج" : "Sign out")
+            // Sign out
+            dangerButton(
+                icon: "rectangle.portrait.and.arrow.right",
+                title: ar ? "تسجيل الخروج" : "Sign out",
+                loading: false
+            ) { showSignOutConfirm = true }
+
+            // Reset all data
+            dangerButton(
+                icon: "arrow.counterclockwise",
+                title: resetting
+                    ? (ar ? "جارٍ إعادة التعيين…" : "Resetting…")
+                    : (ar ? "إعادة تعيين كل البيانات" : "Reset all data"),
+                loading: resetting
+            ) { showResetConfirm = true }
+
+            // Delete account
+            dangerButton(
+                icon: "trash",
+                title: deleting
+                    ? (ar ? "جارٍ الحذف…" : "Deleting…")
+                    : (ar ? "حذف الحساب" : "Delete account"),
+                loading: deleting,
+                stronger: true
+            ) { showDeleteConfirm = true }
+        }
+        .confirmationDialog(
+            ar ? "إعادة تعيين كل البيانات؟" : "Reset all data?",
+            isPresented: $showResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(ar ? "نعم، احذف كل شيء" : "Yes, wipe everything",
+                   role: .destructive) {
+                Task { await runReset() }
+            }
+            Button(ar ? "إلغاء" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(ar
+                 ? "سيتم حذف برنامجك وكل جلساتك ومجموعاتك وأوزانك. لا يمكن التراجع."
+                 : "Deletes your programme, all sessions, sets, weights, friends, and activity. Cannot be undone.")
+        }
+        .confirmationDialog(
+            ar ? "حذف الحساب؟" : "Delete account?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(ar ? "نعم، احذف حسابي" : "Yes, delete my account",
+                   role: .destructive) {
+                Task { await runDelete() }
+            }
+            Button(ar ? "إلغاء" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(ar
+                 ? "سيتم حذف ملفك الشخصي وكل بياناتك وسيتم تسجيل خروجك. للحذف النهائي للحساب من خوادمنا، راسل الدعم."
+                 : "Deletes your profile + all data and signs you out. For full removal from our servers, contact support after.")
+        }
+    }
+
+    @ViewBuilder
+    private func dangerButton(
+        icon: String,
+        title: String,
+        loading: Bool,
+        stronger: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if loading {
+                    ProgressView().tint(HexTheme.danger).scaleEffect(0.75)
+                } else {
+                    Image(systemName: icon)
                         .font(.system(size: 14, weight: .heavy))
                 }
-                .foregroundColor(HexTheme.danger)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(HexTheme.danger.opacity(0.10))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(HexTheme.danger.opacity(0.30), lineWidth: 1.5)
-                )
+                Text(title)
+                    .font(.system(size: 14, weight: .heavy))
             }
-            .buttonStyle(.plain)
+            .foregroundColor(HexTheme.danger)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(HexTheme.danger.opacity(stronger ? 0.16 : 0.10))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(HexTheme.danger.opacity(stronger ? 0.45 : 0.30),
+                            lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(loading)
+    }
+
+    @MainActor
+    private func runReset() async {
+        resetting = true
+        defer { resetting = false }
+        do {
+            try await SupabaseManager.shared.resetUserData()
+            // Refresh in-memory state so the UI reflects the wipe.
+            app.activeProgramme = nil
+            app.currentSession = nil
+            app.workoutHistory = []
+            app.friends = []
+            app.pendingRequests = []
+            app.activityFeed = []
+            app.leaderboard = []
+            app.workingWeights = [:]
+            app.customExercises = []
+            app.toast = ar ? "تم مسح بياناتك ✓" : "All data wiped ✓"
+        } catch {
+            print("[AccountView] resetUserData failed:", error)
+            app.toast = ar ? "تعذّر مسح البيانات" : "Couldn't reset data"
+        }
+    }
+
+    @MainActor
+    private func runDelete() async {
+        deleting = true
+        defer { deleting = false }
+        do {
+            try await SupabaseManager.shared.deleteOwnAccount()
+            // signOut inside deleteOwnAccount already cleared the session;
+            // mirror it in AppState so ContentView swings back to login.
+            app.currentProfile = nil
+            app.activeProgramme = nil
+            app.currentSession = nil
+            app.workoutHistory = []
+            app.friends = []
+            app.pendingRequests = []
+            app.activityFeed = []
+            app.leaderboard = []
+            app.workingWeights = [:]
+            app.customExercises = []
+            app.needsUsername = false
+            app.authPhase = .signedOut
+            app.toast = ar ? "تم حذف الحساب" : "Account deleted"
+        } catch {
+            print("[AccountView] deleteOwnAccount failed:", error)
+            app.toast = ar ? "تعذّر حذف الحساب" : "Couldn't delete account"
         }
     }
 

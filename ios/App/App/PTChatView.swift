@@ -56,28 +56,35 @@ struct PTChatView: View {
             }
             Spacer()
 
-            // Account chip
-            HStack(spacing: 6) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 15))
-                    .foregroundColor(HexTheme.accent)
-                Text(app.currentProfile?.name ?? (ar ? "الحساب" : "Account"))
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundColor(HexTheme.dim)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 80)
+            // Account chip — primary entry point for AccountView now that
+            // Profile has been replaced by PT in the tab bar.
+            NavigationLink {
+                AccountView()
+                    .environmentObject(app)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 15))
+                        .foregroundColor(HexTheme.accent)
+                    Text(app.currentProfile?.name ?? (ar ? "الحساب" : "Account"))
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundColor(HexTheme.dim)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 80)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(HexTheme.surface2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(HexTheme.border, lineWidth: 1.5)
+                )
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(HexTheme.surface2)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(HexTheme.border, lineWidth: 1.5)
-            )
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)

@@ -130,6 +130,88 @@ final class SupabaseManager {
             .execute()
     }
 
+    /// Insert a minimal profile row for this user if one doesn't yet exist.
+    /// Uses upsert with `ignoreDuplicates` semantics so we never clobber an
+    /// existing row's name/username/etc. iOS-only sign-ups need this because
+    /// the React backend's profile-creation trigger isn't always in place.
+    func ensureOwnProfileRow(uid: UUID, email: String?) async throws {
+        struct Seed: Encodable {
+            let id: UUID
+            let email: String?
+        }
+        _ = try await client
+            .from("profiles")
+            .upsert(Seed(id: uid, email: email), onConflict: "id",
+                    ignoreDuplicates: true)
+            .execute()
+    }
+
+    /// Wipe all user-owned rows (programmes, sessions, sets, custom exercises,
+    /// working weights, friendships, activity, invite links) but keep the
+    /// auth.users row. Used by the AccountView "Reset all data" button.
+    func resetUserData() async throws {
+        guard let uid = currentUser?.id else { return }
+        // Best-effort parallel deletes. We don't bail on individual failures
+        // — if one of these tables doesn't exist yet, the others still get
+        // wiped.
+        async let p1: Void = deleteAll(table: "programmes", uid: uid)
+        async let p2: Void = deleteAll(table: "workout_sessions", uid: uid)
+        async let p3: Void = deleteAll(table: "sets", uid: uid)
+        async let p4: Void = deleteAll(table: "working_weights", uid: uid)
+        async let p5: Void = deleteAll(table: "activity_feed", uid: uid)
+        async let p6: Void = deleteAll(table: "invite_links", uid: uid)
+        async let p7: Void = deleteAllFriendships(uid: uid)
+        async let p8: Void = clearProfileBlobs(uid: uid)
+        _ = try await (p1, p2, p3, p4, p5, p6, p7, p8)
+    }
+
+    private func deleteAll(table: String, uid: UUID) async throws {
+        _ = try await client
+            .from(table)
+            .delete()
+            .eq("user_id", value: uid)
+            .execute()
+    }
+
+    private func deleteAllFriendships(uid: UUID) async throws {
+        _ = try await client
+            .from("friendships")
+            .delete()
+            .or("user_id.eq.\(uid),friend_id.eq.\(uid)")
+            .execute()
+    }
+
+    private func clearProfileBlobs(uid: UUID) async throws {
+        struct Clear: Encodable {
+            let leaderboard_data: AnyCodable?
+            let custom_exercises: AnyCodable?
+        }
+        // null both jsonb blobs but keep id, name, username, etc.
+        _ = try await client
+            .from("profiles")
+            .update(Clear(leaderboard_data: nil, custom_exercises: nil))
+            .eq("id", value: uid)
+            .execute()
+    }
+
+    /// Reset all user data, then sign out. We can't delete the auth.users
+    /// row from the client — that requires a service-role key — so account
+    /// deletion is "wipe data + sign out + tell the user to email support
+    /// for full account removal".
+    func deleteOwnAccount() async throws {
+        try await resetUserData()
+        // Also clear the profile row entirely so re-signin doesn't bring
+        // back the username / name.
+        if let uid = currentUser?.id {
+            _ = try? await client
+                .from("profiles")
+                .delete()
+                .eq("id", value: uid)
+                .execute()
+        }
+        try await signOut()
+    }
+
     // MARK: - Programme helpers
 
     /// Fetch the user's currently active programme (one row, `active = true`).

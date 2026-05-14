@@ -188,12 +188,21 @@ struct UsernameModal: View {
         saving = true
         let lowered = value.trimmingCharacters(in: .whitespaces).lowercased()
         do {
-            // Build a profile-update payload that only writes username.
-            struct Patch: Encodable { let username: String }
+            // Upsert so the row is created if it doesn't yet exist (the
+            // React backend's profile-creation trigger isn't always in
+            // place for iOS-only sign-ups — see ensureOwnProfileExists).
+            struct Patch: Encodable {
+                let id: UUID
+                let username: String
+                let email: String?
+            }
             _ = try await SupabaseManager.shared.client
                 .from("profiles")
-                .update(Patch(username: lowered))
-                .eq("id", value: uid)
+                .upsert(Patch(
+                    id: uid,
+                    username: lowered,
+                    email: SupabaseManager.shared.currentUser?.email
+                ), onConflict: "id")
                 .execute()
             await app.loadOwnProfile()
             app.needsUsername = false

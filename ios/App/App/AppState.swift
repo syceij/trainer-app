@@ -50,7 +50,20 @@ final class AppState: ObservableObject {
     // MARK: - UI state
 
     @Published var language: String = "en"   // "en" | "ar"
-    @Published var toast: String?
+    /// One-shot toast text. Setting any non-nil value auto-clears after 3s,
+    /// so any code path (including direct `app.toast = "..."` assignments)
+    /// gets the dismiss-timer behaviour for free.
+    @Published var toast: String? {
+        didSet {
+            guard let msg = toast else { return }
+            // Capture the message we just set; only clear if it's still the
+            // current value 3s later (so a newer toast wins).
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if self.toast == msg { self.toast = nil }
+            }
+        }
+    }
     /// One-shot confetti trigger — TrainView increments this on session save
     /// and ContentView watches it to play the burst animation.
     @Published var confettiTrigger: Int = 0
@@ -89,6 +102,12 @@ final class AppState: ObservableObject {
     /// Fan out the signed-in data loads in parallel. Called after every
     /// entry point into the signed-in state (restore, sign in, OTP).
     func loadUserData() async {
+        // Make sure a profile row exists for this user BEFORE every other
+        // read fans out. iOS signups don't get the React trigger-created
+        // row, so without this the user looks like a brand-new account
+        // every login (no username, no programme, etc.).
+        await ensureOwnProfileExists()
+
         async let profile:   () = loadOwnProfile()
         async let programme: () = loadActiveProgramme()
         async let history:   () = loadHistory()
@@ -366,6 +385,20 @@ final class AppState: ObservableObject {
     }
 
     // MARK: - Profile
+
+    /// Insert a bare `profiles` row for the current user if one doesn't yet
+    /// exist. Idempotent. Mirrors the React `ensureProfileExists` helper.
+    func ensureOwnProfileExists() async {
+        guard let uid = SupabaseManager.shared.currentUser?.id else { return }
+        do {
+            try await SupabaseManager.shared.ensureOwnProfileRow(
+                uid: uid,
+                email: SupabaseManager.shared.currentUser?.email
+            )
+        } catch {
+            print("[AppState] ensureOwnProfileExists failed:", error)
+        }
+    }
 
     func loadOwnProfile() async {
         do {
