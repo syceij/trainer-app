@@ -37,6 +37,7 @@ struct AccountView: View {
                 sectionTitle(ar ? "البرنامج" : "PROGRAMME").padding(.bottom, 10)
                 VStack(spacing: 10) {
                     buildProgrammeRow
+                    manualBuilderRow
                     importProgrammeRow
                     if app.activeProgramme != nil {
                         editProgrammeRow
@@ -258,6 +259,44 @@ struct AccountView: View {
                     Text(ar
                          ? "٧ خطوات · مولّد تلقائياً"
                          : "7-step setup · auto-generated")
+                        .font(.system(size: 11))
+                        .foregroundColor(HexTheme.mute)
+                }
+                Spacer()
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Manual builder shortcut
+
+    private var manualBuilderRow: some View {
+        NavigationLink {
+            ManualProgrammeBuilder()
+                .environmentObject(app)
+        } label: {
+            HStack(spacing: 14) {
+                iconBox(name: "pencil.line", accent: false)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ar ? "بناء يدوي" : "Build manually")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HexTheme.text)
+                    Text(ar
+                         ? "٦ خطوات · قابل للتخصيص"
+                         : "6-step wizard · fully customisable")
                         .font(.system(size: 11))
                         .foregroundColor(HexTheme.mute)
                 }
