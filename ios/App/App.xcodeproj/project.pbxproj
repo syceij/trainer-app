@@ -33,7 +33,11 @@
 		B1A2C3D40000000000160001 /* CrewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000160002 /* CrewView.swift */; };
 		B1A2C3D40000000000170001 /* PTChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000170002 /* PTChatView.swift */; };
 		B1A2C3D40000000000180001 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000180002 /* AccountView.swift */; };
+		B1A2C3D40000000000190001 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000190002 /* OnboardingView.swift */; };
 		B1A2C3D40000000000200001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B1A2C3D40000000000200002 /* Supabase */; };
+		B1A2C3D40000000000210001 /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000210002 /* ImportView.swift */; };
+		B1A2C3D40000000000220001 /* ProgrammeModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000220002 /* ProgrammeModalView.swift */; };
+		B1A2C3D40000000000230001 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000230002 /* CalendarView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -79,6 +83,10 @@
 		B1A2C3D40000000000160002 /* CrewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrewView.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000170002 /* PTChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PTChatView.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000180002 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000190002 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000210002 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000220002 /* ProgrammeModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammeModalView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000230002 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +147,10 @@
 				B1A2C3D40000000000160002 /* CrewView.swift */,
 				B1A2C3D40000000000170002 /* PTChatView.swift */,
 				B1A2C3D40000000000180002 /* AccountView.swift */,
+				B1A2C3D40000000000190002 /* OnboardingView.swift */,
+				B1A2C3D40000000000210002 /* ImportView.swift */,
+				B1A2C3D40000000000220002 /* ProgrammeModalView.swift */,
+				B1A2C3D40000000000230002 /* CalendarView.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -285,6 +297,10 @@
 				B1A2C3D40000000000160001 /* CrewView.swift in Sources */,
 				B1A2C3D40000000000170001 /* PTChatView.swift in Sources */,
 				B1A2C3D40000000000180001 /* AccountView.swift in Sources */,
+				B1A2C3D40000000000190001 /* OnboardingView.swift in Sources */,
+				B1A2C3D40000000000210001 /* ImportView.swift in Sources */,
+				B1A2C3D40000000000220001 /* ProgrammeModalView.swift in Sources */,
+				B1A2C3D40000000000230001 /* CalendarView.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
