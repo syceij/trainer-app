@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// Programme JSON import — visual port of src/components/ImportScreen.jsx.
+/// Programme JSON import — port of src/components/ImportScreen.jsx.
 /// Back button + title, description, collapsible prompt template (with
 /// copy-to-clipboard), JSON paste editor, "Try with sample" link, error /
 /// success validation panel, and Validate / Import action buttons.
 ///
-/// Validation + import handlers are TODO — this commit is the visual
-/// layout; once `importHelpers.js` is ported to Swift the buttons can be
-/// wired to real `validateImported` and `onImport` calls.
+/// Validation + import handlers route through `ImportHelpers` and
+/// `AppState.enterAppWithImport` — same data path as React.
 struct ImportView: View {
     @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
@@ -19,19 +18,13 @@ struct ImportView: View {
     @State private var validProgrammeName: String? = nil
     @State private var validWeekCount: Int = 0
     @State private var validSessionsPerWeek: Int = 0
+    /// Parsed JSON kept around so the Import button can hand it straight
+    /// off to AppState without re-parsing.
+    @State private var validatedData: [String: Any]? = nil
     @FocusState private var jsonFocused: Bool
 
     private var ar: Bool { app.language == "ar" }
     private var hasValidated: Bool { validProgrammeName != nil }
-
-    /// Placeholder for the Claude prompt template — wire this up to the
-    /// real template (port of importHelpers.js PROMPT_TEMPLATE) later.
-    private let promptTemplatePlaceholder = """
-    [Paste your Claude prompt template here once importHelpers.js is ported.]
-
-    Convert my training programme into JSON with this structure:
-    { "name": "...", "totalWeeks": N, "weeks": [...] }
-    """
 
     var body: some View {
         ScrollView {
@@ -141,7 +134,7 @@ struct ImportView: View {
 
             if showPrompt {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(promptTemplatePlaceholder)
+                    Text(ImportHelpers.promptTemplate)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(HexTheme.dim)
                         .lineSpacing(4)
@@ -209,6 +202,7 @@ struct ImportView: View {
                 .onChange(of: json) { _ in
                     errors = nil
                     validProgrammeName = nil
+                    validatedData = nil
                 }
         }
         .frame(minHeight: 220)
@@ -321,7 +315,7 @@ struct ImportView: View {
     // MARK: - Actions
 
     private func copyPrompt() {
-        UIPasteboard.general.string = promptTemplatePlaceholder
+        UIPasteboard.general.string = ImportHelpers.promptTemplate
         copied = true
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -330,61 +324,49 @@ struct ImportView: View {
     }
 
     private func loadSample() {
-        // TODO: replace with real SAMPLE_PROGRAMME once importHelpers.js
-        // is ported to Swift.
-        json = """
-        {
-          "name": "Sample programme",
-          "totalWeeks": 4,
-          "weeks": []
-        }
-        """
+        json = ImportHelpers.samplePrettyJSON
         errors = nil
         validProgrammeName = nil
+        validatedData = nil
     }
 
     private func tryValidate() {
         // 1) JSON parse check
-        guard let data = json.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard let bytes = json.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any]
         else {
             errors = [ar
                 ? "JSON غير صالح — تحقق من الفواصل، الأقواس، أو علامات الاقتباس"
                 : "Invalid JSON — check for missing commas, brackets, or quotes"]
             validProgrammeName = nil
+            validatedData = nil
             return
         }
 
-        // 2) Minimal shape check — port validateImported from importHelpers.js
-        //    for the full schema check.
-        var errs: [String] = []
-        let name = parsed["name"] as? String
-        if name == nil || name?.isEmpty == true {
-            errs.append(ar ? "اسم البرنامج مفقود" : "Missing programme name")
-        }
-        let weeks = parsed["weeks"] as? [[String: Any]]
-        if weeks == nil {
-            errs.append(ar ? "مصفوفة الأسابيع مفقودة" : "Missing weeks array")
-        }
-
+        // 2) Full schema check — port of validateImported in importHelpers.js.
+        let errs = ImportHelpers.validateImported(parsed)
         if !errs.isEmpty {
             errors = errs
             validProgrammeName = nil
+            validatedData = nil
             return
         }
 
         errors = nil
-        validProgrammeName = name
-        validWeekCount = weeks?.count ?? 0
-        let firstWeek = weeks?.first
-        let sessions = firstWeek?["sessions"] as? [[String: Any]] ?? []
-        validSessionsPerWeek = sessions.filter { ($0["isRest"] as? Bool) != true }.count
+        validProgrammeName = parsed["name"] as? String
+        let weeks = parsed["weeks"] as? [[String: Any]] ?? []
+        validWeekCount = weeks.count
+        let firstSessions = (weeks.first?["sessions"] as? [[String: Any]]) ?? []
+        validSessionsPerWeek = firstSessions.filter { ($0["isRest"] as? Bool) != true }.count
+        validatedData = parsed
     }
 
     private func doImport() {
-        guard hasValidated else { return }
-        // TODO: thread imported programme into AppState + persist via Supabase
+        guard let data = validatedData else { return }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        dismiss()
+        Task {
+            await app.enterAppWithImport(data)
+            await MainActor.run { dismiss() }
+        }
     }
 }

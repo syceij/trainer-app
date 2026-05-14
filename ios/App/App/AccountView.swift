@@ -238,9 +238,12 @@ struct AccountView: View {
 
     private var buildProgrammeRow: some View {
         NavigationLink {
-            OnboardingView { _ in
-                // TODO: persist OnboardingProfile to Supabase + generate
-                // a starter programme based on the answers.
+            OnboardingView { profile in
+                // Generate the starter programme via ProgrammeBuilder (port of
+                // src/lib/programme.js), persist it, and mark it the active
+                // programme. Mirrors enterApp() in src/App.jsx.
+                Task { await app.enterApp(profile: profile,
+                                          weights: profile.startingWeights) }
             }
         } label: {
             HStack(spacing: 14) {

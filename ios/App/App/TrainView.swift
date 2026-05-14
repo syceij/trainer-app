@@ -511,7 +511,7 @@ struct TrainView: View {
     private func finishButton(exercises: [Exercise]) -> some View {
         Button {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            // TODO: app.finishSession(...)
+            finishSession(exercises: exercises)
         } label: {
             HStack(spacing: 6) {
                 Text(ar ? "إنهاء الجلسة" : "Finish Session")
@@ -530,6 +530,79 @@ struct TrainView: View {
             .shadow(color: HexTheme.accent.opacity(0.35), radius: 24, x: 0, y: 4)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Persist workout
+
+    /// Snapshot the (possibly weight-edited) exercises + checked-off sets
+    /// and call `app.finishWorkout(_:sets:)`. Mirrors `finishSession` in
+    /// src/App.jsx — saves the workout row plus one performed-set row per
+    /// completed set.
+    private func finishSession(exercises: [Exercise]) {
+        guard let session = app.currentSession else { return }
+
+        // Apply per-exercise weight overrides from the inline stepper.
+        let finalExercises: [Exercise] = exercises.map { ex in
+            guard let override = editedWeights[ex.name] else { return ex }
+            return Exercise(
+                name: ex.name, tag: ex.tag, sets: ex.sets, reps: ex.reps,
+                weight: override, rpe: ex.rpe, notes: ex.notes
+            )
+        }
+
+        // Build PerformedSet rows for every set the user marked complete.
+        var sets: [PerformedSet] = []
+        for ex in finalExercises {
+            for setIdx in 0..<ex.sets {
+                let key = "\(ex.name)_\(setIdx)"
+                guard completedSets[key] == true else { continue }
+                sets.append(PerformedSet(
+                    id:           UUID(),
+                    sessionId:    session.id,
+                    userId:       session.userId,
+                    exerciseName: ex.name,
+                    setNumber:    setIdx + 1,
+                    reps:         nil,                  // free-form on iOS for now
+                    weight:       ex.weight,
+                    rpe:          nil,
+                    completed:    true,
+                    failed:       false,
+                    createdAt:    nil
+                ))
+            }
+        }
+
+        let completedSession = WorkoutSession(
+            id:          session.id,
+            userId:      session.userId,
+            programmeId: session.programmeId,
+            name:        session.name,
+            date:        Date(),
+            weekNumber:  session.weekNumber,
+            block:       session.block,
+            completed:   true,
+            data:        WorkoutSessionData(exercises: finalExercises),
+            createdAt:   session.createdAt
+        )
+
+        // Optimistically clear the local set-tracking state so the UI
+        // resets to a fresh card view (same as React).
+        completedSets = [:]
+        editedWeights = [:]
+        expandedKey = nil
+        activeTimerKey = nil
+        timerRemaining = 0
+        timerDuration  = 0
+        timerPaused    = false
+        liveActivityActive = false
+
+        Task {
+            do {
+                try await app.finishWorkout(completedSession, sets: sets)
+            } catch {
+                print("[TrainView] finishWorkout failed:", error)
+            }
+        }
     }
 }
 
