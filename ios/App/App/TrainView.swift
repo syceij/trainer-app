@@ -110,8 +110,33 @@ struct TrainView: View {
     private var liveActivityButton: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            liveActivityActive.toggle()
-            // TODO: wire up LiveActivityService.shared.start/.end
+            if liveActivityActive {
+                Task { await LiveActivityService.shared.end() }
+                liveActivityActive = false
+            } else {
+                guard let session = app.currentSession,
+                      let exercises = session.data?.exercises,
+                      let first = exercises.first else { return }
+                let setsTotal = exercises.reduce(0) { $0 + $1.sets }
+                if #available(iOS 16.2, *) {
+                    Task {
+                        do {
+                            _ = try await LiveActivityService.shared.start(
+                                sessionName: session.name,
+                                exerciseName: first.name,
+                                setsDone: 0,
+                                setsTotal: setsTotal,
+                                timerEndsAt: nil,
+                                weightKg: first.weight ?? 0,
+                                reps: Int(first.reps.split(separator: "-").first.map(String.init) ?? "8") ?? 8
+                            )
+                            await MainActor.run { liveActivityActive = true }
+                        } catch {
+                            print("[TrainView] LiveActivity start failed:", error)
+                        }
+                    }
+                }
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: liveActivityActive ? "bolt.fill" : "bolt")
@@ -597,6 +622,9 @@ struct TrainView: View {
         liveActivityActive = false
 
         Task {
+            // End any running Live Activity first so the lock-screen widget
+            // doesn't outlive the session.
+            await LiveActivityService.shared.end()
             do {
                 try await app.finishWorkout(completedSession, sets: sets)
             } catch {

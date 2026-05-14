@@ -47,6 +47,8 @@
 		B1A2C3D40000000000300001 /* ExercisePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000300002 /* ExercisePickerSheet.swift */; };
 		B1A2C3D40000000000310001 /* EditableField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000310002 /* EditableField.swift */; };
 		B1A2C3D40000000000320001 /* ManualProgrammeBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000320002 /* ManualProgrammeBuilder.swift */; };
+		B1A2C3D40000000000330001 /* FriendModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000330002 /* FriendModels.swift */; };
+		B1A2C3D40000000000340001 /* SupabaseManager+Friends.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000340002 /* SupabaseManager+Friends.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -105,6 +107,8 @@
 		B1A2C3D40000000000300002 /* ExercisePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisePickerSheet.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000310002 /* EditableField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditableField.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000320002 /* ManualProgrammeBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualProgrammeBuilder.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000330002 /* FriendModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendModels.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000340002 /* SupabaseManager+Friends.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+Friends.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -178,6 +182,8 @@
 				B1A2C3D40000000000300002 /* ExercisePickerSheet.swift */,
 				B1A2C3D40000000000310002 /* EditableField.swift */,
 				B1A2C3D40000000000320002 /* ManualProgrammeBuilder.swift */,
+				B1A2C3D40000000000330002 /* FriendModels.swift */,
+				B1A2C3D40000000000340002 /* SupabaseManager+Friends.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -337,6 +343,8 @@
 				B1A2C3D40000000000300001 /* ExercisePickerSheet.swift in Sources */,
 				B1A2C3D40000000000310001 /* EditableField.swift in Sources */,
 				B1A2C3D40000000000320001 /* ManualProgrammeBuilder.swift in Sources */,
+				B1A2C3D40000000000330001 /* FriendModels.swift in Sources */,
+				B1A2C3D40000000000340001 /* SupabaseManager+Friends.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

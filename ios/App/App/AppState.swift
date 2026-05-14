@@ -27,6 +27,17 @@ final class AppState: ObservableObject {
     /// `finishWorkout(_:sets:)` call.
     @Published var workoutHistory: [WorkoutSession] = []
 
+    // MARK: - Social state (friends / requests / activity)
+
+    @Published var friends: [FriendListEntry] = []
+    @Published var pendingRequests: [PendingRequest] = []
+    @Published var activityFeed: [ActivityRow] = []
+    /// Cached "user trained today" set used for friend-bubble ring colour.
+    @Published var friendsTrainedToday: Set<UUID> = []
+    /// Composed leaderboard rows (me + friends) ranked by score DESC. Recomputed
+    /// every time `friends` or `currentProfile.leaderboard_data` changes.
+    @Published var leaderboard: [LeaderboardEntry] = []
+
     // MARK: - UI state
 
     @Published var language: String = "en"   // "en" | "ar"
@@ -51,17 +62,180 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Fan out the three signed-in data loads in parallel. Called after
-    /// every entry point into the signed-in state (restore, sign in, OTP).
+    /// Fan out the signed-in data loads in parallel. Called after every
+    /// entry point into the signed-in state (restore, sign in, OTP).
     func loadUserData() async {
-        async let profile: () = loadOwnProfile()
+        async let profile:   () = loadOwnProfile()
         async let programme: () = loadActiveProgramme()
-        async let history: () = loadHistory()
-        _ = await (profile, programme, history)
+        async let history:   () = loadHistory()
+        async let social:    () = loadSocial()
+        _ = await (profile, programme, history, social)
         // Once the active programme is loaded, pre-stage today's session
         // so the Train tab has something to show without an extra round-trip.
         if currentSession == nil {
             stageCurrentSessionFromActiveProgramme()
+        }
+        // Leaderboard depends on currentProfile + friends — recompose now.
+        rebuildLeaderboard()
+    }
+
+    // MARK: - Social loading
+
+    /// Load friends + pending + activity feed in two stages — the feed
+    /// depends on the friend list. Never throws; logs and recovers.
+    func loadSocial() async {
+        do {
+            async let friendsT = SupabaseManager.shared.fetchFriends()
+            async let pendingT = SupabaseManager.shared.fetchPendingRequests()
+            let (fr, pend) = try await (friendsT, pendingT)
+            self.friends         = fr
+            self.pendingRequests = pend
+        } catch {
+            print("[AppState] loadSocial (friends/pending) failed:", error)
+            self.friends = []; self.pendingRequests = []
+        }
+        // Activity feed — fetched after friends so we can scope by IDs
+        do {
+            let friendIds = friends.map(\.id)
+            self.activityFeed = try await SupabaseManager.shared
+                .fetchActivityFeed(friendIds: friendIds)
+        } catch {
+            print("[AppState] loadSocial (feed) failed:", error)
+            self.activityFeed = []
+        }
+        recomputeTrainedToday()
+    }
+
+    /// Re-derive `friendsTrainedToday` from the current activity feed.
+    private func recomputeTrainedToday() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        var set: Set<UUID> = []
+        for row in activityFeed where row.type == "session_completed" {
+            if cal.isDate(row.createdAt, inSameDayAs: today) {
+                set.insert(row.userId)
+            }
+        }
+        self.friendsTrainedToday = set
+    }
+
+    /// Rebuild leaderboard rows from `currentProfile.leaderboardData` + friends.
+    /// Filters out non-current-month rows so stale scores read as zero.
+    func rebuildLeaderboard() {
+        let now = Date()
+        let cal = Calendar(identifier: .gregorian)
+        let monthKey = String(format: "%04d-%02d",
+                              cal.component(.year,  from: now),
+                              cal.component(.month, from: now))
+
+        let myProfile = currentProfile
+        let myUid     = myProfile?.id
+            ?? SupabaseManager.shared.currentUser?.id
+            ?? UUID()
+
+        let myLd  = currentProfileLeaderboard
+        let myOK  = myLd?.month == monthKey
+        let me = LeaderboardEntry(
+            id:             myUid,
+            rank:           0,
+            name:           myProfile?.name ?? "You",
+            username:       myProfile?.username,
+            avatarURL:      myProfile?.avatarURL,
+            score:          myOK ? (myLd?.score          ?? 0) : 0,
+            setsCompleted:  myOK ? (myLd?.setsCompleted  ?? 0) : 0,
+            improvementPct: myOK ? (myLd?.improvementPct ?? 0) : 0,
+            isMe:           true
+        )
+
+        let friendEntries: [LeaderboardEntry] = friends.map { f in
+            let ld = f.leaderboardData
+            let current = ld?.month == monthKey
+            return LeaderboardEntry(
+                id:             f.id,
+                rank:           0,
+                name:           f.name,
+                username:       f.username,
+                avatarURL:      f.avatarURL,
+                score:          current ? (ld?.score          ?? 0) : 0,
+                setsCompleted:  current ? (ld?.setsCompleted  ?? 0) : 0,
+                improvementPct: current ? (ld?.improvementPct ?? 0) : 0,
+                isMe:           false
+            )
+        }
+
+        let sorted = ([me] + friendEntries).sorted { a, b in
+            if a.score != b.score { return a.score > b.score }
+            return (a.name ?? "").localizedCaseInsensitiveCompare(b.name ?? "") == .orderedAscending
+        }
+        var ranked = sorted
+        for i in ranked.indices { ranked[i].rank = i + 1 }
+        self.leaderboard = ranked
+    }
+
+    /// In-memory mirror of the user's cached leaderboard score — populated
+    /// after `loadOwnProfile()` and updated by `updateLeaderboardScore`.
+    private var currentProfileLeaderboard: LeaderboardData?
+
+    // MARK: - Social mutations
+
+    /// Send a friend request and toast on success.
+    func sendFriendRequest(toUserId uid: UUID) async {
+        do {
+            try await SupabaseManager.shared.sendFriendRequest(toUserId: uid)
+            toast = language == "ar" ? "تم إرسال طلب الصداقة ✓" : "Friend request sent ✓"
+        } catch {
+            print("[AppState] sendFriendRequest failed:", error)
+            toast = language == "ar" ? "تعذّر إرسال الطلب" : "Couldn't send request"
+        }
+    }
+
+    /// Accept or decline an incoming request. On accept, add the sender to
+    /// `friends` optimistically; on either, remove from `pendingRequests`.
+    func respondToRequest(_ req: PendingRequest, accept: Bool) async {
+        do {
+            try await SupabaseManager.shared
+                .respondFriendRequest(friendshipId: req.friendshipId, accept: accept)
+            pendingRequests.removeAll { $0.friendshipId == req.friendshipId }
+            if accept {
+                friends.append(FriendListEntry(
+                    id: req.userId,
+                    name: req.name,
+                    username: req.username,
+                    avatarURL: req.avatarURL,
+                    leaderboardData: nil
+                ))
+                rebuildLeaderboard()
+            }
+        } catch {
+            print("[AppState] respondToRequest failed:", error)
+        }
+    }
+
+    /// Remove an existing friend (both directions). Updates local state.
+    func removeFriend(_ friendId: UUID) async {
+        do {
+            try await SupabaseManager.shared.removeFriend(friendId: friendId)
+            friends.removeAll { $0.id == friendId }
+            rebuildLeaderboard()
+            toast = language == "ar" ? "تمت إزالة الصديق" : "Bro removed"
+        } catch {
+            print("[AppState] removeFriend failed:", error)
+        }
+    }
+
+    /// Accept an invite code (deep-link or pasted manually). Returns the
+    /// inviter's name on success, or nil on failure. Reloads social.
+    @discardableResult
+    func acceptInvite(code: String) async -> String? {
+        do {
+            let result = try await SupabaseManager.shared.acceptInvite(code: code)
+            await loadSocial()
+            return result.inviterName
+        } catch {
+            print("[AppState] acceptInvite failed:", error)
+            toast = (error as? SupabaseManager.InviteError)?.errorDescription
+                  ?? "Couldn't accept invite"
+            return nil
         }
     }
 
@@ -152,6 +326,10 @@ final class AppState: ObservableObject {
             if let lang = currentProfile?.language, !lang.isEmpty {
                 language = lang
             }
+            // Fire-and-forget — leaderboard score blob lives in jsonb column
+            // outside the typed Profile model.
+            currentProfileLeaderboard =
+                try? await SupabaseManager.shared.fetchOwnLeaderboardData()
         } catch {
             print("[AppState] loadOwnProfile failed:", error)
         }
@@ -182,13 +360,43 @@ final class AppState: ObservableObject {
     }
 
     /// Persist a completed workout: writes the session row and any performed
-    /// sets, then refreshes `workoutHistory` so Home stats update.
+    /// sets, refreshes `workoutHistory`, inserts an activity-feed row, and
+    /// recalculates the leaderboard score so friends see updated stats.
     func finishWorkout(_ session: WorkoutSession,
                        sets: [PerformedSet]) async throws {
         try await SupabaseManager.shared.saveWorkoutSession(session)
         try await SupabaseManager.shared.savePerformedSets(sets)
         currentSession = nil
         await loadHistory()
+
+        // Compute completed-set volume for the activity-feed row
+        let volume: Double = sets.reduce(0) { acc, s in
+            if s.completed, let w = s.weight, w > 0, let r = s.reps, r > 0 {
+                return acc + w * Double(r)
+            }
+            return acc
+        }
+        // Best-effort activity insert (never throws)
+        await SupabaseManager.shared.insertActivity(
+            type: "session_completed",
+            data: [
+                "session_name": session.name,
+                "volume":       volume,
+                "exercises":    session.data?.exercises.count ?? 0,
+            ]
+        )
+        // Recalculate leaderboard score so the friends-leaderboard refreshes
+        // on next CrewView load. Detach so it doesn't block the caller.
+        Task.detached { [weak self] in
+            let newScore = await SupabaseManager.shared
+                .recalculateAndStoreLeaderboardScore()
+            if let newScore = newScore {
+                await MainActor.run {
+                    self?.currentProfileLeaderboard = newScore
+                    self?.rebuildLeaderboard()
+                }
+            }
+        }
     }
 
     // MARK: - Programme creation entry points

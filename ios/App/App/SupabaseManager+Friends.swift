@@ -1,0 +1,546 @@
+import Foundation
+import Supabase
+
+/// Friend / activity / invite-link helpers. Mirrors the back half of
+/// `src/lib/db.js`. Each method reads/writes one Supabase table directly.
+extension SupabaseManager {
+
+    // MARK: - Friendships row decoder
+
+    /// Bare friendship row used inside the friends/pending queries.
+    private struct FriendshipRow: Decodable {
+        let id: UUID
+        let userId: UUID
+        let friendId: UUID
+        enum CodingKeys: String, CodingKey {
+            case id
+            case userId   = "user_id"
+            case friendId = "friend_id"
+        }
+    }
+
+    // MARK: - Friend list
+
+    /// Mirror of `loadFriends(userId)` — returns the OTHER side of every
+    /// accepted friendship, joined with the profiles table so we have name,
+    /// username, avatar, and cached leaderboard data.
+    func fetchFriends() async throws -> [FriendListEntry] {
+        guard let uid = currentUser?.id else { return [] }
+        let rows: [FriendshipRow] = try await client
+            .from("friendships")
+            .select("id, user_id, friend_id")
+            .or("user_id.eq.\(uid),friend_id.eq.\(uid)")
+            .eq("status", value: "accepted")
+            .execute()
+            .value
+        let friendIds: [UUID] = rows.map { $0.userId == uid ? $0.friendId : $0.userId }
+        guard !friendIds.isEmpty else { return [] }
+        let profiles: [FriendListEntry] = try await client
+            .from("profiles")
+            .select("id, name, username, leaderboard_data, avatar_url")
+            .in("id", values: friendIds)
+            .execute()
+            .value
+        return profiles
+    }
+
+    // MARK: - Pending requests
+
+    /// Mirror of `loadPendingRequests(userId)` — only returns rows where
+    /// the current user is the recipient (incoming requests).
+    func fetchPendingRequests() async throws -> [PendingRequest] {
+        guard let uid = currentUser?.id else { return [] }
+        let rows: [FriendshipRow] = try await client
+            .from("friendships")
+            .select("id, user_id, friend_id")
+            .or("user_id.eq.\(uid),friend_id.eq.\(uid)")
+            .eq("status", value: "pending")
+            .execute()
+            .value
+        // Keep only INCOMING — where current user is the friend (recipient)
+        let incoming = rows.filter { $0.friendId == uid }
+        let senderIds = incoming.map(\.userId)
+        guard !senderIds.isEmpty else { return [] }
+        let senders: [UserSearchResult] = try await client
+            .from("profiles")
+            .select("id, name, username, avatar_url")
+            .in("id", values: senderIds)
+            .execute()
+            .value
+        let profMap = Dictionary(uniqueKeysWithValues: senders.map { ($0.id, $0) })
+        return incoming.map { row in
+            let p = profMap[row.userId]
+            return PendingRequest(
+                friendshipId: row.id,
+                userId:       row.userId,
+                name:         p?.name ?? "Unknown",
+                username:     p?.username,
+                avatarURL:    p?.avatarURL
+            )
+        }
+    }
+
+    // MARK: - Send / respond / remove
+
+    /// Send a friend request (status = pending).
+    func sendFriendRequest(toUserId friendId: UUID) async throws {
+        guard let uid = currentUser?.id else { return }
+        struct Payload: Encodable {
+            let user_id: UUID
+            let friend_id: UUID
+            let status: String
+        }
+        _ = try await client
+            .from("friendships")
+            .insert(Payload(user_id: uid, friend_id: friendId, status: "pending"))
+            .execute()
+    }
+
+    /// Accept (status → "accepted") or decline (delete the row).
+    func respondFriendRequest(friendshipId: UUID, accept: Bool) async throws {
+        if accept {
+            _ = try await client
+                .from("friendships")
+                .update(["status": "accepted"])
+                .eq("id", value: friendshipId)
+                .execute()
+        } else {
+            _ = try await client
+                .from("friendships")
+                .delete()
+                .eq("id", value: friendshipId)
+                .execute()
+        }
+    }
+
+    /// Delete both directions of an accepted friendship.
+    func removeFriend(friendId: UUID) async throws {
+        guard let uid = currentUser?.id else { return }
+        _ = try await client
+            .from("friendships")
+            .delete()
+            .or("and(user_id.eq.\(uid),friend_id.eq.\(friendId)),and(user_id.eq.\(friendId),friend_id.eq.\(uid))")
+            .execute()
+    }
+
+    // MARK: - User search
+
+    /// Search profiles by username substring (case-insensitive). Excludes self.
+    func searchUsers(query: String) async throws -> [UserSearchResult] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2, let uid = currentUser?.id else { return [] }
+        let rows: [UserSearchResult] = try await client
+            .from("profiles")
+            .select("id, name, username, avatar_url")
+            .ilike("username", pattern: "%\(q)%")
+            .neq("id", value: uid)
+            .limit(10)
+            .execute()
+            .value
+        return rows
+    }
+
+    // MARK: - Invite links
+
+    /// Generate a fresh 8-char invite code valid for 48h.
+    @discardableResult
+    func createInviteLink() async throws -> InviteLink {
+        guard let uid = currentUser?.id else {
+            throw NSError(domain: "createInviteLink", code: 401)
+        }
+        let code = String(UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                          .prefix(8)).uppercased()
+        let expires = Date().addingTimeInterval(48 * 3600)
+        struct Payload: Encodable {
+            let user_id: UUID
+            let code: String
+            let expires_at: Date
+        }
+        let row: InviteLink = try await client
+            .from("invite_links")
+            .insert(Payload(user_id: uid, code: code, expires_at: expires))
+            .select()
+            .single()
+            .execute()
+            .value
+        return row
+    }
+
+    /// Result returned by acceptInvite — used by the inviter-name toast.
+    struct AcceptInviteResult {
+        let inviterName: String
+    }
+
+    /// Accept an invite link — creates the accepted friendship and marks
+    /// the link used. Throws on invalid, expired, or self-invite.
+    func acceptInvite(code: String) async throws -> AcceptInviteResult {
+        guard let uid = currentUser?.id else {
+            throw NSError(domain: "acceptInvite", code: 401)
+        }
+        let rows: [InviteLink] = try await client
+            .from("invite_links")
+            .select()
+            .eq("code", value: code)
+            .eq("used", value: false)
+            .limit(1)
+            .execute()
+            .value
+        guard let inv = rows.first else { throw InviteError.invalid }
+        if let exp = inv.expiresAt, exp < Date() { throw InviteError.expired }
+        if inv.userId == uid { throw InviteError.selfInvite }
+
+        struct FriendshipPayload: Encodable {
+            let user_id: UUID
+            let friend_id: UUID
+            let status: String
+        }
+        // Ignore duplicate-key violations — we'll just update the link state.
+        do {
+            _ = try await client
+                .from("friendships")
+                .insert(FriendshipPayload(user_id: inv.userId, friend_id: uid,
+                                          status: "accepted"))
+                .execute()
+        } catch {
+            let s = (error as NSError).localizedDescription
+            if !s.contains("23505") && !s.contains("duplicate") { throw error }
+        }
+
+        _ = try await client
+            .from("invite_links")
+            .update(["used": true])
+            .eq("id", value: inv.id)
+            .execute()
+
+        struct NameRow: Decodable { let name: String? }
+        let inviter: [NameRow] = try await client
+            .from("profiles")
+            .select("name")
+            .eq("id", value: inv.userId)
+            .limit(1)
+            .execute()
+            .value
+        return AcceptInviteResult(inviterName: inviter.first?.name ?? "Someone")
+    }
+
+    enum InviteError: LocalizedError {
+        case invalid, expired, selfInvite
+        var errorDescription: String? {
+            switch self {
+            case .invalid:    return "Invite link is invalid."
+            case .expired:    return "Invite link has expired."
+            case .selfInvite: return "You can't accept your own invite."
+            }
+        }
+    }
+
+    // MARK: - Activity feed
+
+    /// Fire-and-forget activity insert. Errors are swallowed (never throw).
+    func insertActivity(type: String, data: [String: Any]) async {
+        guard let uid = currentUser?.id else { return }
+        let encoded = data.mapValues { AnyCodable($0) }
+        struct Payload: Encodable {
+            let user_id: UUID
+            let type: String
+            let data: [String: AnyCodable]
+        }
+        do {
+            _ = try await client
+                .from("activity_feed")
+                .insert(Payload(user_id: uid, type: type, data: encoded))
+                .execute()
+        } catch {
+            print("[insertActivity] failed (non-fatal):", error)
+        }
+    }
+
+    /// Load recent activity for the user + their friends. Limit 20 newest.
+    func fetchActivityFeed(friendIds: [UUID]) async throws -> [ActivityRow] {
+        guard let uid = currentUser?.id else { return [] }
+        let ids = [uid] + friendIds
+        let rows: [ActivityFeedItem] = try await client
+            .from("activity_feed")
+            .select()
+            .in("user_id", values: ids)
+            .order("created_at", ascending: false)
+            .limit(20)
+            .execute()
+            .value
+        guard !rows.isEmpty else { return [] }
+        // Profile join (in-memory) for displayed names + avatars
+        let profiles: [UserSearchResult] = try await client
+            .from("profiles")
+            .select("id, name, username, avatar_url")
+            .in("id", values: ids)
+            .execute()
+            .value
+        let pmap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        return rows.map { r in
+            let p = pmap[r.userId]
+            return ActivityRow(
+                id:              r.id,
+                userId:          r.userId,
+                type:            r.type,
+                createdAt:       r.createdAt ?? Date(),
+                data:            r.data,
+                profileName:     p?.name,
+                profileUsername: p?.username,
+                avatarURL:       p?.avatarURL
+            )
+        }
+    }
+
+    // MARK: - Friend profile (read-only)
+
+    /// Loads `id, name, username, privacy_settings` for the friend profile
+    /// page. `privacy_settings` is jsonb so we decode into a dictionary.
+    struct FriendProfileRow: Decodable {
+        let id: UUID
+        var name: String?
+        var username: String?
+        var avatarURL: String?
+        var privacySettings: [String: AnyCodable]?
+        enum CodingKeys: String, CodingKey {
+            case id, name, username
+            case avatarURL       = "avatar_url"
+            case privacySettings = "privacy_settings"
+        }
+    }
+
+    func fetchFriendProfile(friendId: UUID) async throws -> FriendProfileRow? {
+        let rows: [FriendProfileRow] = try await client
+            .from("profiles")
+            .select("id, name, username, avatar_url, privacy_settings")
+            .eq("id", value: friendId)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
+    /// Last N sessions for a friend, newest first. Pulls only what the
+    /// FriendProfilePage uses (no individual sets).
+    func fetchFriendSessions(friendId: UUID, limit: Int = 10) async throws -> [FriendSession] {
+        let rows: [WorkoutSession] = try await client
+            .from("workout_sessions")
+            .select()
+            .eq("user_id", value: friendId)
+            .order("date", ascending: false)
+            .limit(limit)
+            .execute()
+            .value
+        return rows.map { r in
+            FriendSession(
+                id:        r.id,
+                date:      r.date,
+                name:      r.name,
+                exercises: r.data?.exercises ?? []
+            )
+        }
+    }
+
+    /// Friend's working weights map (exercise → kg). Empty if column missing.
+    func fetchFriendWeights(friendId: UUID) async throws -> [String: Double] {
+        struct Row: Decodable {
+            let exerciseName: String
+            let weight: Double
+            enum CodingKeys: String, CodingKey {
+                case exerciseName = "exercise_name"
+                case weight
+            }
+        }
+        let rows: [Row] = try await client
+            .from("working_weights")
+            .select("exercise_name, weight")
+            .eq("user_id", value: friendId)
+            .execute()
+            .value
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.exerciseName, $0.weight) })
+    }
+
+    /// Fetch just the leaderboard_data jsonb column for the current user.
+    /// Returns nil if no row or no data.
+    func fetchOwnLeaderboardData() async throws -> LeaderboardData? {
+        guard let uid = currentUser?.id else { return nil }
+        struct Row: Decodable {
+            let leaderboardData: LeaderboardData?
+            enum CodingKeys: String, CodingKey {
+                case leaderboardData = "leaderboard_data"
+            }
+        }
+        let rows: [Row] = try await client
+            .from("profiles")
+            .select("leaderboard_data")
+            .eq("id", value: uid)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.leaderboardData
+    }
+
+    // MARK: - Leaderboard score
+
+    /// Compute the current user's leaderboard score and persist it to
+    /// `profiles.leaderboard_data`. Mirrors `updateLeaderboardScore` in
+    /// src/lib/db.js. Returns the new score, or nil on error.
+    @discardableResult
+    func recalculateAndStoreLeaderboardScore() async -> LeaderboardData? {
+        guard let uid = currentUser?.id else { return nil }
+        let data = await calculateLeaderboardScore(userId: uid)
+        guard let data = data else { return nil }
+        do {
+            // Encode the score blob so we can wrap it in an update.
+            let blob = try JSONEncoder().encode(data)
+            let json = try JSONSerialization.jsonObject(with: blob) as? [String: Any] ?? [:]
+            let encoded = json.mapValues { AnyCodable($0) }
+            struct UpdatePayload: Encodable {
+                let leaderboard_data: [String: AnyCodable]
+            }
+            _ = try await client
+                .from("profiles")
+                .update(UpdatePayload(leaderboard_data: encoded))
+                .eq("id", value: uid)
+                .execute()
+            return data
+        } catch {
+            print("[updateLeaderboardScore] failed:", error)
+            return nil
+        }
+    }
+
+    /// Internal helper — does the full calculation. Doesn't write anything.
+    private func calculateLeaderboardScore(userId: UUID) async -> LeaderboardData? {
+        let now = Date()
+        let cal = Calendar(identifier: .gregorian)
+        let comps = cal.dateComponents([.year, .month], from: now)
+        guard let year = comps.year, let monthN = comps.month else { return nil }
+        let monthKey = String(format: "%04d-%02d", year, monthN)
+        let firstOfMonth = cal.date(from: DateComponents(year: year, month: monthN, day: 1)) ?? now
+        let dayOfMonth = cal.component(.day, from: now)
+
+        // ── Pull all required tables in parallel ──
+        struct EmptyId: Decodable { let id: UUID }
+        struct WeightRow: Decodable {
+            let exerciseName: String
+            let weight: Double?
+            enum CodingKeys: String, CodingKey {
+                case exerciseName = "exercise_name"
+                case weight
+            }
+        }
+        struct ProgrammeShell: Decodable {
+            let data: ProgrammeData?
+        }
+        struct SetRow: Decodable {
+            let exerciseName: String?
+            let reps: AnyCodable?
+            let weight: Double?
+            enum CodingKeys: String, CodingKey {
+                case exerciseName = "exercise_name"
+                case reps, weight
+            }
+        }
+
+        async let completedSetsT: [EmptyId]    = (try? client
+            .from("sets")
+            .select("id")
+            .eq("user_id", value: userId)
+            .eq("completed", value: true)
+            .gte("created_at", value: ISO8601DateFormatter().string(from: firstOfMonth))
+            .execute().value) ?? []
+        async let weightsT: [WeightRow]        = (try? client
+            .from("working_weights")
+            .select("exercise_name, weight")
+            .eq("user_id", value: userId)
+            .execute().value) ?? []
+        async let programmesT: [ProgrammeShell] = (try? client
+            .from("programmes")
+            .select("data")
+            .eq("user_id", value: userId)
+            .eq("active", value: true)
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute().value) ?? []
+        async let allSetsT: [SetRow]           = (try? client
+            .from("sets")
+            .select("exercise_name, reps, weight")
+            .eq("user_id", value: userId)
+            .order("created_at", ascending: true)
+            .execute().value) ?? []
+
+        let completedSets = await completedSetsT
+        let weights       = await weightsT
+        let programmeArr  = await programmesT
+        let allSets       = await allSetsT
+
+        let setsCompleted = completedSets.count
+
+        // Programmed sets per week derived from active programme data
+        let setsProgrammed: Int = {
+            if let progData = programmeArr.first?.data {
+                var perWeek = 0
+                if let week = progData.weeks.first {
+                    for s in week.sessions {
+                        for ex in s.exercises {
+                            perWeek += max(ex.sets, 1)
+                        }
+                    }
+                }
+                let weeksElapsed = max(1, Int(ceil(Double(dayOfMonth) / 7.0)))
+                if perWeek > 0 { return perWeek * weeksElapsed }
+            }
+            return setsCompleted > 0
+                ? Int((Double(setsCompleted) * 1.25).rounded())
+                : 20
+        }()
+
+        let consistency: Double = setsProgrammed > 0
+            ? (Double(setsCompleted) / Double(setsProgrammed)) * 100.0
+            : 0.0
+
+        // ── Improvement per tracked exercise ──
+        func parseReps(_ v: Any?) -> Int {
+            if let i = v as? Int    { return i }
+            if let d = v as? Double { return Int(d) }
+            if let s = v as? String {
+                let first = s.split(separator: "-").first.map(String.init) ?? s
+                return Int(first.trimmingCharacters(in: .whitespaces)) ?? 8
+            }
+            return 8
+        }
+
+        var grouped: [String: [(reps: Int, weight: Double)]] = [:]
+        for r in allSets {
+            guard let name = r.exerciseName?.lowercased().trimmingCharacters(in: .whitespaces),
+                  !name.isEmpty else { continue }
+            grouped[name, default: []].append(
+                (reps: parseReps(r.reps?.value), weight: r.weight ?? 0)
+            )
+        }
+        var totalImprovement = 0.0
+        var exCount = 0
+        for w in weights {
+            let key = w.exerciseName.lowercased().trimmingCharacters(in: .whitespaces)
+            guard let rows = grouped[key], rows.count >= 2 else { continue }
+            let firstVol   = Double(rows.first!.reps)  * rows.first!.weight
+            let currentVol = Double(rows.last!.reps)   * rows.last!.weight
+            if firstVol > 0 {
+                let imp = ((currentVol - firstVol) / firstVol) * 100.0
+                totalImprovement += max(0, imp)
+                exCount += 1
+            }
+        }
+        let improvement: Double = exCount > 0 ? totalImprovement / Double(exCount) : 0
+
+        let final = Int(((consistency * 0.7) + (improvement * 0.3)).rounded())
+        return LeaderboardData(
+            score:          final,
+            setsCompleted:  setsCompleted,
+            setsProgrammed: setsProgrammed,
+            improvementPct: Int(improvement.rounded()),
+            month:          monthKey,
+            updatedAt:      ISO8601DateFormatter().string(from: Date())
+        )
+    }
+}
