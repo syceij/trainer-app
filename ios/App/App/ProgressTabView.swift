@@ -312,7 +312,25 @@ struct ProgressTabView: View {
     }
 
     private var mostImprovedCard: some View {
-        HStack(alignment: .top, spacing: 12) {
+        // Pick the muscle group with the highest positive avg improvement,
+        // matching React's `improved.reduce((b, g) => g.pct > b.pct ? g : b)`.
+        let top: MuscleStat? = muscleStats
+            .filter { $0.seen && $0.pct > 0 }
+            .max(by: { $0.pct < $1.pct })
+
+        let groupLabel: String? = top.flatMap { stat in
+            MuscleUtils.group(id: stat.id).map { mg in
+                ar ? barLabel(forId: mg.id) : mg.label
+            }
+        }
+        let valueText: String = {
+            if let top = top, let label = groupLabel {
+                return "\(label)  +\(top.pct)%"
+            }
+            return ar ? "ابدأ بتسجيل تمارينك" : "Start logging to see"
+        }()
+
+        return HStack(alignment: .top, spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(HexTheme.accent.opacity(0.12))
@@ -327,9 +345,9 @@ struct ProgressTabView: View {
                     .font(.system(size: 10, weight: .heavy))
                     .kerning(ar ? 0 : 0.9)
                     .foregroundColor(HexTheme.dim)
-                Text(ar ? "ابدأ بتسجيل تمارينك" : "Start logging to see")
+                Text(valueText)
                     .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
+                    .foregroundColor(top != nil ? HexTheme.accent : HexTheme.text)
             }
             Spacer()
         }
@@ -356,16 +374,24 @@ struct ProgressTabView: View {
     /// Aggregate stats per muscle group computed from `workoutHistory`.
     /// Mirrors the MuscleProgressChart aggregator in ProgressTab.jsx.
     private var muscleStats: [MuscleStat] {
-        // 1. exercises grouped by name across all sessions → list of weights
+        // 1. Exercises grouped by name across all sessions → list of weights.
+        // Mirrors React's calcMuscleImprovements in ProgressTab.jsx:
+        //   - skip bodyweight rows
+        //   - skip entries without a numeric, positive weight
+        //   - resolve the muscle via the full Exercise object so `ex.muscle`
+        //     (auto-builder / custom) is honoured before any name heuristics.
         struct Entry { var muscle: String; var weights: [Double] = [] }
         var byName: [String: Entry] = [:]
         // workoutHistory is newest-first; reverse so we accumulate oldest → newest
         for session in app.workoutHistory.reversed() {
             for ex in session.data?.exercises ?? [] {
-                guard let muscle = MuscleUtils.resolveMuscle(name: ex.name) else { continue }
-                var e = byName[ex.name] ?? Entry(muscle: muscle)
-                if let w = ex.weight, w > 0 { e.weights.append(w) }
-                byName[ex.name] = e
+                if ex.bodyweight { continue }
+                guard let w = ex.weight, w > 0 else { continue }
+                guard let muscle = MuscleUtils.resolveMuscle(for: ex) else { continue }
+                let key = ex.name.lowercased()
+                var e = byName[key] ?? Entry(muscle: muscle)
+                e.weights.append(w)
+                byName[key] = e
             }
         }
 

@@ -73,7 +73,11 @@ enum MuscleUtils {
 
     /// Same 7-step fall-through as resolveMuscle() in muscleUtils.js.
     /// Returns nil when no muscle can be confidently inferred.
-    static func resolveMuscle(name: String?, key: String? = nil) -> String? {
+    static func resolveMuscle(name: String?, key: String? = nil, muscle: String? = nil) -> String? {
+        // 1. Muscle already on the object (auto-programme + custom exercises
+        //    carry their own muscle field — matches React's step 1).
+        if let m = muscle, !m.isEmpty { return m }
+
         // 2. Key-based exact lookup
         if let k = key, let m = keyToMuscle[k] { return m }
 
@@ -108,8 +112,13 @@ enum MuscleUtils {
         return nil
     }
 
+    /// Convenience for an `Exercise` row that has name + key + muscle baked in.
+    static func resolveMuscle(for ex: Exercise) -> String? {
+        resolveMuscle(name: ex.name, key: ex.key, muscle: ex.muscle)
+    }
+
     /// Convenience wrapper for sets-table rows that only have a name.
     static func resolveMuscle(fromName name: String) -> String? {
-        resolveMuscle(name: name, key: nil)
+        resolveMuscle(name: name, key: nil, muscle: nil)
     }
 }

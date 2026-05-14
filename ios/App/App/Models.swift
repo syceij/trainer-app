@@ -223,15 +223,221 @@ struct ProgrammeSession: Codable, Hashable, Identifiable {
     }
 }
 
+/// One exercise inside a programme session.
+///
+/// React stores exercises with polymorphic field types — for example
+/// `weight` can be a `Number`, the string `"BW"`, the string `"light"`,
+/// `null`, or absent entirely; `reps` can be a string ("8-10") or a
+/// raw number (8). A strict Codable synthesis throws on every row and
+/// the whole exercises array decodes as `[]`, which is exactly the
+/// "0 exercises" bug we hit. This custom decoder absorbs all the
+/// shapes that occur across React's `programme.js`, `importHelpers.js`,
+/// `ManualProgrammeBuilder.jsx`, and `ExercisePickerSheet.jsx` paths.
 struct Exercise: Codable, Hashable, Identifiable {
-    var id: UUID { UUID() }
+    /// Library or import key. Examples: `bench_press`, `imported_2_squat`,
+    /// `custom_my_lift`. React's ManualBuilder may emit `null` — we then
+    /// synthesize a slug from `name` so SwiftUI lists have a stable identity.
+    var key: String
     var name: String
-    var tag: String?          // "compound" | "isolation" | "accessory" | ...
+    /// `"compound"` | `"accessory"` | other (historical) | nil.
+    var tag: String?
+    /// Number of sets to perform. Defaults to 3.
     var sets: Int
-    var reps: String          // e.g. "8-10"
-    var weight: Double?       // working weight in kg
-    var rpe: String?          // e.g. "7-8"
+    /// Rep prescription, e.g. `"8-10"`. Coerced to String even when the
+    /// JSON wrote a raw number.
+    var reps: String
+    /// Working weight in kg. `nil` for bodyweight, unset, or non-numeric
+    /// labels — see `weightLabel` for the original `"BW"` / `"light"` text.
+    var weight: Double?
+    /// Display label when `weight` is non-numeric. Values: `"BW"`, `"light"`,
+    /// or nil. Mirrors React's `weightLabel` field.
+    var weightLabel: String?
+    /// RPE descriptor, e.g. `"7-8"`. Empty / missing → nil.
+    var rpe: String?
+    /// Free-form notes. Empty / missing → nil.
     var notes: String?
+    /// True for bodyweight exercises. Defaults to false.
+    var bodyweight: Bool
+    /// Primary muscle slug (`"chest"`, `"back"`, `"biceps"`, ...). Only
+    /// auto-builder + custom exercises set this; imported / manual omit.
+    var muscle: String?
+    /// Progression flag toggled by the React PT chat. Defaults false.
+    var readyToProgress: Bool
+    /// `true` for user-created exercises (also have `category`, `equipment`,
+    /// and `createdAt` set).
+    var isCustom: Bool?
+    /// Display category for custom exercises (`"Chest"`, `"Triceps"`, ...).
+    var category: String?
+    /// Equipment slug (`"barbell"`, `"dumbbell"`, ..., `"custom"`).
+    var equipment: String?
+    /// ISO timestamp string for custom exercises. Stored as String because
+    /// React writes it via `new Date().toISOString()` and never re-parses it.
+    var createdAt: String?
+
+    /// Stable Identifiable id — uses `key` so SwiftUI lists don't churn
+    /// on every re-render (the old `UUID()` getter caused flicker).
+    var id: String { key }
+
+    /// Memberwise-style init covering every field with sensible defaults.
+    /// Existing call sites that pass `(name:, tag:, sets:, reps:, weight:,
+    /// rpe:, notes:)` keep working — the new fields all default.
+    init(name: String,
+         tag: String? = nil,
+         sets: Int = 3,
+         reps: String = "8-10",
+         weight: Double? = nil,
+         rpe: String? = nil,
+         notes: String? = nil,
+         key: String? = nil,
+         weightLabel: String? = nil,
+         bodyweight: Bool = false,
+         muscle: String? = nil,
+         readyToProgress: Bool = false,
+         isCustom: Bool? = nil,
+         category: String? = nil,
+         equipment: String? = nil,
+         createdAt: String? = nil) {
+        self.name            = name
+        self.tag             = tag
+        self.sets            = sets
+        self.reps            = reps
+        self.weight          = weight
+        self.weightLabel     = weightLabel
+        self.rpe             = rpe
+        self.notes           = notes
+        self.bodyweight      = bodyweight
+        self.muscle          = muscle
+        self.readyToProgress = readyToProgress
+        self.isCustom        = isCustom
+        self.category        = category
+        self.equipment       = equipment
+        self.createdAt       = createdAt
+        self.key             = key.flatMap { $0.isEmpty ? nil : $0 }
+                                ?? Self.slug(from: name)
+    }
+
+    /// Slugify a name into a stable id, matching React's custom-exercise
+    /// key convention: lowercase, spaces → `_`, drop non-alphanumerics.
+    static func slug(from name: String) -> String {
+        let lower = name.lowercased()
+        let cleaned = lower
+            .replacingOccurrences(of: " ", with: "_")
+            .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+        return cleaned.isEmpty ? UUID().uuidString : cleaned
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name, tag, sets, reps, weight, rpe, notes
+        case key, weightLabel, bodyweight, muscle, readyToProgress
+        case isCustom, category, equipment, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        // name — only field treated as required, but missing → empty string
+        // so the row at least decodes (the synthetic key path below still works).
+        self.name = (try? c.decode(String.self, forKey: .name)) ?? ""
+
+        // sets — JSON may be Int, Double, or numeric String. Default 3.
+        if let n = try? c.decode(Int.self, forKey: .sets) {
+            self.sets = n
+        } else if let d = try? c.decode(Double.self, forKey: .sets) {
+            self.sets = Int(d)
+        } else if let s = try? c.decode(String.self, forKey: .sets),
+                  let n = Int(s.trimmingCharacters(in: .whitespaces)) {
+            self.sets = n
+        } else {
+            self.sets = 3
+        }
+
+        // reps — JSON may be String ("8-10") OR Number (8). Coerce to String.
+        if let s = try? c.decode(String.self, forKey: .reps) {
+            self.reps = s
+        } else if let i = try? c.decode(Int.self, forKey: .reps) {
+            self.reps = String(i)
+        } else if let d = try? c.decode(Double.self, forKey: .reps) {
+            self.reps = d.truncatingRemainder(dividingBy: 1) == 0
+                ? String(Int(d)) : String(d)
+        } else {
+            self.reps = "8-10"
+        }
+
+        // weight — Number → kg; String ("BW" | "light" | "5kg" | ...) →
+        // try numeric parse first, otherwise treat as a label; null/absent → nil.
+        var parsedWeight: Double? = nil
+        var parsedWeightLabel: String? = nil
+        if let d = try? c.decode(Double.self, forKey: .weight) {
+            parsedWeight = d
+        } else if let i = try? c.decode(Int.self, forKey: .weight) {
+            parsedWeight = Double(i)
+        } else if let s = try? c.decode(String.self, forKey: .weight) {
+            let trimmed = s.trimmingCharacters(in: .whitespaces)
+            if let n = Double(trimmed) {
+                parsedWeight = n
+            } else if !trimmed.isEmpty,
+                      trimmed.lowercased() != "undefined",
+                      trimmed.lowercased() != "null" {
+                parsedWeightLabel = trimmed
+            }
+        }
+        // An explicit `weightLabel` field on the JSON wins over the inferred one
+        // (covers React rows where `weight: 0, weightLabel: "BW"`).
+        if let explicit = try? c.decode(String.self, forKey: .weightLabel),
+           !explicit.isEmpty,
+           explicit.lowercased() != "undefined",
+           explicit.lowercased() != "null" {
+            parsedWeightLabel = explicit
+        }
+        self.weight      = parsedWeight
+        self.weightLabel = parsedWeightLabel
+
+        self.tag       = try? c.decode(String.self, forKey: .tag)
+        self.rpe       = try? c.decode(String.self, forKey: .rpe)
+        self.notes     = try? c.decode(String.self, forKey: .notes)
+        self.muscle    = try? c.decode(String.self, forKey: .muscle)
+        self.category  = try? c.decode(String.self, forKey: .category)
+        self.equipment = try? c.decode(String.self, forKey: .equipment)
+        self.createdAt = try? c.decode(String.self, forKey: .createdAt)
+
+        // bodyweight — React writes `!!ex.bodyweight`, but raw imports can
+        // be absent. Fall back to inferring from a "BW" weightLabel.
+        if let b = try? c.decode(Bool.self, forKey: .bodyweight) {
+            self.bodyweight = b
+        } else {
+            self.bodyweight = (parsedWeightLabel?.uppercased() == "BW")
+        }
+
+        self.readyToProgress = (try? c.decode(Bool.self, forKey: .readyToProgress)) ?? false
+        self.isCustom        = try? c.decode(Bool.self, forKey: .isCustom)
+
+        // key — defaults to a slug from name when null / missing / empty.
+        if let k = try? c.decode(String.self, forKey: .key), !k.isEmpty {
+            self.key = k
+        } else {
+            self.key = Self.slug(from: self.name)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name,            forKey: .name)
+        try c.encode(key,             forKey: .key)
+        try c.encode(sets,            forKey: .sets)
+        try c.encode(reps,            forKey: .reps)
+        if let w = weight        { try c.encode(w,   forKey: .weight) }
+        if let l = weightLabel   { try c.encode(l,   forKey: .weightLabel) }
+        if let t = tag           { try c.encode(t,   forKey: .tag) }
+        if let r = rpe           { try c.encode(r,   forKey: .rpe) }
+        if let n = notes         { try c.encode(n,   forKey: .notes) }
+        try c.encode(bodyweight,      forKey: .bodyweight)
+        if let m = muscle        { try c.encode(m,   forKey: .muscle) }
+        try c.encode(readyToProgress, forKey: .readyToProgress)
+        if let v = isCustom      { try c.encode(v,   forKey: .isCustom) }
+        if let cat = category    { try c.encode(cat, forKey: .category) }
+        if let eq = equipment    { try c.encode(eq,  forKey: .equipment) }
+        if let cr = createdAt    { try c.encode(cr,  forKey: .createdAt) }
+    }
 }
 
 // MARK: - Session (workout instance)

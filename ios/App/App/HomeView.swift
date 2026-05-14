@@ -178,10 +178,15 @@ struct HomeView: View {
         guard let last = app.workoutHistory.first,
               let exercises = last.data?.exercises
         else { return "—" }
+        // Match React's history-volume reducer in App.jsx:
+        //   r.data.exercises.reduce((s, ex) =>
+        //     (!ex.bodyweight && ex.weight) ? s + ex.weight * (ex.sets || 1) : s, 0)
         let vol = exercises.reduce(0.0) { acc, ex in
+            if ex.bodyweight { return acc }
             let w = ex.weight ?? 0
             guard w > 0 else { return acc }
-            return acc + w * Double(ex.sets)
+            let setCount = max(ex.sets, 1)
+            return acc + w * Double(setCount)
         }
         guard vol > 0 else { return "—" }
         if vol >= 1000 {

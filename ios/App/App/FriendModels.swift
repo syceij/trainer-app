@@ -160,11 +160,12 @@ struct FriendSession: Identifiable, Hashable {
     var name: String
     var exercises: [Exercise]
     var volume: Double {
+        // Same formula React uses in App.jsx when building the history list:
+        // skip bodyweight rows; otherwise add weight × max(sets, 1).
         exercises.reduce(0) { acc, ex in
-            if let w = ex.weight, w > 0 {
-                return acc + w * Double(ex.sets)
-            }
-            return acc
+            if ex.bodyweight { return acc }
+            guard let w = ex.weight, w > 0 else { return acc }
+            return acc + w * Double(max(ex.sets, 1))
         }
     }
 }
