@@ -33,6 +33,10 @@ struct AccountView: View {
                 sectionTitle(ar ? "المدرب" : "COACHING").padding(.bottom, 10)
                 ptShortcut.padding(.bottom, 24)
 
+                // ── Programme actions ────────────────────────────
+                sectionTitle(ar ? "البرنامج" : "PROGRAMME").padding(.bottom, 10)
+                importProgrammeRow.padding(.bottom, 24)
+
                 // ── Sign out / delete ────────────────────────────
                 dangerSection
 
@@ -203,6 +207,43 @@ struct AccountView: View {
                     Text(ar
                          ? "تدريب ذكي · تعديلات البرنامج"
                          : "AI coaching · programme adjustments")
+                        .font(.system(size: 11))
+                        .foregroundColor(HexTheme.mute)
+                }
+                Spacer()
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Import programme shortcut
+
+    private var importProgrammeRow: some View {
+        NavigationLink {
+            ImportView()
+        } label: {
+            HStack(spacing: 14) {
+                iconBox(name: "tray.and.arrow.down.fill", accent: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ar ? "استيراد برنامج" : "Import a programme")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HexTheme.text)
+                    Text(ar
+                         ? "الصق JSON · دعم متعدد الأسابيع"
+                         : "Paste JSON · multi-week support")
                         .font(.system(size: 11))
                         .foregroundColor(HexTheme.mute)
                 }
