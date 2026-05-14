@@ -3,13 +3,40 @@ import Foundation
 // MARK: - Profile
 
 /// Mirrors the `profiles` table in Supabase.
+/// One slot in the user's "tracked lifts" carousel on the Progress tab.
+/// Mirrors React's `{ name, key }` object stored inside the
+/// `profiles.tracked_lifts` jsonb array — null entries indicate an
+/// empty slot. We keep both apps writing the same shape so a slot
+/// chosen on iOS shows up on the web and vice versa.
+struct TrackedLift: Codable, Hashable {
+    var name: String
+    var key: String?
+
+    init(name: String, key: String? = nil) {
+        self.name = name
+        self.key = key
+    }
+
+    enum CodingKeys: String, CodingKey { case name, key }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        self.key  = try? c.decode(String.self, forKey: .key)
+    }
+}
+
 struct Profile: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String?
     var username: String?
     var email: String?
     var language: String?           // "en" | "ar"
-    var trackedLifts: [String]?     // up to 4
+    /// Up to 4 user-pinned tracked lifts. Slot order matters; `nil`
+    /// preserves an empty slot rather than collapsing the list. Decoder
+    /// also accepts the legacy `[String]` shape iOS briefly wrote before
+    /// the schema was reconciled with React's `[{name,key}]`.
+    var trackedLifts: [TrackedLift?]?
     var trackedMuscles: [String]?   // 6 muscle groups
     var avatarURL: String?
     var createdAt: Date?
@@ -27,7 +54,7 @@ struct Profile: Codable, Identifiable, Hashable {
     }
 
     init(id: UUID, name: String?, username: String?, email: String?,
-         language: String?, trackedLifts: [String]?, trackedMuscles: [String]?,
+         language: String?, trackedLifts: [TrackedLift?]?, trackedMuscles: [String]?,
          avatarURL: String?, createdAt: Date?) {
         self.id = id
         self.name = name
@@ -49,10 +76,25 @@ struct Profile: Codable, Identifiable, Hashable {
         self.username       = try? c.decode(String.self, forKey: .username)
         self.email          = try? c.decode(String.self, forKey: .email)
         self.language       = try? c.decode(String.self, forKey: .language)
-        self.trackedLifts   = try? c.decode([String].self, forKey: .trackedLifts)
+        self.trackedLifts   = Self.decodeTrackedLifts(from: c)
         self.trackedMuscles = try? c.decode([String].self, forKey: .trackedMuscles)
         self.avatarURL      = try? c.decode(String.self, forKey: .avatarURL)
         self.createdAt      = LenientDate.optional(c, .createdAt)
+    }
+
+    /// Tolerant decoder for `tracked_lifts` — accepts both the canonical
+    /// React shape `[{name, key}, null, ...]` and the legacy iOS shape
+    /// `["Bench Press", "Squat"]` so old rows don't blank out the slots.
+    private static func decodeTrackedLifts(
+        from c: KeyedDecodingContainer<CodingKeys>
+    ) -> [TrackedLift?]? {
+        if let arr = try? c.decode([TrackedLift?].self, forKey: .trackedLifts) {
+            return arr
+        }
+        if let names = try? c.decode([String].self, forKey: .trackedLifts) {
+            return names.map { TrackedLift(name: $0) }
+        }
+        return nil
     }
 }
 

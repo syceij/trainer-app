@@ -21,6 +21,10 @@ struct AccountView: View {
     @State private var avatarPick: PhotosPickerItem? = nil
     @State private var uploadingAvatar = false
 
+    // Name edit state — the pencil on the Name row opens this sheet.
+    @State private var editingName = false
+    @State private var nameDraft   = ""
+
     private var ar: Bool { app.language == "ar" }
 
     var body: some View {
@@ -140,11 +144,21 @@ struct AccountView: View {
 
     private var accountSection: some View {
         VStack(spacing: 0) {
-            infoRow(icon: "person",
-                    iconAccent: true,
-                    label: ar ? "الاسم" : "Name",
-                    value: app.currentProfile?.name,
-                    last: false)
+            // Name row is tap-to-edit (pencil now actually does something).
+            // Username and email stay read-only — username is signup-only
+            // per the project rule; email is managed by Supabase auth.
+            Button {
+                nameDraft = app.currentProfile?.name ?? ""
+                editingName = true
+            } label: {
+                infoRow(icon: "person",
+                        iconAccent: true,
+                        label: ar ? "الاسم" : "Name",
+                        value: app.currentProfile?.name,
+                        last: false)
+            }
+            .buttonStyle(.plain)
+
             divider
             infoRow(icon: "at",
                     iconAccent: false,
@@ -166,6 +180,18 @@ struct AccountView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(HexTheme.border, lineWidth: 1)
         )
+        .sheet(isPresented: $editingName) {
+            NameEditSheet(
+                initial: nameDraft,
+                onSave: { newName in
+                    Task { await app.updateOwnName(newName) }
+                    editingName = false
+                },
+                onCancel: { editingName = false }
+            )
+            .environmentObject(app)
+            .presentationDetents([.height(220)])
+        }
     }
 
     // MARK: - Preferences section
@@ -184,7 +210,13 @@ struct AccountView: View {
                         .foregroundColor(HexTheme.text)
                 }
                 Spacer()
-                Picker("", selection: $app.language) {
+                // Intercept the picker write so the choice is persisted to
+                // `profiles.language` instead of staying in-memory only. The
+                // binding mirrors the AppState publish so the UI flips on tap.
+                Picker("", selection: Binding(
+                    get: { app.language },
+                    set: { newLang in Task { await app.setLanguage(newLang) } }
+                )) {
                     Text("EN").tag("en")
                     Text("AR").tag("ar")
                 }
@@ -739,5 +771,75 @@ struct AccountView: View {
         return renderer.image { _ in
             img.draw(in: CGRect(origin: .zero, size: size))
         }
+    }
+}
+
+// MARK: - Name edit sheet
+
+/// Small modal for editing the display name. Wired from `AccountView`'s
+/// Name row — the pencil icon now opens this. Username is intentionally
+/// not edited here (signup-only field per project rule).
+private struct NameEditSheet: View {
+    let initial: String
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    @EnvironmentObject var app: AppState
+    @State private var draft: String = ""
+
+    private var ar: Bool { app.language == "ar" }
+    private var trimmed: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(ar ? "تعديل الاسم" : "Edit name")
+                    .font(.system(size: 17, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                Spacer()
+                Button(ar ? "إلغاء" : "Cancel", action: onCancel)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+
+            TextField(ar ? "اسمك" : "Your name", text: $draft)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(HexTheme.text)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(HexTheme.surface2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(HexTheme.border, lineWidth: 1)
+                )
+
+            Button {
+                onSave(trimmed)
+            } label: {
+                Text(ar ? "حفظ" : "Save")
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(trimmed.isEmpty ? HexTheme.border : HexTheme.accent)
+                    )
+            }
+            .disabled(trimmed.isEmpty)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 24)
+        .background(HexTheme.bg.ignoresSafeArea())
+        .onAppear { draft = initial }
     }
 }

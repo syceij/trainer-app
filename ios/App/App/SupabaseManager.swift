@@ -130,6 +130,47 @@ final class SupabaseManager {
             .execute()
     }
 
+    /// Persist the user's tracked-lift slots. Mirrors React's
+    /// `saveTrackedLifts(uid, slots)` writer in `src/lib/db.js`. Writing the
+    /// same `{name, key}` shape on both clients means the slots stay in
+    /// sync across iOS and web.
+    func saveTrackedLifts(_ slots: [TrackedLift?]) async throws {
+        guard let uid = currentUser?.id else { return }
+        struct Patch: Encodable { let tracked_lifts: [TrackedLift?] }
+        _ = try await client
+            .from("profiles")
+            .update(Patch(tracked_lifts: slots))
+            .eq("id", value: uid)
+            .execute()
+    }
+
+    /// Persist the user's display-language choice. Mirrors React's
+    /// `handleSetLang` → `upsertProfile(uid, {lang})` in App.jsx — without
+    /// this iOS flips AR↔EN only in memory and the next sign-in overrides
+    /// the choice from the DB.
+    func updateOwnLanguage(_ lang: String) async throws {
+        guard let uid = currentUser?.id else { return }
+        struct Patch: Encodable { let language: String }
+        _ = try await client
+            .from("profiles")
+            .update(Patch(language: lang))
+            .eq("id", value: uid)
+            .execute()
+    }
+
+    /// Persist the user's display name. Mirrors React's name-edit flow
+    /// in AccountPage / ProfileTab. Username is NEVER touched here —
+    /// it's set once at signup and stays immutable.
+    func updateOwnName(_ name: String) async throws {
+        guard let uid = currentUser?.id else { return }
+        struct Patch: Encodable { let name: String }
+        _ = try await client
+            .from("profiles")
+            .update(Patch(name: name))
+            .eq("id", value: uid)
+            .execute()
+    }
+
     /// Write the canonical signup-time profile row: `{id, name, username,
     /// email, language: 'en'}`. Mirrors React's AuthScreen post-OTP step.
     /// Username is captured ONCE at signup and never editable afterward —

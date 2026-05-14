@@ -63,6 +63,10 @@ final class AppState: ObservableObject {
 
     // MARK: - UI state
 
+    /// Language is now persisted to `profiles.language` whenever it changes.
+    /// Call `setLanguage(_:)` to update it — the published var is the source
+    /// of truth in-memory and writes round-trip through Supabase so the
+    /// choice survives across iOS↔web sign-ins.
     @Published var language: String = "en"   // "en" | "ar"
     /// One-shot toast text. Setting any non-nil value auto-clears after 3s,
     /// so any code path (including direct `app.toast = "..."` assignments)
@@ -477,6 +481,62 @@ final class AppState: ObservableObject {
             // the "data not loading" symptom.
             print("[AppState] ensureOwnProfileExists failed:", error)
             toast = "Profile setup failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// 4-slot view of the tracked lifts persisted on `profiles.tracked_lifts`,
+    /// always padded to exactly 4 entries so the Progress grid can render
+    /// empty slots without a count check. Mirrors React's `slots` shape.
+    var trackedLiftSlots: [TrackedLift?] {
+        let raw = currentProfile?.trackedLifts ?? []
+        var padded: [TrackedLift?] = Array(raw.prefix(4))
+        while padded.count < 4 { padded.append(nil) }
+        return padded
+    }
+
+    /// Write a single tracked-lift slot. Updates the in-memory profile
+    /// optimistically (so the UI flips immediately) then persists the full
+    /// 4-element array to `profiles.tracked_lifts` so iOS and web stay in
+    /// sync. Pass `lift: nil` to clear a slot.
+    func setTrackedLift(slot: Int, lift: TrackedLift?) async {
+        guard (0..<4).contains(slot) else { return }
+        var next = trackedLiftSlots
+        next[slot] = lift
+        currentProfile?.trackedLifts = next
+        do {
+            try await SupabaseManager.shared.saveTrackedLifts(next)
+        } catch {
+            print("[AppState] saveTrackedLifts failed:", error)
+            toast = "Couldn't save tracked lift"
+        }
+    }
+
+    /// Toggle / set the display language and persist the choice to
+    /// `profiles.language`. Mirrors React's `handleSetLang` writer.
+    func setLanguage(_ lang: String) async {
+        let normalised = (lang == "ar") ? "ar" : "en"
+        language = normalised
+        currentProfile?.language = normalised
+        do {
+            try await SupabaseManager.shared.updateOwnLanguage(normalised)
+        } catch {
+            print("[AppState] updateOwnLanguage failed:", error)
+            // Non-fatal — the user can retry next toggle. No toast so we
+            // don't spam the home screen on a flaky network.
+        }
+    }
+
+    /// Persist a new display name to `profiles.name`. Username is NEVER
+    /// touched — it's a one-time signup field per the project rule.
+    func updateOwnName(_ name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        currentProfile?.name = trimmed
+        do {
+            try await SupabaseManager.shared.updateOwnName(trimmed)
+        } catch {
+            print("[AppState] updateOwnName failed:", error)
+            toast = "Couldn't update name"
         }
     }
 
