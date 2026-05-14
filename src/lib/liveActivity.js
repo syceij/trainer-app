@@ -76,8 +76,10 @@ export const liveActivity = {
       console.log('[LiveActivity] started, id:', result?.activityId);
       return 'started';
     } catch (e) {
-      console.error('[LiveActivity] start failed:', e?.message ?? e);
-      return 'error';
+      const msg = e?.message ?? String(e);
+      console.error('[LiveActivity] start failed:', msg);
+      // Return the error detail so the UI can display it for diagnosis
+      return 'error:' + msg;
     }
   },
 

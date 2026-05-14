@@ -42,33 +42,46 @@ public class LiveActivityPlugin: CAPPlugin {
             return
         }
 
-        // End any existing activity first
-        if let existing = activityRef as? Activity<WorkoutActivityAttributes> {
-            print("[LiveActivity] ending previous activity before starting new one")
-            Task { await existing.end(nil, dismissalPolicy: .immediate) }
-            activityRef = nil
-        }
-
         let attrs = WorkoutActivityAttributes(
             sessionName: call.getString("sessionName") ?? "Workout"
         )
         let state = buildState(from: call)
         print("[LiveActivity] requesting activity: session=\(attrs.sessionName) exercise=\(state.exerciseName) sets=\(state.setsDone)/\(state.setsTotal)")
 
-        do {
-            let activity = try Activity<WorkoutActivityAttributes>.request(
-                attributes: attrs,
-                content: .init(state: state, staleDate: nil),
-                pushType: nil
-            )
-            activityRef = activity
-            print("[LiveActivity] started successfully, id=\(activity.id)")
-            call.resolve(["activityId": activity.id])
-        } catch {
-            print("[LiveActivity] Activity.request() FAILED: \(error)")
-            print("[LiveActivity] Error domain: \((error as NSError).domain) code: \((error as NSError).code)")
-            print("[LiveActivity] Full error: \((error as NSError).userInfo)")
-            call.reject("Failed to start Live Activity: \(error.localizedDescription)")
+        // Run inside a Task so cleanup is fully awaited before Activity.request()
+        Task {
+            // End the in-memory reference
+            if let existing = activityRef as? Activity<WorkoutActivityAttributes> {
+                print("[LiveActivity] ending in-memory activity before starting new one")
+                await existing.end(nil, dismissalPolicy: .immediate)
+                activityRef = nil
+            }
+            // Also end any activities left over from a previous app session
+            let lingering = Activity<WorkoutActivityAttributes>.activities
+            if !lingering.isEmpty {
+                print("[LiveActivity] ending \(lingering.count) lingering activity(s) from previous sessions")
+                for activity in lingering {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+
+            do {
+                let activity = try Activity<WorkoutActivityAttributes>.request(
+                    attributes: attrs,
+                    content: .init(state: state, staleDate: nil),
+                    pushType: nil
+                )
+                activityRef = activity
+                print("[LiveActivity] started successfully, id=\(activity.id)")
+                call.resolve(["activityId": activity.id])
+            } catch {
+                let nsErr = error as NSError
+                print("[LiveActivity] Activity.request() FAILED: \(error)")
+                print("[LiveActivity] Error domain: \(nsErr.domain) code: \(nsErr.code)")
+                print("[LiveActivity] Full error: \(nsErr.userInfo)")
+                // Include the error code in reject so the JS layer can surface it
+                call.reject("code=\(nsErr.code) \(error.localizedDescription)")
+            }
         }
     }
 

@@ -84,9 +84,10 @@ export default function TodayTab({ state }) {
     } else if (result === 'disabled_settings') {
       laStartedRef.current = false; // allow retry after user fixes settings
       showToast('Enable Live Activities for HEX in iOS Settings to use this feature.');
-    } else if (result === 'error') {
+    } else if (typeof result === 'string' && result.startsWith('error')) {
       laStartedRef.current = false;
-      showToast('Live Activity could not start. Try again.');
+      const detail = result.includes(':') ? result.split(':').slice(1).join(':').trim() : '';
+      showToast(detail || 'Live Activity could not start. Try again.');
     }
     // 'unsupported' and 'disabled_pref' are intentional no-ops — no toast needed
   // eslint-disable-next-line react-hooks/exhaustive-deps
