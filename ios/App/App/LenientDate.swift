@@ -6,42 +6,40 @@ import Foundation
 ///   • `2024-11-12T10:30:00.123456+00:00`  (6-digit fractional seconds + colon-tz)
 ///   • `2024-11-12T10:30:00.123+00:00`      (millisecond + colon-tz)
 ///   • `2024-11-12T10:30:00Z`               (no fractional, Z)
-///   • `2024-11-12 10:30:00+00`             (space + partial tz, rare)
 ///
-/// Swift's default `JSONDecoder.dateDecodingStrategy` is `.deferredToDate`
-/// which only accepts reference-date intervals — it CANNOT parse any of the
-/// above. And even supabase-swift's bundled strategy chokes on microseconds
-/// (`.SSSSSS`) because DateFormatter caps at milliseconds (`.SSS`).
-///
-/// This helper tries `ISO8601DateFormatter` (which IS lenient enough), falls
-/// back to stripping the fractional-seconds component if microseconds, and
-/// returns nil only when nothing parses.
+/// Neither Swift's default `JSONDecoder.dateDecodingStrategy` nor
+/// supabase-swift's bundled one accepts microsecond precision — DateFormatter
+/// caps at milliseconds (`.SSS`). This helper falls back through several
+/// strategies and returns nil only when nothing matches.
 enum LenientDate {
 
-    /// Decode a non-optional Date from the given keyed container.
-    /// Throws if the field is missing entirely; falls back to `Date()`
-    /// when the value is present but malformed.
+    /// Non-optional Date decode for a single key. Throws if the value is
+    /// missing entirely; otherwise returns `Date()` as a last-ditch fallback
+    /// rather than throwing on a malformed string.
     static func required<K: CodingKey>(
         _ container: KeyedDecodingContainer<K>, _ key: K
     ) throws -> Date {
-        if let d = try? container.decode(Date.self, forKey: key) {
-            return d
+        if let date = try? container.decode(Date.self, forKey: key) {
+            return date
         }
-        let s = try container.decode(String.self, forKey: key)
-        return parse(s) ?? Date()
+        if let string = try? container.decode(String.self, forKey: key),
+           let parsed = parse(string) {
+            return parsed
+        }
+        // Last resort — don't let one malformed timestamp kill the row.
+        return Date()
     }
 
-    /// Decode an optional Date from the given keyed container.
-    /// Returns nil for missing keys, null values, OR malformed strings.
+    /// Optional Date decode for a single key. Returns nil for missing keys,
+    /// null values, and malformed strings alike.
     static func optional<K: CodingKey>(
         _ container: KeyedDecodingContainer<K>, _ key: K
     ) -> Date? {
-        if container.contains(key) == false { return nil }
-        if let d = try? container.decodeIfPresent(Date.self, forKey: key) {
-            return d
+        if let date = try? container.decode(Date.self, forKey: key) {
+            return date
         }
-        if let s = try? container.decodeIfPresent(String.self, forKey: key) {
-            return s.flatMap(parse)
+        if let string = try? container.decode(String.self, forKey: key) {
+            return parse(string)
         }
         return nil
     }
@@ -50,7 +48,7 @@ enum LenientDate {
     static func parse(_ raw: String) -> Date? {
         let s = raw.trimmingCharacters(in: .whitespaces)
 
-        // 1. ISO 8601 with fractional seconds (millisecond precision)
+        // 1. ISO 8601 with fractional seconds
         let isoFrac = ISO8601DateFormatter()
         isoFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let d = isoFrac.date(from: s) { return d }

@@ -131,6 +131,22 @@ struct InviteLink: Codable, Identifiable, Hashable {
         case expiresAt = "expires_at"
         case createdAt = "created_at"
     }
+
+    init(id: UUID, userId: UUID, code: String, expiresAt: Date?,
+         used: Bool, createdAt: Date?) {
+        self.id = id; self.userId = userId; self.code = code
+        self.expiresAt = expiresAt; self.used = used; self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id        = try c.decode(UUID.self,   forKey: .id)
+        self.userId    = try c.decode(UUID.self,   forKey: .userId)
+        self.code      = (try? c.decode(String.self, forKey: .code)) ?? ""
+        self.used      = (try? c.decode(Bool.self,   forKey: .used)) ?? false
+        self.expiresAt = LenientDate.optional(c, .expiresAt)
+        self.createdAt = LenientDate.optional(c, .createdAt)
+    }
 }
 
 // MARK: - Friend session (truncated view for FriendProfilePage)

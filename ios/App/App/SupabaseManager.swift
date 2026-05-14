@@ -175,9 +175,13 @@ final class SupabaseManager {
         if !existing.isEmpty { return false }
 
         // 2. Insert the minimal row React's ensureProfileExists uses.
-        let name = (fallbackName?.isEmpty == false ? fallbackName : nil)
-            ?? email?.split(separator: "@").first.map(String.init)
-            ?? "Athlete"
+        let name: String = {
+            if let fb = fallbackName, !fb.isEmpty { return fb }
+            if let e = email, let prefix = e.split(separator: "@").first {
+                return String(prefix)
+            }
+            return "Athlete"
+        }()
         struct Seed: Encodable {
             let id: UUID
             let name: String

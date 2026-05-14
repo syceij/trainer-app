@@ -415,7 +415,8 @@ final class AppState: ObservableObject {
         // Pull the name we stashed in user_metadata at signup so the fallback
         // row carries the actual display name, not just "Athlete".
         let metaName: String? = {
-            if case .string(let s)? = user.userMetadata["name"] { return s }
+            guard let anyValue = user.userMetadata["name"] else { return nil }
+            if case let .string(s) = anyValue { return s }
             return nil
         }()
         do {

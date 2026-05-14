@@ -86,9 +86,9 @@ struct Programme: Codable, Identifiable, Hashable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.id        = try c.decode(UUID.self,     forKey: .id)
         self.userId    = try c.decode(UUID.self,     forKey: .userId)
-        self.name      = try c.decode(String.self,   forKey: .name)
-        self.active    = try c.decodeIfPresent(Bool.self, forKey: .active) ?? false
-        self.data      = try c.decodeIfPresent(ProgrammeData.self, forKey: .data)
+        self.name      = (try? c.decode(String.self, forKey: .name)) ?? ""
+        self.active    = (try? c.decode(Bool.self,   forKey: .active)) ?? false
+        self.data      = try? c.decode(ProgrammeData.self, forKey: .data)
         self.createdAt = LenientDate.optional(c, .createdAt)
     }
 }
@@ -169,13 +169,13 @@ struct WorkoutSession: Codable, Identifiable, Hashable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.id          = try c.decode(UUID.self,   forKey: .id)
         self.userId      = try c.decode(UUID.self,   forKey: .userId)
-        self.programmeId = try c.decodeIfPresent(UUID.self, forKey: .programmeId)
-        self.name        = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        self.programmeId = try? c.decode(UUID.self,  forKey: .programmeId)
+        self.name        = (try? c.decode(String.self, forKey: .name)) ?? ""
         self.date        = try LenientDate.required(c, .date)
-        self.weekNumber  = try c.decodeIfPresent(Int.self,  forKey: .weekNumber)
-        self.block       = try c.decodeIfPresent(Int.self,  forKey: .block)
-        self.completed   = try c.decodeIfPresent(Bool.self, forKey: .completed) ?? false
-        self.data        = try c.decodeIfPresent(WorkoutSessionData.self, forKey: .data)
+        self.weekNumber  = try? c.decode(Int.self,   forKey: .weekNumber)
+        self.block       = try? c.decode(Int.self,   forKey: .block)
+        self.completed   = (try? c.decode(Bool.self, forKey: .completed)) ?? false
+        self.data        = try? c.decode(WorkoutSessionData.self, forKey: .data)
         self.createdAt   = LenientDate.optional(c, .createdAt)
     }
 }
@@ -230,13 +230,13 @@ struct PerformedSet: Codable, Identifiable, Hashable {
         self.id           = try c.decode(UUID.self,   forKey: .id)
         self.sessionId    = try c.decode(UUID.self,   forKey: .sessionId)
         self.userId       = try c.decode(UUID.self,   forKey: .userId)
-        self.exerciseName = try c.decodeIfPresent(String.self, forKey: .exerciseName) ?? ""
-        self.setNumber    = try c.decodeIfPresent(Int.self,    forKey: .setNumber) ?? 0
-        self.reps         = try c.decodeIfPresent(Int.self,    forKey: .reps)
-        self.weight       = try c.decodeIfPresent(Double.self, forKey: .weight)
-        self.rpe          = try c.decodeIfPresent(Double.self, forKey: .rpe)
-        self.completed    = try c.decodeIfPresent(Bool.self,   forKey: .completed) ?? false
-        self.failed       = try c.decodeIfPresent(Bool.self,   forKey: .failed)    ?? false
+        self.exerciseName = (try? c.decode(String.self, forKey: .exerciseName)) ?? ""
+        self.setNumber    = (try? c.decode(Int.self,    forKey: .setNumber)) ?? 0
+        self.reps         = try? c.decode(Int.self,    forKey: .reps)
+        self.weight       = try? c.decode(Double.self, forKey: .weight)
+        self.rpe          = try? c.decode(Double.self, forKey: .rpe)
+        self.completed    = (try? c.decode(Bool.self,  forKey: .completed)) ?? false
+        self.failed       = (try? c.decode(Bool.self,  forKey: .failed))    ?? false
         self.createdAt    = LenientDate.optional(c, .createdAt)
     }
 }
@@ -364,8 +364,8 @@ struct ActivityFeedItem: Codable, Identifiable, Hashable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.id        = try c.decode(UUID.self,   forKey: .id)
         self.userId    = try c.decode(UUID.self,   forKey: .userId)
-        self.type      = try c.decode(String.self, forKey: .type)
-        self.data      = try c.decodeIfPresent([String: AnyCodable].self, forKey: .data)
+        self.type      = (try? c.decode(String.self, forKey: .type)) ?? ""
+        self.data      = try? c.decode([String: AnyCodable].self, forKey: .data)
         self.createdAt = LenientDate.optional(c, .createdAt)
     }
 }
