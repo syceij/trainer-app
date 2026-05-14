@@ -35,7 +35,11 @@ struct AccountView: View {
 
                 // ── Programme actions ────────────────────────────
                 sectionTitle(ar ? "البرنامج" : "PROGRAMME").padding(.bottom, 10)
-                importProgrammeRow.padding(.bottom, 24)
+                VStack(spacing: 10) {
+                    buildProgrammeRow
+                    importProgrammeRow
+                }
+                .padding(.bottom, 24)
 
                 // ── Sign out / delete ────────────────────────────
                 dangerSection
@@ -207,6 +211,46 @@ struct AccountView: View {
                     Text(ar
                          ? "تدريب ذكي · تعديلات البرنامج"
                          : "AI coaching · programme adjustments")
+                        .font(.system(size: 11))
+                        .foregroundColor(HexTheme.mute)
+                }
+                Spacer()
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Build programme shortcut (onboarding)
+
+    private var buildProgrammeRow: some View {
+        NavigationLink {
+            OnboardingView { _ in
+                // TODO: persist OnboardingProfile to Supabase + generate
+                // a starter programme based on the answers.
+            }
+        } label: {
+            HStack(spacing: 14) {
+                iconBox(name: "sparkles", accent: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ar ? "ابنِ برنامجي" : "Build my programme")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HexTheme.text)
+                    Text(ar
+                         ? "٧ خطوات · مولّد تلقائياً"
+                         : "7-step setup · auto-generated")
                         .font(.system(size: 11))
                         .foregroundColor(HexTheme.mute)
                 }
