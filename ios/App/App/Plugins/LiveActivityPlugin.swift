@@ -25,7 +25,6 @@ public class LiveActivityPlugin: CAPPlugin {
         if #available(iOS 16.2, *) {
             let info = ActivityAuthorizationInfo()
             print("[LiveActivity] areActivitiesEnabled: \(info.areActivitiesEnabled)")
-            print("[LiveActivity] authorizationStatus: \(info.authorizationStatus)")
             call.resolve(["supported": info.areActivitiesEnabled])
         } else {
             print("[LiveActivity] isSupported() → iOS < 16.2, returning false")
