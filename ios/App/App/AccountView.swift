@@ -38,6 +38,9 @@ struct AccountView: View {
                 VStack(spacing: 10) {
                     buildProgrammeRow
                     importProgrammeRow
+                    if app.activeProgramme != nil {
+                        editProgrammeRow
+                    }
                     calendarRow
                 }
                 .padding(.bottom, 24)
@@ -255,6 +258,44 @@ struct AccountView: View {
                     Text(ar
                          ? "٧ خطوات · مولّد تلقائياً"
                          : "7-step setup · auto-generated")
+                        .font(.system(size: 11))
+                        .foregroundColor(HexTheme.mute)
+                }
+                Spacer()
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Edit programme shortcut
+
+    private var editProgrammeRow: some View {
+        NavigationLink {
+            ProgrammePage()
+                .environmentObject(app)
+        } label: {
+            HStack(spacing: 14) {
+                iconBox(name: "list.bullet.rectangle", accent: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ar ? "تعديل برنامجك" : "Edit programme")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HexTheme.text)
+                    Text(ar
+                         ? "اعرض وعدّل كل الجلسات"
+                         : "View and edit every session")
                         .font(.system(size: 11))
                         .foregroundColor(HexTheme.mute)
                 }
