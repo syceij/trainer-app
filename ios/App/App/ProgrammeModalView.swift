@@ -232,11 +232,11 @@ struct ProgrammeModalView: View {
     // MARK: - Session card
 
     private func sessionCard(session: ProgrammeSession, isToday: Bool) -> some View {
-        let expanded = expandedSession == session.id
+        let expanded = expandedSessionDay == session.day
         return VStack(spacing: 0) {
             Button {
                 withAnimation(.spring(response: 0.35)) {
-                    expandedSession = expanded ? nil : session.id
+                    expandedSessionDay = expanded ? nil : session.day
                 }
             } label: {
                 HStack(spacing: 10) {
