@@ -7,44 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
-		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
-		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
-		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
-		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
-		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */; };
-		AABB0004CCDD0004EEFF0004 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */; };
-		AABB001BCCDD001BEEFF001B /* LiveActivityPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */; };
 		AABB000ACCDD000AEEFF000A /* WorkoutWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0009CCDD0009EEFF0009 /* WorkoutWidgetBundle.swift */; };
 		AABB000CCCDD000CEEFF000C /* WorkoutWidgetLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB000BCCDD000BEEFF000B /* WorkoutWidgetLiveActivity.swift */; };
 		AABB000FCCDD000FEEFF000F /* WorkoutWidget.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB000ECCDD000EEEFF000E /* WorkoutWidget.xcassets */; };
 		AABB001ACCDD001AEEFF001A /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */; };
 		AABB0017CCDD0017EEFF0017 /* WorkoutWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AABB0007CCDD0007EEFF0007 /* WorkoutWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B1A2C3D40000000000010001 /* HEXApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000010002 /* HEXApp.swift */; };
+		B1A2C3D40000000000020001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000020002 /* ContentView.swift */; };
+		B1A2C3D40000000000030001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000030002 /* MainTabView.swift */; };
+		B1A2C3D40000000000040001 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000040002 /* AppState.swift */; };
+		B1A2C3D40000000000050001 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000050002 /* Theme.swift */; };
+		B1A2C3D40000000000060001 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000060002 /* SupabaseManager.swift */; };
+		B1A2C3D40000000000070001 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000070002 /* Models.swift */; };
+		B1A2C3D40000000000080001 /* LiveActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000080002 /* LiveActivityService.swift */; };
+		B1A2C3D40000000000090001 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000090002 /* LoginView.swift */; };
+		B1A2C3D40000000000100001 /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000100002 /* SignupView.swift */; };
+		B1A2C3D40000000000110001 /* OTPView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000110002 /* OTPView.swift */; };
+		B1A2C3D40000000000120001 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000120002 /* WelcomeView.swift */; };
+		B1A2C3D40000000000130001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000130002 /* HomeView.swift */; };
+		B1A2C3D40000000000140001 /* TrainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000140002 /* TrainView.swift */; };
+		B1A2C3D40000000000150001 /* ProgressTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000150002 /* ProgressTabView.swift */; };
+		B1A2C3D40000000000160001 /* CrewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000160002 /* CrewView.swift */; };
+		B1A2C3D40000000000170001 /* PTChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000170002 /* PTChatView.swift */; };
+		B1A2C3D40000000000180001 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000180002 /* AccountView.swift */; };
+		B1A2C3D40000000000200001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B1A2C3D40000000000200002 /* Supabase */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXFileReference section */
-		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
-		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
-		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
-		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
-		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
-		AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
-		AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
-		AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveActivityPlugin.m; sourceTree = "<group>"; };
-		AABB0007CCDD0007EEFF0007 /* WorkoutWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		AABB0009CCDD0009EEFF0009 /* WorkoutWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetBundle.swift; sourceTree = "<group>"; };
-		AABB000BCCDD000BEEFF000B /* WorkoutWidgetLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetLiveActivity.swift; sourceTree = "<group>"; };
-		AABB000DCCDD000DEEFF000D /* WorkoutWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "WorkoutWidget-Info.plist"; sourceTree = "<group>"; };
-		AABB000ECCDD000EEEFF000E /* WorkoutWidget.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WorkoutWidget.xcassets; sourceTree = "<group>"; };
-/* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		AABB0016CCDD0016EEFF0016 /* Embed Foundation Extensions */ = {
@@ -60,12 +50,43 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
+/* Begin PBXFileReference section */
+		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
+		AABB0007CCDD0007EEFF0007 /* WorkoutWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AABB0009CCDD0009EEFF0009 /* WorkoutWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetBundle.swift; sourceTree = "<group>"; };
+		AABB000BCCDD000BEEFF000B /* WorkoutWidgetLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetLiveActivity.swift; sourceTree = "<group>"; };
+		AABB000DCCDD000DEEFF000D /* WorkoutWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "WorkoutWidget-Info.plist"; sourceTree = "<group>"; };
+		AABB000ECCDD000EEEFF000E /* WorkoutWidget.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WorkoutWidget.xcassets; sourceTree = "<group>"; };
+		B1A2C3D40000000000010002 /* HEXApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HEXApp.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000020002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000030002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000040002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000050002 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000060002 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000070002 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000080002 /* LiveActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityService.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000090002 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000100002 /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000110002 /* OTPView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000120002 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000130002 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000140002 /* TrainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000150002 /* ProgressTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressTabView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000160002 /* CrewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrewView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000170002 /* PTChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PTChatView.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000180002 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				B1A2C3D40000000000200001 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -82,7 +103,6 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
-				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				AABB0006CCDD0006EEFF0006 /* WorkoutWidget */,
 				504EC3051FED79650016851F /* Products */,
@@ -101,27 +121,30 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
-				50379B222058CBB4000EE86E /* capacitor.config.json */,
-				504EC3071FED79650016851F /* AppDelegate.swift */,
+				B1A2C3D40000000000010002 /* HEXApp.swift */,
+				B1A2C3D40000000000020002 /* ContentView.swift */,
+				B1A2C3D40000000000030002 /* MainTabView.swift */,
+				B1A2C3D40000000000040002 /* AppState.swift */,
+				B1A2C3D40000000000050002 /* Theme.swift */,
+				B1A2C3D40000000000060002 /* SupabaseManager.swift */,
+				B1A2C3D40000000000070002 /* Models.swift */,
+				B1A2C3D40000000000080002 /* LiveActivityService.swift */,
+				B1A2C3D40000000000090002 /* LoginView.swift */,
+				B1A2C3D40000000000100002 /* SignupView.swift */,
+				B1A2C3D40000000000110002 /* OTPView.swift */,
+				B1A2C3D40000000000120002 /* WelcomeView.swift */,
+				B1A2C3D40000000000130002 /* HomeView.swift */,
+				B1A2C3D40000000000140002 /* TrainView.swift */,
+				B1A2C3D40000000000150002 /* ProgressTabView.swift */,
+				B1A2C3D40000000000160002 /* CrewView.swift */,
+				B1A2C3D40000000000170002 /* PTChatView.swift */,
+				B1A2C3D40000000000180002 /* AccountView.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
-				AABB0005CCDD0005EEFF0005 /* Plugins */,
-				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
-				2FAD9762203C412B000D30F8 /* config.xml */,
-				50B271D01FEDC1A000F3C39B /* public */,
 			);
 			path = App;
-			sourceTree = "<group>";
-		};
-		AABB0005CCDD0005EEFF0005 /* Plugins */ = {
-			isa = PBXGroup;
-			children = (
-				AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */,
-				AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */,
-			);
-			path = Plugins;
 			sourceTree = "<group>";
 		};
 		AABB0006CCDD0006EEFF0006 /* WorkoutWidget */ = {
@@ -154,7 +177,7 @@
 			);
 			name = App;
 			packageProductDependencies = (
-				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				B1A2C3D40000000000200002 /* Supabase */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -183,8 +206,8 @@
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 0920;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
@@ -198,7 +221,7 @@
 				};
 			};
 			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */;
-			compatibilityVersion = "Xcode 8.0";
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -207,7 +230,7 @@
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
-				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				B1A2C3D40000000000200003 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -225,11 +248,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
-				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
-				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
-				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
-				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -248,10 +267,25 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				B1A2C3D40000000000010001 /* HEXApp.swift in Sources */,
+				B1A2C3D40000000000020001 /* ContentView.swift in Sources */,
+				B1A2C3D40000000000030001 /* MainTabView.swift in Sources */,
+				B1A2C3D40000000000040001 /* AppState.swift in Sources */,
+				B1A2C3D40000000000050001 /* Theme.swift in Sources */,
+				B1A2C3D40000000000060001 /* SupabaseManager.swift in Sources */,
+				B1A2C3D40000000000070001 /* Models.swift in Sources */,
+				B1A2C3D40000000000080001 /* LiveActivityService.swift in Sources */,
+				B1A2C3D40000000000090001 /* LoginView.swift in Sources */,
+				B1A2C3D40000000000100001 /* SignupView.swift in Sources */,
+				B1A2C3D40000000000110001 /* OTPView.swift in Sources */,
+				B1A2C3D40000000000120001 /* WelcomeView.swift in Sources */,
+				B1A2C3D40000000000130001 /* HomeView.swift in Sources */,
+				B1A2C3D40000000000140001 /* TrainView.swift in Sources */,
+				B1A2C3D40000000000150001 /* ProgressTabView.swift in Sources */,
+				B1A2C3D40000000000160001 /* CrewView.swift in Sources */,
+				B1A2C3D40000000000170001 /* PTChatView.swift in Sources */,
+				B1A2C3D40000000000180001 /* AccountView.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
-				AABB0004CCDD0004EEFF0004 /* LiveActivityPlugin.swift in Sources */,
-				AABB001BCCDD001BEEFF001B /* LiveActivityPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -286,14 +320,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXVariantGroup section */
-		504EC30B1FED79650016851F /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				504EC30C1FED79650016851F /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
 		504EC3101FED79650016851F /* LaunchScreen.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -307,7 +333,6 @@
 /* Begin XCBuildConfiguration section */
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -354,7 +379,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -405,7 +430,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -416,19 +441,18 @@
 		};
 		504EC3171FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 15;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.hexapp.training;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "HEX App Store";
@@ -445,7 +469,8 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 15;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -538,18 +563,22 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "CapApp-SPM";
+/* Begin XCRemoteSwiftPackageReference section */
+		B1A2C3D40000000000200003 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
+		B1A2C3D40000000000200002 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
-			productName = "CapApp-SPM";
+			package = B1A2C3D40000000000200003 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

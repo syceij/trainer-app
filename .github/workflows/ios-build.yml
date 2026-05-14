@@ -17,24 +17,6 @@ jobs:
         with:
           xcode-version: '26'
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build web app
-        run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
-
-      - name: Sync Capacitor
-        run: npx cap sync ios
-
       - name: Install Apple certificate and provisioning profiles
         env:
           DISTRIBUTION_P12_BASE64: ${{ secrets.DISTRIBUTION_P12_BASE64 }}
@@ -69,7 +51,6 @@ jobs:
             echo "Widget provisioning profile installed."
           else
             echo "WARNING: WIDGET_PP_BASE64 secret not set — widget extension will fail to sign."
-            echo "Create a provisioning profile for com.hexapp.training.WorkoutWidget and add it as WIDGET_PP_BASE64."
           fi
 
       - name: Set build number from CI run
@@ -95,9 +76,6 @@ jobs:
             DEVELOPMENT_TEAM=YKN5BXC893 \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution"
-          # Note: per-target PROVISIONING_PROFILE_SPECIFIER values are set in
-          # the Xcode project build settings (not here) so each target uses its
-          # own profile: "HEX App Store" (App) and "HEX WorkoutWidget App Store" (widget).
 
       - name: Export IPA
         run: |
@@ -145,11 +123,9 @@ jobs:
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          # Write API private key to the location altool expects
           mkdir -p ~/.private_keys
           echo "$APPLE_API_KEY_P8" > ~/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8
 
-          # Locate the exported IPA
           IPA_PATH=$(find ios/App/IPA -name "*.ipa" | head -1)
           if [ -z "$IPA_PATH" ]; then
             echo "ERROR: No .ipa file found in ios/App/IPA"
@@ -158,9 +134,6 @@ jobs:
           fi
           echo "Uploading: $IPA_PATH"
 
-          # Upload to TestFlight
-          # Note: xcrun altool is known to exit 0 even on failure, so we also
-          # grep the output for known error strings as a second safety net.
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_PATH" \
@@ -169,21 +142,16 @@ jobs:
             --verbose 2>&1 | tee upload_output.log
           UPLOAD_EXIT=${PIPESTATUS[0]}
 
-          # Catch altool silent failures (exits 0 but prints ERROR / Failed to upload)
           if grep -qE "Failed to upload|ERROR:.*upload|bundle version must be higher" upload_output.log; then
             echo "------- altool reported a failure — full log below -------"
             cat upload_output.log
-            echo "----------------------------------------------------------"
             echo "ERROR: TestFlight upload failed (altool exited $UPLOAD_EXIT but output contains failure message)"
-            echo "Most likely cause: build number already uploaded. Bump CURRENT_PROJECT_VERSION."
             exit 1
           fi
 
           if [ $UPLOAD_EXIT -ne 0 ]; then
             echo "------- Upload failed — full log below -------"
             cat upload_output.log
-            echo "----------------------------------------------"
-            echo "ERROR: TestFlight upload failed with exit code $UPLOAD_EXIT"
             exit $UPLOAD_EXIT
           fi
 
