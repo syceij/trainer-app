@@ -130,6 +130,30 @@ final class SupabaseManager {
             .execute()
     }
 
+    /// Write the canonical signup-time profile row: `{id, name, username,
+    /// email, language: 'en'}`. Mirrors React's AuthScreen post-OTP step.
+    /// Username is captured ONCE at signup and never editable afterward —
+    /// this is the ONE place in the app that writes to the username column.
+    func upsertOwnSignupProfile(uid: UUID, name: String?, username: String?, email: String?) async throws {
+        struct Patch: Encodable {
+            let id: UUID
+            let name: String?
+            let username: String?
+            let email: String?
+            let language: String
+        }
+        _ = try await client
+            .from("profiles")
+            .upsert(Patch(
+                id: uid,
+                name: name,
+                username: username,
+                email: email,
+                language: "en"
+            ), onConflict: "id")
+            .execute()
+    }
+
     /// Insert a minimal profile row for this user if one doesn't yet exist.
     /// Mirrors the React `ensureProfileExists` flow exactly: SELECT first,
     /// only INSERT if the row is missing, populate `name` + `language` so

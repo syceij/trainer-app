@@ -23,11 +23,6 @@ struct ContentView: View {
                     }
                 case .signedIn:
                     MainTabView()
-                        .sheet(isPresented: $app.needsUsername) {
-                            UsernameModal()
-                                .environmentObject(app)
-                                .interactiveDismissDisabled(true)
-                        }
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: app.authPhase)

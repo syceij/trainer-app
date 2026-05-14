@@ -595,7 +595,6 @@ struct AccountView: View {
             app.leaderboard = []
             app.workingWeights = [:]
             app.customExercises = []
-            app.needsUsername = false
             app.authPhase = .signedOut
             app.toast = ar ? "تم حذف الحساب" : "Account deleted"
         } catch {

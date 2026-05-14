@@ -67,9 +67,6 @@ final class AppState: ObservableObject {
     /// One-shot confetti trigger — TrainView increments this on session save
     /// and ContentView watches it to play the burst animation.
     @Published var confettiTrigger: Int = 0
-    /// True when the user has signed up but hasn't picked a username yet.
-    /// ContentView shows the username-picker sheet whenever this is true.
-    @Published var needsUsername: Bool = false
     /// Invite code captured from a `hex://invite/...` deep link while signed
     /// out. Replayed automatically once `loadUserData` finishes.
     var pendingInviteCode: String?
@@ -117,16 +114,6 @@ final class AppState: ObservableObject {
         _ = await (profile, programme, history, social, weights, custom)
         // Open Realtime listeners so the Bros tab + activity feed update live.
         await realtimeSync.start()
-        // Username-picker gate: surface the modal ONLY when we successfully
-        // loaded a profile and it really does have no username. If the load
-        // failed (network, RLS, decode), `currentProfile` is nil and we
-        // explicitly stay false — otherwise transient failures would spam
-        // the user with the modal every launch.
-        if let p = currentProfile {
-            needsUsername = (p.username ?? "").isEmpty
-        } else {
-            needsUsername = false
-        }
         // Replay any invite code captured while the user was signed out.
         if let code = pendingInviteCode {
             pendingInviteCode = nil
@@ -348,7 +335,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    // Captured at signUp() and replayed during verifyOTP() so the username
+    // can be persisted to profiles RIGHT after the OTP succeeds — matching
+    // React's AuthScreen flow. The username is a one-time signup field and
+    // is never editable elsewhere.
+    private var pendingSignupName: String?
+    private var pendingSignupUsername: String?
+    private var pendingSignupEmail: String?
+
     func signUp(name: String, username: String, email: String, password: String) async throws {
+        pendingSignupName = name
+        pendingSignupUsername = username
+        pendingSignupEmail = email
         let metadata: [String: AnyJSON] = [
             "name":     .string(name),
             "username": .string(username)
@@ -361,6 +359,24 @@ final class AppState: ObservableObject {
 
     func verifyOTP(email: String, token: String) async throws {
         _ = try await SupabaseManager.shared.verifyOTP(email: email, token: token)
+        // Write the canonical {id, name, username, email, language} row.
+        // Mirrors React's AuthScreen post-OTP upsert. This is the ONLY
+        // place in the app that writes to profiles.username.
+        if let uid = SupabaseManager.shared.currentUser?.id {
+            do {
+                try await SupabaseManager.shared.upsertOwnSignupProfile(
+                    uid: uid,
+                    name: pendingSignupName,
+                    username: pendingSignupUsername,
+                    email: pendingSignupEmail ?? email
+                )
+            } catch {
+                print("[AppState] signup-profile upsert failed:", error)
+            }
+        }
+        pendingSignupName = nil
+        pendingSignupUsername = nil
+        pendingSignupEmail = nil
         authPhase = .signedIn
         await loadUserData()
     }
@@ -387,7 +403,6 @@ final class AppState: ObservableObject {
         activityFeed = []
         leaderboard = []
         workingWeights = [:]
-        needsUsername = false
         authPhase = .signedOut
     }
 
