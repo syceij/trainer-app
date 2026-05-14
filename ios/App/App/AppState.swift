@@ -32,6 +32,10 @@ final class AppState: ObservableObject {
 
     @Published var activeProgramme: Programme?
     @Published var currentSession: WorkoutSession?
+    /// Currently-selected week index (1-based) for the Home tab week pills.
+    /// Mirrors React's `currentWeek` state. Defaults to 1 and is clamped
+    /// to the programme's available weeks whenever the programme arrives.
+    @Published var currentWeek: Int = 1
     /// Most recent N completed/in-progress sessions, ordered newest first.
     /// Populated by `loadHistory()` after sign-in and refreshed after each
     /// `finishWorkout(_:sets:)` call.
@@ -108,7 +112,14 @@ final class AppState: ObservableObject {
             .removeDuplicates { $0?.id == $1?.id }
             .receive(on: RunLoop.main)
             .sink { [weak self] newProg in
-                guard let self = self, newProg != nil else { return }
+                guard let self = self, let prog = newProg else { return }
+                // Clamp currentWeek to the programme's actual week count so
+                // the Home week-pill strip starts on a valid week even if
+                // a previous programme had more weeks.
+                let total = prog.data?.weeks.count ?? 1
+                if self.currentWeek < 1 || self.currentWeek > total {
+                    self.currentWeek = 1
+                }
                 if self.currentSession == nil {
                     self.stageCurrentSessionFromActiveProgramme()
                 }
@@ -849,10 +860,15 @@ final class AppState: ObservableObject {
     ///       implemented one yet, so first-up is the closest match.
     func stageCurrentSessionFromActiveProgramme() {
         guard let prog = activeProgramme,
-              let week = prog.data?.weeks.first,
-              !week.sessions.isEmpty,
+              let weeks = prog.data?.weeks,
+              !weeks.isEmpty,
               let uid = SupabaseManager.shared.currentUser?.id
         else { return }
+        // Pick the week matching `currentWeek` if it exists; otherwise
+        // fall back to the first week so we always have something to stage.
+        let week = weeks.first(where: { $0.weekNumber == currentWeek })
+                ?? weeks.first!
+        guard !week.sessions.isEmpty else { return }
         let dayKeys = ["sun","mon","tue","wed","thu","fri","sat"]
         let todayIdx = Calendar.current.component(.weekday, from: Date()) - 1
         let todayKey = dayKeys[max(0, min(6, todayIdx))]
@@ -891,6 +907,29 @@ final class AppState: ObservableObject {
             block: picked.block,
             completed: false,
             data: WorkoutSessionData(exercises: picked.exercises),
+            createdAt: nil
+        )
+    }
+
+    /// Stage a specific session as `currentSession`, used when the user taps
+    /// a row in the Home day-grid. Mirrors React's `selectImportedSession`
+    /// in HomeTab.jsx:49-52.
+    func selectProgrammeSession(_ session: ProgrammeSession, inWeek weekNumber: Int) {
+        guard !session.isRest,
+              !session.name.isEmpty,
+              let prog = activeProgramme,
+              let uid = SupabaseManager.shared.currentUser?.id
+        else { return }
+        currentSession = WorkoutSession(
+            id: UUID(),
+            userId: uid,
+            programmeId: prog.id,
+            name: session.name,
+            date: Date(),
+            weekNumber: weekNumber,
+            block: session.block,
+            completed: false,
+            data: WorkoutSessionData(exercises: session.exercises),
             createdAt: nil
         )
     }

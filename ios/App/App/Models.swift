@@ -171,18 +171,24 @@ struct ProgrammeData: Codable, Hashable {
 struct ProgrammeWeek: Codable, Hashable {
     var weekNumber: Int
     var sessions: [ProgrammeSession]
+    /// Optional human-readable label for the week (e.g. `"Block 1 · base
+    /// volume · week 1"`). React uses this for the week pill text on
+    /// HomeTab — falls back to `"W{weekNumber}"` when absent.
+    var label: String?
 
-    init(weekNumber: Int, sessions: [ProgrammeSession]) {
+    init(weekNumber: Int, sessions: [ProgrammeSession], label: String? = nil) {
         self.weekNumber = weekNumber
         self.sessions = sessions
+        self.label = label
     }
 
-    enum CodingKeys: String, CodingKey { case weekNumber, sessions }
+    enum CodingKeys: String, CodingKey { case weekNumber, sessions, label }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.weekNumber = (try? c.decode(Int.self, forKey: .weekNumber)) ?? 1
         self.sessions   = (try? c.decode([ProgrammeSession].self, forKey: .sessions)) ?? []
+        self.label      = try? c.decode(String.self, forKey: .label)
     }
 }
 

@@ -53,7 +53,21 @@ struct HomeView: View {
 
                 // ── Week badge ────────────────────────────────────
                 weekBadge
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 16)
+
+                // ── Week pill strip (imported, multi-week only) ───
+                // Mirrors HomeTab.jsx:184-212.
+                if let weeks = app.activeProgramme?.data?.weeks, weeks.count > 1 {
+                    weekPillStrip(weeks: weeks)
+                        .padding(.bottom, 16)
+                }
+
+                // ── 7-day grid ────────────────────────────────────
+                // Mirrors HomeTab.jsx:214-247.
+                if let weeks = app.activeProgramme?.data?.weeks, !weeks.isEmpty {
+                    dayGrid(weeks: weeks)
+                        .padding(.bottom, 20)
+                }
 
                 // ── Stats grid ────────────────────────────────────
                 statsGrid
@@ -91,21 +105,41 @@ struct HomeView: View {
 
     // MARK: - Today / rest day
 
+    /// Today's session in the user-selected `currentWeek` of the active
+    /// programme — mirrors React's `sessionForTodayImported(imp, currentWeek)`
+    /// + the auto-mode fallback in HomeTab.jsx:33-41.
+    private var todaySessionForCurrentWeek: ProgrammeSession? {
+        guard let weeks = app.activeProgramme?.data?.weeks, !weeks.isEmpty
+        else { return nil }
+        let week = weeks.first(where: { $0.weekNumber == app.currentWeek })
+                ?? weeks.first!
+        let hasDayKeys = week.sessions.contains(where: { !$0.day.isEmpty })
+        if hasDayKeys {
+            return week.sessions.first(where: {
+                Self.normalisedDayKey($0.day) == todayDayKey && !$0.isRest
+            })
+        }
+        // Auto programme — no day keys; use the first session.
+        return week.sessions.first
+    }
+
     /// Renders either the lime "TODAY'S SESSION" CTA (tap → Train tab) or
     /// the lime REST DAY card. Mirrors React's HomeTab ternary at
-    /// HomeTab.jsx:101-163. The data source is `app.currentSession`, which
-    /// `AppState.stageCurrentSessionFromActiveProgramme()` populates with
-    /// today's matching day-key session or leaves nil for a real rest day.
+    /// HomeTab.jsx:101-163. Source is `todaySessionForCurrentWeek` so the
+    /// card flips as the user pages through weeks in the pill strip.
     @ViewBuilder
     private var todayOrRestCard: some View {
-        if let session = app.currentSession,
-           let exercises = session.data?.exercises,
-           !exercises.isEmpty {
+        if let session = todaySessionForCurrentWeek,
+           !session.isRest,
+           !session.name.isEmpty {
             Button {
+                // Stage this session before navigating so Train opens to it.
+                app.selectProgrammeSession(session, inWeek: app.currentWeek)
                 app.activeTab = .train
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
-                todaySessionCardBody(name: session.name, exerciseCount: exercises.count)
+                todaySessionCardBody(name: session.name,
+                                     exerciseCount: session.exercises.count)
             }
             .buttonStyle(.plain)
         } else {
@@ -207,8 +241,8 @@ struct HomeView: View {
         let weeks = app.activeProgramme?.data?.weeks ?? []
         let totalWeeks = app.activeProgramme?.data?.totalWeeks ?? max(weeks.count, 1)
         if totalWeeks > 1 {
-            // Imported programme — pick the active week if known, else 1.
-            let curWeek = max(1, min(totalWeeks, weeks.first?.weekNumber ?? 1))
+            // Imported programme — read the user-selected current week.
+            let curWeek = max(1, min(totalWeeks, app.currentWeek))
             return ar
                 ? "الأسبوع \(curWeek) / \(totalWeeks)"
                 : "Week \(curWeek) / \(totalWeeks)"
@@ -220,6 +254,196 @@ struct HomeView: View {
         return ar
             ? "الأسبوع \(weekNum) · المرحلة ١"
             : "Week \(weekNum) · Block 1"
+    }
+
+    // MARK: - Week pill strip + day grid
+
+    /// Sun-first day key for today, matching React's
+    /// `DAY_KEYS[new Date().getDay()]`.
+    private var todayDayKey: String {
+        let keys = ["sun","mon","tue","wed","thu","fri","sat"]
+        let idx = Calendar.current.component(.weekday, from: Date()) - 1
+        return keys[max(0, min(6, idx))]
+    }
+
+    /// Mon-first iteration order for the 7-day grid, matching React's
+    /// `DAY_ORDER` in importHelpers.js.
+    private let dayOrder: [String] = ["mon","tue","wed","thu","fri","sat","sun"]
+
+    /// Short uppercase 3-letter weekday label, e.g. "Mon" / "Tue". Arabic
+    /// uses the localised abbreviations.
+    private func dayLabel(_ key: String) -> String {
+        if ar {
+            switch key {
+            case "mon": return "اثن"
+            case "tue": return "ثلا"
+            case "wed": return "أرب"
+            case "thu": return "خمي"
+            case "fri": return "جمع"
+            case "sat": return "سبت"
+            case "sun": return "أحد"
+            default:    return key
+            }
+        }
+        return key.prefix(1).uppercased() + key.dropFirst()
+    }
+
+    /// Horizontal scrollable strip of week pills (W1, W2, …, WN). Highlights
+    /// the active week and writes to `app.currentWeek` on tap.
+    private func weekPillStrip(weeks: [ProgrammeWeek]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(weeks, id: \.weekNumber) { w in
+                    let active = w.weekNumber == app.currentWeek
+                    Button {
+                        app.currentWeek = w.weekNumber
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Text(weekPillLabel(w))
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundColor(active ? .black : HexTheme.dim)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(active ? HexTheme.accent : HexTheme.surface2)
+                            )
+                            .overlay(
+                                Capsule().stroke(
+                                    active ? HexTheme.accent : HexTheme.border,
+                                    lineWidth: 1.5
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 4) // breathing room for the capsule shadow
+        }
+        .environment(\.layoutDirection, ar ? .rightToLeft : .leftToRight)
+    }
+
+    /// Pill text — React uses `w.label.replace('Week ', 'W')` else `W{n}`.
+    private func weekPillLabel(_ w: ProgrammeWeek) -> String {
+        if let lbl = w.label, !lbl.isEmpty {
+            return lbl.replacingOccurrences(of: "Week ", with: "W")
+        }
+        return ar ? "أ\(w.weekNumber)" : "W\(w.weekNumber)"
+    }
+
+    /// 7-row column for the selected week, one row per Mon→Sun day. Rest
+    /// days render muted/non-tappable; workout days are buttons that stage
+    /// that session and switch the user to the Train tab.
+    private func dayGrid(weeks: [ProgrammeWeek]) -> some View {
+        // Pick the displayed week (the one matching currentWeek, else fall
+        // back to the first week so the user always sees something).
+        let week = weeks.first(where: { $0.weekNumber == app.currentWeek })
+                ?? weeks.first!
+        // Use `uniquingKeysWith` instead of `uniqueKeysWithValues:` so
+        // duplicate day-keys in user-supplied imported JSON don't crash —
+        // first match wins, matching React's `find(...)` semantics.
+        let sessionsByDay: [String: ProgrammeSession] = Dictionary(
+            week.sessions
+                .filter { !$0.day.isEmpty }
+                .map { (Self.normalisedDayKey($0.day), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        return VStack(spacing: 1) {
+            ForEach(dayOrder, id: \.self) { dayKey in
+                dayRow(dayKey: dayKey,
+                       session: sessionsByDay[dayKey],
+                       weekNumber: week.weekNumber)
+            }
+        }
+    }
+
+    /// Normalise free-form day strings ("Friday" / "FRI" / "fri") down to
+    /// the 3-letter lowercase key used by `dayOrder`.
+    static func normalisedDayKey(_ raw: String) -> String {
+        let lc = raw.lowercased().trimmingCharacters(in: .whitespaces)
+        let abbreviations = ["sun","mon","tue","wed","thu","fri","sat"]
+        if abbreviations.contains(lc) { return lc }
+        for abbr in abbreviations where lc.hasPrefix(abbr) { return abbr }
+        return lc
+    }
+
+    /// One row in the day grid. Today's row gets a faint accent tint and
+    /// border, rest days render muted text without a chevron.
+    private func dayRow(dayKey: String,
+                        session: ProgrammeSession?,
+                        weekNumber: Int) -> some View {
+        let isToday = dayKey == todayDayKey
+        let isRest  = session == nil || session?.isRest == true
+            || (session?.name.isEmpty ?? true)
+
+        let bgColor: Color = isToday
+            ? HexTheme.accent.opacity(0.06)
+            : HexTheme.surface
+        let strokeColor: Color = isToday
+            ? HexTheme.accent.opacity(0.20)
+            : HexTheme.border
+        let dayColor: Color = isRest ? HexTheme.mute : HexTheme.accent
+
+        let title: String = isRest
+            ? (ar ? "راحة" : "Rest")
+            : (session?.name ?? "")
+        let focus: String? = isRest ? nil : (session?.focus)
+
+        let rowContent = HStack(alignment: .center, spacing: 12) {
+            Text(dayLabel(dayKey))
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundColor(dayColor)
+                .frame(width: 36, alignment: ar ? .trailing : .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 0) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(isRest ? HexTheme.mute : HexTheme.text)
+                    if let f = focus, !f.isEmpty {
+                        Text(" · \(f)")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(HexTheme.dim)
+                            .lineLimit(2)
+                    }
+                }
+                .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !isRest {
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(bgColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(strokeColor, lineWidth: 1)
+        )
+
+        return Group {
+            if let session = session, !isRest {
+                // Workout day — tap to stage + jump to Train.
+                Button {
+                    app.selectProgrammeSession(session, inWeek: weekNumber)
+                    app.activeTab = .train
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    rowContent
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Rest day (or no session at all) — static display.
+                rowContent
+            }
+        }
     }
 
     private var statsGrid: some View {
