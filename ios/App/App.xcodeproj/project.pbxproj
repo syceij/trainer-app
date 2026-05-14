@@ -38,6 +38,7 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
 		AABB0020CCDD0020EEFF0020 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		AABB0021CCDD0021EEFF0021 /* WorkoutWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkoutWidget.entitlements; sourceTree = "<group>"; };
 		AABB0003CCDD0003EEFF0003 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
 		AABB001CCCDD001CEEFF001C /* LiveActivityPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveActivityPlugin.m; sourceTree = "<group>"; };
 		AABB0007CCDD0007EEFF0007 /* WorkoutWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -133,6 +134,7 @@
 				AABB000BCCDD000BEEFF000B /* WorkoutWidgetLiveActivity.swift */,
 				AABB000DCCDD000DEEFF000D /* WorkoutWidget-Info.plist */,
 				AABB000ECCDD000EEEFF000E /* WorkoutWidget.xcassets */,
+				AABB0021CCDD0021EEFF0021 /* WorkoutWidget.entitlements */,
 			);
 			path = WorkoutWidget;
 			sourceTree = "<group>";
@@ -467,6 +469,7 @@
 		AABB0013CCDD0013EEFF0013 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WorkoutWidget/WorkoutWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 15;
@@ -490,6 +493,7 @@
 		AABB0014CCDD0014EEFF0014 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WorkoutWidget/WorkoutWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 15;
