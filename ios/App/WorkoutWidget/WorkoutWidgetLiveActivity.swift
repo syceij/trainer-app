@@ -5,103 +5,195 @@ import SwiftUI
 // ── Design tokens matching the HEX app ───────────────────────────────────────
 private let hexAccent     = Color(red: 0.722, green: 1.0,   blue: 0.0)    // #B8FF00
 private let hexBg         = Color(red: 0.039, green: 0.039, blue: 0.039)  // #0A0A0A
-private let hexDim        = Color.white.opacity(0.38)
+private let hexDim        = Color.white.opacity(0.50)
+private let hexMute       = Color.white.opacity(0.32)
 private let hexMutedBg    = Color.white.opacity(0.07)
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-private func formatTime(_ date: Date) -> String {
-    let remaining = max(0, Int(date.timeIntervalSinceNow))
-    return String(format: "%d:%02d", remaining / 60, remaining % 60)
-}
+private let hexBorder     = Color.white.opacity(0.10)
 
 // ── Lock Screen / Notification Banner view ────────────────────────────────────
-// Deployment target for this extension is 16.2, so no @available guard needed.
 struct WorkoutLockScreenView: View {
     let context: ActivityViewContext<WorkoutActivityAttributes>
 
     private var s: WorkoutActivityAttributes.ContentState { context.state }
     private var a: WorkoutActivityAttributes { context.attributes }
-    private var hasTimer: Bool { s.timerEndsAt > Date() }
+    private var hasTimer: Bool { s.restEndsAt > Date() }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
 
-            // Left column: icon circle
-            ZStack {
-                Circle()
-                    .fill(hexAccent.opacity(0.14))
-                    .frame(width: 44, height: 44)
-                Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(hexAccent)
+            // ── Header row: exercise name + weight pill ────────────────
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    // Tiny uppercase session header — "PUSH B — SHOULDER FOCUS"
+                    Text(a.sessionName.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .kerning(0.8)
+                        .foregroundStyle(hexDim)
+                        .lineLimit(1)
+
+                    Text(s.exerciseName)
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 8)
+                weightPill
             }
 
-            // Right column: content
-            VStack(alignment: .leading, spacing: 4) {
-
-                // Session name
-                Text(a.sessionName.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
+            // ── Metadata row: "4 × 8-10 · RPE 7-8" + compound tag ─────
+            HStack(spacing: 6) {
+                Text(metadataLine)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(hexDim)
-                    .kerning(1.2)
-                    .lineLimit(1)
-
-                // Exercise name — big
-                Text(s.exerciseName)
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // Progress row
-                HStack(spacing: 8) {
-                    // Set dots
-                    HStack(spacing: 3) {
-                        ForEach(0..<min(s.setsTotal, 8), id: \.self) { i in
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(i < s.setsDone ? hexAccent : hexMutedBg)
-                                .frame(width: 14, height: 5)
-                        }
-                    }
-
-                    Spacer()
-
-                    // Weight × reps
-                    if s.weightKg > 0 {
-                        Text("\(Int(s.weightKg)) kg × \(s.reps)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(hexDim)
-                    } else if s.reps > 0 {
-                        Text("\(s.reps) reps")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(hexDim)
-                    }
+                if let tag = s.tag, !tag.isEmpty {
+                    Text(tag)
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule().fill(Color.white.opacity(0.08))
+                        )
                 }
-
-                // Rest timer — uses iOS's built-in live countdown
-                if hasTimer {
-                    HStack(spacing: 5) {
-                        Image(systemName: "timer")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(hexAccent)
-
-                        Text(s.timerEndsAt, style: .timer)
-                            .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(hexAccent)
-                            .contentTransition(.numericText(countsDown: true))
-
-                        Text("rest")
-                            .font(.system(size: 11))
-                            .foregroundStyle(hexDim)
-                    }
-                }
+                Spacer(minLength: 0)
             }
 
+            // ── Focus / notes line (italic, dim) ──────────────────────
+            if let focus = s.focus, !focus.isEmpty {
+                Text(focus)
+                    .font(.system(size: 11, weight: .regular).italic())
+                    .foregroundStyle(hexMute)
+                    .lineLimit(1)
+            }
+
+            // ── Set buttons row ───────────────────────────────────────
+            setButtonsRow
+                .padding(.top, 2)
+
+            // ── Rest timer (when active) ─────────────────────────────
+            if hasTimer {
+                HStack(spacing: 5) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(hexAccent)
+                    Text(s.restEndsAt, style: .timer)
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(hexAccent)
+                        .contentTransition(.numericText(countsDown: true))
+                    Text("rest")
+                        .font(.system(size: 11))
+                        .foregroundStyle(hexDim)
+                    Spacer()
+                    // Tiny exercise progress indicator "1 / 5"
+                    Text("\(s.exerciseIndex + 1) / \(s.totalExercises)")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(hexMute)
+                }
+                .padding(.top, 2)
+            } else {
+                // Even without a timer, show the exercise-progress hint
+                // so the user knows where they are in the session.
+                HStack {
+                    Spacer()
+                    Text("\(s.exerciseIndex + 1) / \(s.totalExercises)")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(hexMute)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(hexBg)
+    }
+
+    // MARK: - Sub-views
+
+    /// Lime-outlined weight pill in the top-right corner.
+    private var weightPill: some View {
+        let label: String = {
+            if let l = s.weightLabel, !l.isEmpty { return l }
+            if s.weightKg > 0 {
+                let w = s.weightKg
+                return w == w.rounded() ? "\(Int(w))kg" : String(format: "%.1fkg", w)
+            }
+            return "—"
+        }()
+        return Text(label)
+            .font(.system(size: 14, weight: .heavy))
+            .foregroundStyle(hexAccent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hexAccent.opacity(0.10))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(hexAccent, lineWidth: 1.2)
+            )
+    }
+
+    /// "4 × 8-10 · RPE 7-8" line.
+    private var metadataLine: String {
+        var parts: [String] = []
+        parts.append("\(s.setsTotal) × \(s.targetReps)")
+        if let rpe = s.targetRpe, !rpe.isEmpty {
+            parts.append("RPE \(rpe)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Row of numbered set buttons. Buttons are interactive on iOS 17+
+    /// via the `Button(intent:)` initialiser; older systems fall back
+    /// to plain coloured squares (still readable as a progress display).
+    private var setButtonsRow: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<s.setsTotal, id: \.self) { i in
+                setButton(index: i)
+            }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(hexBg)
+    }
+
+    @ViewBuilder
+    private func setButton(index i: Int) -> some View {
+        let isDone = s.setsCompleted[i]
+        let label = setLabel(i: i, done: isDone)
+        if #available(iOS 17.0, *) {
+            // iOS 17 — interactive button wired to the App Intent.
+            Button(intent: ToggleSetIntent(setIndex: i)) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            // iOS 16 — non-interactive display, still legible.
+            label
+        }
+    }
+
+    /// One set-button face. Filled lime when done, neutral when pending.
+    /// Sized 36×36 (down from 42) to keep the full card under Apple's
+    /// ~220pt Lock Screen Live Activity cap even when the focus / notes
+    /// line wraps to two lines.
+    @ViewBuilder
+    private func setLabel(i: Int, done: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(done ? hexAccent : hexMutedBg)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(done ? Color.clear : hexBorder, lineWidth: 1)
+            if done {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(.black)
+            } else {
+                Text("\(i + 1)")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(hexDim)
+            }
+        }
+        .frame(width: 36, height: 36)
     }
 }
 
@@ -116,7 +208,7 @@ struct WorkoutLiveActivity: Widget {
 
         } dynamicIsland: { context in
             let s = context.state
-            let hasTimer = s.timerEndsAt > Date()
+            let hasTimer = s.restEndsAt > Date()
 
             return DynamicIsland {
 
@@ -126,7 +218,6 @@ struct WorkoutLiveActivity: Widget {
                         Image(systemName: "dumbbell.fill")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(hexAccent)
-
                         Text(s.exerciseName)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white)
@@ -142,43 +233,36 @@ struct WorkoutLiveActivity: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        if s.weightKg > 0 {
-                            Text("\(Int(s.weightKg)) kg × \(s.reps)")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(hexDim)
-                        } else if s.reps > 0 {
-                            Text("\(s.reps) reps")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(hexDim)
+                    HStack(spacing: 8) {
+                        // Pack as many set buttons as fit — Dynamic Island
+                        // expanded height is ~160pt, so 5+ usually still works.
+                        ForEach(0..<s.setsTotal, id: \.self) { i in
+                            islandSetButton(state: s, index: i)
                         }
-
-                        Spacer()
-
+                        Spacer(minLength: 0)
                         if hasTimer {
                             HStack(spacing: 4) {
                                 Image(systemName: "timer")
                                     .font(.system(size: 10))
                                     .foregroundStyle(hexAccent)
-                                Text(s.timerEndsAt, style: .timer)
+                                Text(s.restEndsAt, style: .timer)
                                     .font(.system(size: 12, weight: .semibold).monospacedDigit())
                                     .foregroundStyle(hexAccent)
                                     .contentTransition(.numericText(countsDown: true))
                             }
                         }
                     }
+                    .padding(.horizontal, 4)
                 }
 
             } compactLeading: {
-                // ── Compact leading ───────────────────────────────────────────
                 Image(systemName: "dumbbell.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(hexAccent)
 
             } compactTrailing: {
-                // ── Compact trailing ─────────────────────────────────────────
                 if hasTimer {
-                    Text(s.timerEndsAt, style: .timer)
+                    Text(s.restEndsAt, style: .timer)
                         .font(.system(size: 11, weight: .bold).monospacedDigit())
                         .foregroundStyle(hexAccent)
                         .contentTransition(.numericText(countsDown: true))
@@ -190,11 +274,40 @@ struct WorkoutLiveActivity: Widget {
                 }
 
             } minimal: {
-                // ── Minimal (stacked) ─────────────────────────────────────────
                 Image(systemName: "dumbbell.fill")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(hexAccent)
             }
+        }
+    }
+
+    /// Smaller set-button variant for the Dynamic Island expanded bottom row.
+    @ViewBuilder
+    private func islandSetButton(state s: WorkoutActivityAttributes.ContentState,
+                                 index i: Int) -> some View {
+        let isDone = s.setsCompleted[i]
+        let face = ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isDone ? hexAccent : hexMutedBg)
+            if isDone {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(.black)
+            } else {
+                Text("\(i + 1)")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(hexDim)
+            }
+        }
+        .frame(width: 32, height: 32)
+
+        if #available(iOS 17.0, *) {
+            Button(intent: ToggleSetIntent(setIndex: i)) {
+                face
+            }
+            .buttonStyle(.plain)
+        } else {
+            face
         }
     }
 }

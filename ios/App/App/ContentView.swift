@@ -4,6 +4,7 @@ import SwiftUI
 /// the current auth phase in AppState.
 struct ContentView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -47,6 +48,14 @@ struct ContentView: View {
                     Spacer()
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        // When the app foregrounds, drain any sets the user completed on
+        // the Lock Screen while the app was in the background. The queue
+        // lives in the App Group store and is written by ToggleSetIntent.
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active, app.authPhase == .signedIn {
+                Task { await app.drainPendingSets() }
             }
         }
     }

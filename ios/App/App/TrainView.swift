@@ -116,20 +116,41 @@ struct TrainView: View {
             } else {
                 guard let session = app.currentSession,
                       let exercises = session.data?.exercises,
-                      let first = exercises.first else { return }
-                let setsTotal = exercises.reduce(0) { $0 + $1.sets }
+                      !exercises.isEmpty else { return }
+                // Build the staged DTO the widget will read back from
+                // the App Group store. Carries enough metadata to render
+                // the full exercise card on the Lock Screen and to
+                // advance to the next exercise on a "last set" tap.
+                let dto = StagedSessionDTO(
+                    sessionId:   session.id,
+                    userId:      session.userId,
+                    programmeId: session.programmeId,
+                    name:        session.name,
+                    weekNumber:  session.weekNumber,
+                    block:       session.block,
+                    startedAt:   Date(),
+                    exercises:   exercises.map { ex in
+                        StagedExerciseDTO(
+                            key:        ex.key,
+                            name:       ex.name,
+                            sets:       max(ex.sets, 1),
+                            reps:       ex.reps,
+                            weightKg:   ex.weight ?? 0,
+                            bodyweight: ex.bodyweight,
+                            rpe:        ex.rpe,
+                            tag:        ex.tag,
+                            // The "Calibrate week 1" italic line in the
+                            // training card is the per-exercise note.
+                            focus:      ex.notes,
+                            notes:      ex.notes
+                        )
+                    },
+                    restSeconds: 60   // 1-minute default per user spec
+                )
                 if #available(iOS 16.2, *) {
                     Task {
                         do {
-                            _ = try await LiveActivityService.shared.start(
-                                sessionName: session.name,
-                                exerciseName: first.name,
-                                setsDone: 0,
-                                setsTotal: setsTotal,
-                                timerEndsAt: nil,
-                                weightKg: first.weight ?? 0,
-                                reps: Int(first.reps.split(separator: "-").first.map(String.init) ?? "8") ?? 8
-                            )
+                            _ = try await LiveActivityService.shared.start(staged: dto)
                             await MainActor.run { liveActivityActive = true }
                         } catch {
                             print("[TrainView] LiveActivity start failed:", error)

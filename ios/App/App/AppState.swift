@@ -133,6 +133,135 @@ final class AppState: ObservableObject {
         Task { await restoreSession() }
     }
 
+    // MARK: - Live Activity pending-set drain
+
+    /// Drain the App Group pending-sets queue written by the Lock Screen
+    /// `ToggleSetIntent`. Called from `loadUserData()` and from
+    /// ContentView's `.onChange(of: scenePhase)` handler so completed
+    /// sets land in Supabase the next time the main app surfaces.
+    ///
+    /// Behaviour:
+    ///   • Group queued sets by sessionId.
+    ///   • For each group, if the sessionId matches the currently-staged
+    ///     in-app session, merge the completions into `currentSession.data`
+    ///     (so the Train tab reflects them instantly).
+    ///   • Persist each set row to Supabase `sets`.
+    ///   • If the Live Activity also marked a session as fully finished
+    ///     (last-set tap drained), run the full `finishWorkout` path —
+    ///     this writes the `sessions` row, recalculates leaderboard,
+    ///     and inserts the activity-feed entry, matching what would have
+    ///     happened if the user tapped "Save session" inside the app.
+    func drainPendingSets() async {
+        let pending = WorkoutGroupStore.loadPendingSets()
+        let finishedIds = WorkoutGroupStore.loadFinishedSessionIds()
+        guard !pending.isEmpty || !finishedIds.isEmpty else { return }
+
+        // Snapshot the staged session BEFORE we clear it — the finish
+        // path needs the exercise list to reconstruct a WorkoutSession.
+        let staged = WorkoutGroupStore.loadStagedSession()
+
+        // Persist set rows first so the Supabase `sets` table reflects
+        // exactly what the user tapped on the Lock Screen.
+        let setRows: [PerformedSet] = pending.map { p in
+            PerformedSet(
+                id:           p.id,
+                sessionId:    p.sessionId,
+                userId:       currentProfile?.id ?? SupabaseManager.shared.currentUser?.id ?? UUID(),
+                exerciseName: p.exerciseName,
+                setNumber:    p.setNumber,
+                reps:         p.reps,
+                weight:       p.weightKg,
+                rpe:          nil,
+                completed:    true,
+                failed:       false,
+                createdAt:    p.completedAt
+            )
+        }
+        if !setRows.isEmpty {
+            do {
+                try await SupabaseManager.shared.savePerformedSets(setRows)
+            } catch {
+                // Keep the queue intact so we retry next launch.
+                print("[AppState] drainPendingSets — savePerformedSets failed:", error)
+                return
+            }
+        }
+
+        // Now finish any sessions the Lock Screen marked as complete.
+        if !finishedIds.isEmpty, let staged = staged,
+           finishedIds.contains(staged.sessionId)
+        {
+            do {
+                try await finishWorkoutFromStaged(staged, pending: pending)
+                toast = language == "ar" ? "تم حفظ الجلسة ✓" : "Session saved ✓"
+            } catch {
+                print("[AppState] drainPendingSets — finishWorkout failed:", error)
+                // Don't clear the queue — let next launch retry.
+                return
+            }
+        }
+
+        // All good — clear the queue + finish markers.
+        WorkoutGroupStore.clearPendingSets()
+        WorkoutGroupStore.clearFinishedSessionIds()
+        await loadHistory()
+    }
+
+    /// Reconstruct a WorkoutSession from a staged-DTO + the user's
+    /// Lock-Screen taps, then run the same finish flow the in-app
+    /// "Save session" button uses.
+    private func finishWorkoutFromStaged(
+        _ staged: StagedSessionDTO,
+        pending: [PendingSetDTO]
+    ) async throws {
+        guard let uid = SupabaseManager.shared.currentUser?.id else { return }
+
+        // Project the staged DTO back to runtime Exercises so the saved
+        // session.data.exercises matches what the Train tab would have
+        // produced. Weight 0 + bodyweight=true preserves the "BW" semantic.
+        let exercises: [Exercise] = staged.exercises.map { dto in
+            Exercise(
+                name:       dto.name,
+                tag:        dto.tag,
+                sets:       dto.sets,
+                reps:       dto.reps,
+                weight:     dto.weightKg > 0 ? dto.weightKg : nil,
+                rpe:        dto.rpe,
+                notes:      dto.notes,
+                key:        dto.key,
+                bodyweight: dto.bodyweight
+            )
+        }
+        let session = WorkoutSession(
+            id:          staged.sessionId,
+            userId:      uid,
+            programmeId: staged.programmeId,
+            name:        staged.name,
+            date:        staged.startedAt,
+            weekNumber:  staged.weekNumber,
+            block:       staged.block,
+            completed:   true,
+            data:        WorkoutSessionData(exercises: exercises),
+            createdAt:   nil
+        )
+        let setRows: [PerformedSet] = pending.map { p in
+            PerformedSet(
+                id:           p.id,
+                sessionId:    p.sessionId,
+                userId:       uid,
+                exerciseName: p.exerciseName,
+                setNumber:    p.setNumber,
+                reps:         p.reps,
+                weight:       p.weightKg,
+                rpe:          nil,
+                completed:    true,
+                failed:       false,
+                createdAt:    p.completedAt
+            )
+        }
+        try await finishWorkout(session, sets: setRows)
+    }
+
     /// On launch, check whether Supabase has a stored session and update phase.
     func restoreSession() async {
         let sb = SupabaseManager.shared
@@ -162,6 +291,11 @@ final class AppState: ObservableObject {
         async let weights:   () = loadWorkingWeights()
         async let custom:    () = loadCustomExercises()
         _ = await (profile, programme, history, social, weights, custom)
+        // Drain any sets the user completed on the Lock Screen while the
+        // app was backgrounded — the queue lives in the App Group store
+        // and was written by `ToggleSetIntent`. Has to run AFTER
+        // currentProfile/auth are ready (uid is required for the writes).
+        await drainPendingSets()
         // Open Realtime listeners so the Bros tab + activity feed update live.
         await realtimeSync.start()
         // Replay any invite code captured while the user was signed out.
