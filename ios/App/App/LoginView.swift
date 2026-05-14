@@ -191,7 +191,7 @@ struct LoginView: View {
                     emailOrUsername: emailOrUsername,
                     password: password
                 )
-            } catch let AppState.AuthError.usernameNotFound {
+            } catch AppState.AuthError.usernameNotFound {
                 errorMsg = app.language == "ar"
                     ? "لا يوجد حساب بهذا الاسم."
                     : "No account found with that username."

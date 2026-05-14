@@ -57,9 +57,9 @@ struct OTPView: View {
                     Text(app.language == "ar"
                          ? "أدخل الرمز المكوّن من ٦ أرقام المُرسَل إلى "
                          : "Enter the 6-digit code sent to ")
-                        .foregroundStyle(HexTheme.dim)
+                        .foregroundColor(HexTheme.dim)
                     + Text(email)
-                        .foregroundStyle(HexTheme.text)
+                        .foregroundColor(HexTheme.text)
                         .fontWeight(.heavy)
                 )
                 .font(.system(size: 14))

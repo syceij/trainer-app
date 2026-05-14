@@ -36,9 +36,9 @@ struct WelcomeView: View {
             // ── Headline ──────────────────────────────────────────
             (
                 Text(app.language == "ar" ? "قوّتك. " : "Your strength. ")
-                    .foregroundStyle(HexTheme.text)
+                    .foregroundColor(HexTheme.text)
                 + Text(app.language == "ar" ? "موثّقة." : "Tracked.")
-                    .foregroundStyle(HexTheme.accent)
+                    .foregroundColor(HexTheme.accent)
             )
             .font(.system(size: 36, weight: .heavy))
             .lineSpacing(2)
