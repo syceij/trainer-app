@@ -45,7 +45,10 @@ struct HomeView: View {
                 .padding(.bottom, 20)
 
                 // ── Today / rest card ─────────────────────────────
-                restDayCard
+                // Mirrors React HomeTab.jsx:101-163: if today's programme
+                // session exists, render a tap-to-train CTA; otherwise
+                // render the lime rest-day card.
+                todayOrRestCard
                     .padding(.bottom, 14)
 
                 // ── Week badge ────────────────────────────────────
@@ -86,9 +89,75 @@ struct HomeView: View {
         return "\(g), \(name) 👋"
     }
 
-    /// Lime-accent rest-day card. Shown when there's no active session
-    /// (the React version flips to a workout button when currentSession is set).
-    private var restDayCard: some View {
+    // MARK: - Today / rest day
+
+    /// Renders either the lime "TODAY'S SESSION" CTA (tap → Train tab) or
+    /// the lime REST DAY card. Mirrors React's HomeTab ternary at
+    /// HomeTab.jsx:101-163. The data source is `app.currentSession`, which
+    /// `AppState.stageCurrentSessionFromActiveProgramme()` populates with
+    /// today's matching day-key session or leaves nil for a real rest day.
+    @ViewBuilder
+    private var todayOrRestCard: some View {
+        if let session = app.currentSession,
+           let exercises = session.data?.exercises,
+           !exercises.isEmpty {
+            Button {
+                app.activeTab = .train
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                todaySessionCardBody(name: session.name, exerciseCount: exercises.count)
+            }
+            .buttonStyle(.plain)
+        } else {
+            restDayCardBody
+        }
+    }
+
+    /// "TODAY'S SESSION" lime card body. Shows the session name plus an
+    /// `N exercises · ~M min` line, matching HomeTab.jsx:147-159.
+    private func todaySessionCardBody(name: String, exerciseCount n: Int) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color.black.opacity(0.6))
+                    Text(ar ? "جلسة اليوم" : "TODAY'S SESSION")
+                        .font(.system(size: 10, weight: .heavy))
+                        .kerning(ar ? 0 : 1.2)
+                        .foregroundColor(Color.black.opacity(0.6))
+                }
+
+                Text(name)
+                    .font(.system(size: 22, weight: .heavy))
+                    .kerning(ar ? 0 : -0.4)
+                    .foregroundColor(.black)
+                    .padding(.top, 2)
+
+                let mins = Int((Double(max(n, 5)) * 6).rounded())
+                Text(ar
+                     ? "\(n) تمارين · ≈ \(mins) دقيقة"
+                     : "\(n) exercises · ~\(mins) min")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color.black.opacity(0.55))
+            }
+            Spacer()
+            Image(systemName: ar ? "chevron.left" : "chevron.right")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(Color.black.opacity(0.6))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(HexTheme.accent)
+        )
+    }
+
+    /// Lime REST DAY card — same copy + styling as before, isolated so the
+    /// tap-vs-static branching in `todayOrRestCard` stays readable.
+    private var restDayCardBody: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(ar ? "يوم راحة" : "REST DAY")
                 .font(.system(size: 10, weight: .heavy))
@@ -114,8 +183,14 @@ struct HomeView: View {
         )
     }
 
+    // MARK: - Week badge
+
+    /// Week badge. For auto programmes shows `Week N · Block 1` where N is
+    /// derived from history count divided by sessions-per-week, matching
+    /// `HomeTab.jsx:43`. For imported programmes (multi-week) shows
+    /// `Week N / total` instead.
     private var weekBadge: some View {
-        Text(ar ? "الأسبوع ١ · المرحلة ١" : "Week 1 · Block 1")
+        Text(weekBadgeText)
             .font(.system(size: 12, weight: .heavy))
             .foregroundColor(HexTheme.dim)
             .padding(.horizontal, 12)
@@ -126,6 +201,25 @@ struct HomeView: View {
             .overlay(
                 Capsule().stroke(HexTheme.border, lineWidth: 1.5)
             )
+    }
+
+    private var weekBadgeText: String {
+        let weeks = app.activeProgramme?.data?.weeks ?? []
+        let totalWeeks = app.activeProgramme?.data?.totalWeeks ?? max(weeks.count, 1)
+        if totalWeeks > 1 {
+            // Imported programme — pick the active week if known, else 1.
+            let curWeek = max(1, min(totalWeeks, weeks.first?.weekNumber ?? 1))
+            return ar
+                ? "الأسبوع \(curWeek) / \(totalWeeks)"
+                : "Week \(curWeek) / \(totalWeeks)"
+        }
+        // Auto programme — derive an ever-incrementing week number from
+        // completed-session count, like React's `Math.ceil((history+1)/sessionsPerWeek)`.
+        let sessionsPerWeek = max(1, weeks.first?.sessions.count ?? 1)
+        let weekNum = max(1, Int(ceil(Double(app.workoutHistory.count + 1) / Double(sessionsPerWeek))))
+        return ar
+            ? "الأسبوع \(weekNum) · المرحلة ١"
+            : "Week \(weekNum) · Block 1"
     }
 
     private var statsGrid: some View {

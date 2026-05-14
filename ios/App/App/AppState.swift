@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Supabase
+import Combine
 
 /// Top-level observable state shared across the app.
 @MainActor
@@ -15,8 +16,17 @@ final class AppState: ObservableObject {
         case signedIn
     }
 
+    /// Tab selection mirrored from MainTabView so any view can request a
+    /// switch (Home's "Today's session" card → Train, for example). The
+    /// raw value matches React's `activeTab` strings to keep the parity
+    /// model legible.
+    enum Tab: String, Hashable {
+        case home, train, progress, bros, pt
+    }
+
     @Published var authPhase: AuthPhase = .checking
     @Published var currentProfile: Profile?
+    @Published var activeTab: Tab = .home
 
     // MARK: - Programme + session state
 
@@ -77,9 +87,34 @@ final class AppState: ObservableObject {
     /// signed-in state — started in `loadUserData`, stopped on sign-out.
     private lazy var realtimeSync = RealtimeSync(app: self)
 
+    /// Combine bag for in-class subscriptions (e.g. the programme→session
+    /// staging observer). Cleared automatically when AppState is released.
+    private var bag: Set<AnyCancellable> = []
+
     // MARK: - Init / session restore
 
     init() {
+        // Re-stage today's session whenever the active programme arrives or
+        // changes (matches React's HomeTab effect on `programme/importedProgramme`
+        // changes). Without this, if `loadActiveProgramme` finishes AFTER the
+        // initial `stageCurrentSessionFromActiveProgramme` call, `currentSession`
+        // is never set and the Train tab is stuck on its empty state.
+        //
+        // @Published fires its publisher in `willSet` (the subscriber gets the
+        // new value but `self.activeProgramme` is still the OLD value at sink
+        // time). Hopping through RunLoop.main defers to after the assignment
+        // lands so `stageCurrentSessionFromActiveProgramme` sees the new row.
+        $activeProgramme
+            .removeDuplicates { $0?.id == $1?.id }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newProg in
+                guard let self = self, newProg != nil else { return }
+                if self.currentSession == nil {
+                    self.stageCurrentSessionFromActiveProgramme()
+                }
+            }
+            .store(in: &bag)
+
         Task { await restoreSession() }
     }
 
@@ -457,25 +492,35 @@ final class AppState: ObservableObject {
 
     // MARK: - Programme
 
-    /// Fetch the currently active programme row for this user. Silently
-    /// leaves `activeProgramme` nil on error — Home/Programme screens render
-    /// an empty state in that case.
+    /// Fetch the currently active programme row for this user. Surfaces the
+    /// error via toast so the user knows why their programme didn't appear —
+    /// silent failure here was a major contributor to the "no data showing"
+    /// reports during early testing.
     func loadActiveProgramme() async {
         do {
             activeProgramme = try await SupabaseManager.shared.fetchActiveProgramme()
         } catch {
             print("[AppState] loadActiveProgramme failed:", error)
+            if toast == nil {
+                toast = "Programme fetch failed: \(error.localizedDescription)"
+            }
         }
     }
 
     // MARK: - Workout history
 
     /// Pull the most recent sessions for this user (DESC by date).
+    /// On error, leaves `workoutHistory` untouched so a transient failure
+    /// doesn't blank out the stats grid. A toast is shown only when no
+    /// other toast is currently visible so we don't spam the screen.
     func loadHistory() async {
         do {
             workoutHistory = try await SupabaseManager.shared.fetchHistory()
         } catch {
             print("[AppState] loadHistory failed:", error)
+            if toast == nil {
+                toast = "History fetch failed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -791,9 +836,17 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Pick today's session (or the first one as fallback) from the active
-    /// programme and stage it as `currentSession`, ready to be logged on
-    /// the Train tab. No-op when there's no active programme yet.
+    /// Pick today's session from the active programme and stage it as
+    /// `currentSession`, ready to be logged on the Train tab. Mirrors
+    /// React's `sessionForTodayImported` + auto-mode fallback:
+    ///
+    ///   - Imported programme (sessions have day-keys "mon"…"sun"):
+    ///       stage if today's day matches a session; otherwise leave
+    ///       `currentSession = nil` so the rest-day card shows.
+    ///   - Auto programme (flat list, day-keys are empty strings):
+    ///       always stage the first session so the user has something
+    ///       to do — React keeps a rotation pointer here but iOS hasn't
+    ///       implemented one yet, so first-up is the closest match.
     func stageCurrentSessionFromActiveProgramme() {
         guard let prog = activeProgramme,
               let week = prog.data?.weeks.first,
@@ -803,8 +856,31 @@ final class AppState: ObservableObject {
         let dayKeys = ["sun","mon","tue","wed","thu","fri","sat"]
         let todayIdx = Calendar.current.component(.weekday, from: Date()) - 1
         let todayKey = dayKeys[max(0, min(6, todayIdx))]
-        let picked = week.sessions.first(where: { $0.day == todayKey })
-                  ?? week.sessions.first!
+
+        let hasDayKeys = week.sessions.contains(where: { !$0.day.isEmpty })
+        // Match the React DAY_KEYS contract (lowercase 3-letter abbreviation)
+        // but tolerate "Friday" / "FRI" / "fri" from imported programmes
+        // where the author chose a different convention.
+        func matchesToday(_ day: String) -> Bool {
+            let lc = day.lowercased().trimmingCharacters(in: .whitespaces)
+            if lc.isEmpty { return false }
+            if lc == todayKey { return true }
+            // "Friday" → prefix "fri" matches "friday"
+            return lc.hasPrefix(todayKey)
+        }
+        let picked: ProgrammeSession? = hasDayKeys
+            ? week.sessions.first(where: { matchesToday($0.day) && !$0.isRest })
+            : week.sessions.first
+
+        guard let picked = picked,
+              !picked.isRest,
+              !picked.name.isEmpty else {
+            // Real rest day (imported, today not scheduled OR scheduled as
+            // an explicit `{day, isRest: true}` slot) — leave the staged
+            // session empty so HomeView renders the REST DAY card.
+            currentSession = nil
+            return
+        }
         currentSession = WorkoutSession(
             id: UUID(),
             userId: uid,
@@ -812,7 +888,7 @@ final class AppState: ObservableObject {
             name: picked.name,
             date: Date(),
             weekNumber: week.weekNumber,
-            block: nil,
+            block: picked.block,
             completed: false,
             data: WorkoutSessionData(exercises: picked.exercises),
             createdAt: nil

@@ -199,18 +199,23 @@ struct ProgrammeSession: Codable, Hashable, Identifiable {
     /// Optional block label this session falls under (e.g. "Block 1" or
     /// "Week 1-4 — Volume"). Mirrors the JS `session.block` field.
     var block: String?
+    /// True for explicit rest-day entries in React's imported shape
+    /// (`{day: "tue", isRest: true}`). When true, the session has no
+    /// name/exercises and HomeView/TrainView treat it as a rest day.
+    var isRest: Bool
 
     init(day: String, name: String, exercises: [Exercise],
-         focus: String? = nil, block: String? = nil) {
+         focus: String? = nil, block: String? = nil, isRest: Bool = false) {
         self.day = day
         self.name = name
         self.exercises = exercises
         self.focus = focus
         self.block = block
+        self.isRest = isRest
     }
 
     enum CodingKeys: String, CodingKey {
-        case day, name, exercises, focus, block
+        case day, name, exercises, focus, block, isRest
     }
 
     init(from decoder: Decoder) throws {
@@ -220,6 +225,7 @@ struct ProgrammeSession: Codable, Hashable, Identifiable {
         self.exercises = (try? c.decode([Exercise].self, forKey: .exercises)) ?? []
         self.focus     = try? c.decode(String.self, forKey: .focus)
         self.block     = try? c.decode(String.self, forKey: .block)
+        self.isRest    = (try? c.decode(Bool.self, forKey: .isRest)) ?? false
     }
 }
 

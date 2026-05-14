@@ -10,51 +10,49 @@ import SwiftUI
 /// on selection automatically via `.tint(HexTheme.accent)`.
 struct MainTabView: View {
     @EnvironmentObject var app: AppState
-    @State private var selection: Tab = .home
-
-    enum Tab: Hashable {
-        case home, train, progress, bros, pt
-    }
 
     var body: some View {
-        TabView(selection: $selection) {
+        // Bind directly to the AppState tab so any view (e.g. HomeView's
+        // "Today's session" card) can switch tabs by writing to
+        // `app.activeTab` instead of having to drill a binding down.
+        TabView(selection: $app.activeTab) {
             NavigationStack { HomeView() }
                 .tabItem {
                     Label(app.language == "ar" ? "الرئيسية" : "Home",
                           systemImage: "house")
                 }
-                .tag(Tab.home)
+                .tag(AppState.Tab.home)
 
             NavigationStack { TrainView() }
                 .tabItem {
                     Label(app.language == "ar" ? "تدريب" : "Train",
                           systemImage: "dumbbell")
                 }
-                .tag(Tab.train)
+                .tag(AppState.Tab.train)
 
             NavigationStack { ProgressTabView() }
                 .tabItem {
                     Label(app.language == "ar" ? "تقدم" : "Progress",
                           systemImage: "chart.line.uptrend.xyaxis")
                 }
-                .tag(Tab.progress)
+                .tag(AppState.Tab.progress)
 
             NavigationStack { CrewView() }
                 .tabItem {
                     Label(app.language == "ar" ? "أصدقاء" : "Bros",
                           systemImage: "person.3")
                 }
-                .tag(Tab.bros)
+                .tag(AppState.Tab.bros)
 
             NavigationStack { PTChatView() }
                 .tabItem {
                     Label(app.language == "ar" ? "المدرب" : "PT",
                           systemImage: "bubble.left")
                 }
-                .tag(Tab.pt)
+                .tag(AppState.Tab.pt)
         }
         .tint(HexTheme.accent)
-        .onChange(of: selection) { _ in
+        .onChange(of: app.activeTab) { _ in
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }

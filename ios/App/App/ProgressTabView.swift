@@ -274,29 +274,65 @@ struct ProgressTabView: View {
         )
     }
 
-    /// One bar in the chart — height proportional to pct (clamped 0-100).
-    /// Inactive look matches the original placeholder when pct is 0.
+    /// One bar in the chart. Mirrors React's MuscleProgressChart at
+    /// ProgressTab.jsx:136-220:
+    ///   - groups with NO logged data: dashed stub at STUB_H (~8px)
+    ///   - groups WITH data but pct==0: solid bar at MIN_BAR (~12px)
+    ///   - groups with data + pct>0: bar scaled to maxPct, accent colour for
+    ///     the single top group, neutral for the rest
+    ///   - "+X%" / "0%" / "—" label above each bar
     private func muscleBar(stat: MuscleStat) -> some View {
         let label = barLabel(forId: stat.id)
-        let pctClamped = max(min(stat.pct, 100), 0)
-        // Reserve a small minimum so even "0%" muscles read as a bar.
-        let frac = stat.seen ? max(CGFloat(pctClamped) / 100.0, 0.06) : 0.04
-        let isActive = stat.pct > 0
 
-        return VStack(spacing: 6) {
-            Spacer(minLength: 0)
+        // Scale max — match the React `maxPct = Math.max(...groups.map(g=>g.pct), 1)`
+        let maxPct = max(muscleStats.map(\.pct).max() ?? 1, 1)
+        let bestId = muscleStats.filter { $0.seen && $0.pct > 0 }
+                                .max(by: { $0.pct < $1.pct })?.id
+
+        let pctClamped = max(min(stat.pct, 100), 0)
+        // CGFloat fractions: seen + data → 0.10 minimum; seen no-pair → 0.10 too
+        // (matches React MIN_BAR=12 / MAX_H=110 ≈ 0.11); no data → 0.06 stub.
+        let frac: CGFloat = stat.seen
+            ? max(CGFloat(pctClamped) / CGFloat(maxPct), 0.10)
+            : 0.06
+        let isBest = stat.id == bestId
+        let pctLabel: String = {
+            if !stat.seen { return "—" }
+            if stat.pct > 0 { return "+\(stat.pct)%" }
+            return "0%"
+        }()
+
+        return VStack(spacing: 4) {
+            // Tiny % label above the bar
+            Text(pctLabel)
+                .font(.system(size: 9, weight: .heavy))
+                .foregroundColor(isBest ? HexTheme.accent
+                                 : stat.seen ? HexTheme.dim : HexTheme.mute)
+                .frame(height: 11)
+
+            // Bar area
             GeometryReader { geo in
                 VStack {
                     Spacer(minLength: 0)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(isActive ? HexTheme.accent : HexTheme.border)
-                        .frame(height: max(8, geo.size.height * frac))
+                    if stat.seen {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(isBest ? HexTheme.accent : HexTheme.border)
+                            .frame(height: max(8, geo.size.height * frac))
+                    } else {
+                        // Dashed stub for groups with no logged data
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(HexTheme.border, style: StrokeStyle(
+                                lineWidth: 1.5, dash: [4, 3]))
+                            .frame(height: max(8, geo.size.height * frac))
+                            .opacity(0.45)
+                    }
                 }
             }
-            // Label
+            // Muscle label
             Text(label)
                 .font(.system(size: 10, weight: .heavy))
-                .foregroundColor(isActive ? HexTheme.text : HexTheme.mute)
+                .foregroundColor(isBest ? HexTheme.accent
+                                 : stat.seen ? HexTheme.text : HexTheme.mute)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
