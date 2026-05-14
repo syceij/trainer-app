@@ -74,41 +74,92 @@ struct ProgressTabView: View {
     }
 
     private var liftsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
-                            GridItem(.flexible(), spacing: 10)],
-                  spacing: 10) {
-            ForEach(0..<4, id: \.self) { _ in
-                liftPlaceholder
+        let lifts = trackedLifts
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
+                                   GridItem(.flexible(), spacing: 10)],
+                         spacing: 10) {
+            ForEach(0..<4, id: \.self) { i in
+                if i < lifts.count {
+                    NavigationLink {
+                        ExerciseLiftPage(exerciseName: lifts[i])
+                            .environmentObject(app)
+                    } label: {
+                        liftCard(name: lifts[i])
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    liftCard(name: nil)
+                }
             }
         }
     }
 
-    private var liftPlaceholder: some View {
+    /// Tracked lifts — derived from the user's workout history (top 4 by
+    /// frequency). Mirrors how ProgressTab.jsx picks which lifts to plot.
+    private var trackedLifts: [String] {
+        var counts: [String: Int] = [:]
+        for session in app.workoutHistory {
+            for ex in session.data?.exercises ?? [] {
+                counts[ex.name, default: 0] += 1
+            }
+        }
+        return counts.sorted { $0.value > $1.value }.prefix(4).map(\.key)
+    }
+
+    /// Latest logged weight for a lift name (workoutHistory is newest first).
+    private func currentWeight(for name: String) -> Double? {
+        for session in app.workoutHistory {
+            if let ex = session.data?.exercises.first(where: { $0.name == name }),
+               let w = ex.weight, w > 0 {
+                return w
+            }
+        }
+        return nil
+    }
+
+    /// Up to 8 most-recent weights for the sparkline (oldest → newest).
+    private func sparklineWeights(for name: String) -> [Double] {
+        var out: [Double] = []
+        for session in app.workoutHistory {
+            if let ex = session.data?.exercises.first(where: { $0.name == name }),
+               let w = ex.weight, w > 0 {
+                out.append(w)
+                if out.count >= 8 { break }
+            }
+        }
+        return out.reversed()
+    }
+
+    /// One tracked-lift card. Empty layout (placeholder text + grey bars)
+    /// when `name` is nil — same look as before.
+    @ViewBuilder
+    private func liftCard(name: String?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(ar ? "اختر تمريناً" : "Pick a lift")
+                Text(name ?? (ar ? "اختر تمريناً" : "Pick a lift"))
                     .font(.system(size: 13, weight: .heavy))
-                    .foregroundColor(HexTheme.dim)
+                    .foregroundColor(name == nil ? HexTheme.dim : HexTheme.text)
+                    .lineLimit(1)
                 Spacer()
                 Image(systemName: "pencil")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(HexTheme.mute)
             }
 
-            Text("—")
-                .font(.system(size: 22, weight: .heavy))
-                .foregroundColor(HexTheme.text)
-                .padding(.top, 2)
-
-            // Sparkline placeholder
-            HStack(spacing: 3) {
-                ForEach(0..<8, id: \.self) { _ in
-                    Capsule()
-                        .fill(HexTheme.border)
-                        .frame(width: 3, height: 16)
-                }
+            if let name = name, let w = currentWeight(for: name) {
+                Text(formatCardWeight(w))
+                    .font(.system(size: 22, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                    .padding(.top, 2)
+            } else {
+                Text("—")
+                    .font(.system(size: 22, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                    .padding(.top, 2)
             }
-            .padding(.top, 4)
+
+            sparkline(weights: name.map(sparklineWeights) ?? [])
+                .padding(.top, 4)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -120,6 +171,34 @@ struct ProgressTabView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(HexTheme.border, lineWidth: 1)
         )
+    }
+
+    /// 8-bar sparkline. Empty data → 8 grey placeholder bars (same look
+    /// as the original placeholder). With data, bars scale to the max.
+    private func sparkline(weights: [Double]) -> some View {
+        let maxBars = 8
+        let maxW = max(weights.max() ?? 1, 1)
+        return HStack(spacing: 3) {
+            ForEach(0..<maxBars, id: \.self) { i in
+                let w = i < weights.count ? weights[i] : nil
+                if let w = w {
+                    Capsule()
+                        .fill(HexTheme.accent)
+                        .frame(width: 3,
+                               height: max(4, CGFloat(w / maxW) * 16))
+                } else {
+                    Capsule()
+                        .fill(HexTheme.border)
+                        .frame(width: 3, height: 16)
+                }
+            }
+        }
+        .frame(height: 16, alignment: .bottom)
+    }
+
+    private func formatCardWeight(_ w: Double) -> String {
+        let int = Int(w.rounded())
+        return "\(int) kg"
     }
 
     private var muscleProgressCard: some View {
