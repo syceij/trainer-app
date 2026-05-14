@@ -117,9 +117,16 @@ final class AppState: ObservableObject {
         _ = await (profile, programme, history, social, weights, custom)
         // Open Realtime listeners so the Bros tab + activity feed update live.
         await realtimeSync.start()
-        // Username-picker gate: if the user signed up without a username,
-        // surface the modal so they can pick one before friend-search works.
-        needsUsername = (currentProfile?.username ?? "").isEmpty
+        // Username-picker gate: surface the modal ONLY when we successfully
+        // loaded a profile and it really does have no username. If the load
+        // failed (network, RLS, decode), `currentProfile` is nil and we
+        // explicitly stay false — otherwise transient failures would spam
+        // the user with the modal every launch.
+        if let p = currentProfile {
+            needsUsername = (p.username ?? "").isEmpty
+        } else {
+            needsUsername = false
+        }
         // Replay any invite code captured while the user was signed out.
         if let code = pendingInviteCode {
             pendingInviteCode = nil
@@ -389,14 +396,25 @@ final class AppState: ObservableObject {
     /// Insert a bare `profiles` row for the current user if one doesn't yet
     /// exist. Idempotent. Mirrors the React `ensureProfileExists` helper.
     func ensureOwnProfileExists() async {
-        guard let uid = SupabaseManager.shared.currentUser?.id else { return }
+        guard let user = SupabaseManager.shared.currentUser else { return }
+        // Pull the name we stashed in user_metadata at signup so the fallback
+        // row carries the actual display name, not just "Athlete".
+        let metaName: String? = {
+            if case .string(let s)? = user.userMetadata["name"] { return s }
+            return nil
+        }()
         do {
             try await SupabaseManager.shared.ensureOwnProfileRow(
-                uid: uid,
-                email: SupabaseManager.shared.currentUser?.email
+                uid: user.id,
+                fallbackName: metaName,
+                email: user.email
             )
         } catch {
+            // Surface the error in a toast — silent failure here is exactly
+            // the bug that causes the "username asked every login" loop and
+            // the "data not loading" symptom.
             print("[AppState] ensureOwnProfileExists failed:", error)
+            toast = "Profile setup failed: \(error.localizedDescription)"
         }
     }
 
@@ -412,6 +430,12 @@ final class AppState: ObservableObject {
                 try? await SupabaseManager.shared.fetchOwnLeaderboardData()
         } catch {
             print("[AppState] loadOwnProfile failed:", error)
+            // Surface the error so the user knows why their data isn't
+            // showing. Only the first loader-failure toast wins — by the
+            // didSet timer the next failure replaces this one in <3s.
+            if toast == nil {
+                toast = "Profile fetch failed: \(error.localizedDescription)"
+            }
         }
     }
 

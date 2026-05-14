@@ -131,19 +131,40 @@ final class SupabaseManager {
     }
 
     /// Insert a minimal profile row for this user if one doesn't yet exist.
-    /// Uses upsert with `ignoreDuplicates` semantics so we never clobber an
-    /// existing row's name/username/etc. iOS-only sign-ups need this because
-    /// the React backend's profile-creation trigger isn't always in place.
-    func ensureOwnProfileRow(uid: UUID, email: String?) async throws {
+    /// Mirrors the React `ensureProfileExists` flow exactly: SELECT first,
+    /// only INSERT if the row is missing, populate `name` + `language` so
+    /// we don't trip any NOT NULL constraints on those columns. Returns
+    /// true if a row was just created (false if it already existed).
+    @discardableResult
+    func ensureOwnProfileRow(uid: UUID,
+                              fallbackName: String?,
+                              email: String?) async throws -> Bool {
+        // 1. Check whether the row already exists.
+        struct IDRow: Decodable { let id: UUID }
+        let existing: [IDRow] = try await client
+            .from("profiles")
+            .select("id")
+            .eq("id", value: uid)
+            .limit(1)
+            .execute()
+            .value
+        if !existing.isEmpty { return false }
+
+        // 2. Insert the minimal row React's ensureProfileExists uses.
+        let name = (fallbackName?.isEmpty == false ? fallbackName : nil)
+            ?? email?.split(separator: "@").first.map(String.init)
+            ?? "Athlete"
         struct Seed: Encodable {
             let id: UUID
+            let name: String
+            let language: String
             let email: String?
         }
         _ = try await client
             .from("profiles")
-            .upsert(Seed(id: uid, email: email), onConflict: "id",
-                    ignoreDuplicates: true)
+            .insert(Seed(id: uid, name: name, language: "en", email: email))
             .execute()
+        return true
     }
 
     /// Wipe all user-owned rows (programmes, sessions, sets, custom exercises,
