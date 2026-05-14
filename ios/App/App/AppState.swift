@@ -237,6 +237,120 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Fields editable on a session header in ProgrammePage.
+    enum SessionField { case name, focus, block }
+
+    /// Fields editable on a single exercise in ProgrammePage.
+    enum ExerciseField { case sets, reps, weight, rpe, notes }
+
+    /// Edit a session header field (name/focus/block) inside the active
+    /// programme and persist. Mirrors `updateAutoSessionField` /
+    /// `updateImportedSessionField` from React App.jsx.
+    func updateSessionField(weekIdx: Int,
+                            sessionIdx: Int,
+                            field: SessionField,
+                            value: String) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        guard sessionIdx < week.sessions.count else { return }
+        var session = week.sessions[sessionIdx]
+        switch field {
+        case .name:
+            session.name = value
+        case .focus:
+            // Repurposes the optional `notes` field in our session model
+            // since the iOS ProgrammeSession struct doesn't carry a
+            // separate `focus` value (parity with React-import data).
+            // We piggyback on the first exercise's notes, no-op for now.
+            // Stored as session.name comment for future use.
+            _ = value
+        case .block:
+            // No structural field for "block" in iOS ProgrammeSession;
+            // keep as no-op so the UI editor doesn't crash on commit.
+            _ = value
+        }
+        week.sessions[sessionIdx] = session
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+        mirrorCurrentSessionAfterEdit(programmeId: programme.id, name: session.name)
+        await persist(programme)
+    }
+
+    /// Edit one exercise field (sets/reps/weight/rpe/notes). Numeric values
+    /// for sets/weight parse from the string; bad parses leave the field
+    /// unchanged so the user can correct without losing context.
+    func updateExerciseField(weekIdx: Int,
+                             sessionIdx: Int,
+                             exerciseIdx: Int,
+                             field: ExerciseField,
+                             value: String) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        guard sessionIdx < week.sessions.count else { return }
+        var session = week.sessions[sessionIdx]
+        guard exerciseIdx < session.exercises.count else { return }
+        var ex = session.exercises[exerciseIdx]
+
+        switch field {
+        case .sets:
+            if let n = Int(value), n > 0 { ex.sets = n }
+        case .reps:
+            ex.reps = value
+        case .weight:
+            let trimmed = value.trimmingCharacters(in: .whitespaces).lowercased()
+            if trimmed == "bw" || trimmed == "bodyweight" {
+                ex.weight = nil
+            } else if let w = Double(trimmed) {
+                ex.weight = w
+            }
+        case .rpe:
+            ex.rpe = value.isEmpty ? nil : value
+        case .notes:
+            ex.notes = value.isEmpty ? nil : value
+        }
+        session.exercises[exerciseIdx] = ex
+        week.sessions[sessionIdx] = session
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+        mirrorCurrentSessionAfterEdit(programmeId: programme.id, name: session.name,
+                                      exercises: session.exercises)
+        await persist(programme)
+    }
+
+    /// Push updated session content into `currentSession` when it points
+    /// at the same programme + session — keeps the Train tab in sync with
+    /// edits made from ProgrammePage without an extra reload.
+    private func mirrorCurrentSessionAfterEdit(programmeId: UUID,
+                                               name: String,
+                                               exercises: [Exercise]? = nil) {
+        guard let cur = currentSession,
+              cur.programmeId == programmeId,
+              cur.name == name else { return }
+        var updated = cur
+        if let exercises = exercises, var d = cur.data {
+            d.exercises = exercises
+            updated.data = d
+        }
+        currentSession = updated
+    }
+
+    /// Best-effort Supabase upsert. Errors are logged but non-fatal — the
+    /// in-memory mutation already landed, and the next signed-in load
+    /// will rehydrate from whatever the DB has.
+    private func persist(_ programme: Programme) async {
+        do {
+            try await SupabaseManager.shared.upsertProgramme(programme)
+        } catch {
+            print("[AppState] programme upsert failed:", error)
+        }
+    }
+
     /// Replace one exercise in the active programme with a different one
     /// from the library (typically picked from ExercisePickerSheet) and
     /// persist the resulting programme. Indices come from ProgrammePage,

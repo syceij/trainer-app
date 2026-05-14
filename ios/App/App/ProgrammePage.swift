@@ -20,6 +20,10 @@ struct ProgrammePage: View {
     /// Set when the user taps an exercise's swap chevron. Drives the
     /// ExercisePickerSheet via .sheet(item:).
     @State private var swapContext: SwapContext?
+    /// Stable keys of fields the user has edited this session — drives
+    /// the accent-coloured dashed underline + the "N edit(s)" pill in
+    /// the top bar (mirrors React's `editedKeys` list on App state).
+    @State private var editedKeys: Set<String> = []
 
     /// Identifies a single exercise slot in the active programme so the
     /// picker callback knows where to write the replacement.
@@ -113,6 +117,23 @@ struct ProgrammePage: View {
                     .lineLimit(1)
             }
             Spacer()
+
+            if !editedKeys.isEmpty {
+                Text("\(editedKeys.count) " +
+                     (ar
+                      ? "تعديلات"
+                      : (editedKeys.count == 1 ? "edit" : "edits")))
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundColor(HexTheme.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule().fill(HexTheme.accent.opacity(0.10))
+                    )
+                    .overlay(
+                        Capsule().stroke(HexTheme.accent.opacity(0.30), lineWidth: 1)
+                    )
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
@@ -475,41 +496,60 @@ struct ProgrammePage: View {
             }
             .buttonStyle(.plain)
 
-            // Sets · Reps · Weight · RPE
+            // Sets · Reps · Weight · RPE — each cell tap-to-edits inline.
             HStack(spacing: 14) {
-                stat(label: ar ? "مج" : "Sets",
-                     value: "\(ex.sets)", accent: false)
-                stat(label: ar ? "عد" : "Reps",
-                     value: ex.reps, accent: false)
+                editableCell(label: ar ? "مج" : "Sets",
+                             value: "\(ex.sets)",
+                             kind: .number,
+                             editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "sets")) {
+                    save(weekIdx, sessionIdx, exerciseIdx, .sets, $0)
+                }
+
+                editableCell(label: ar ? "عد" : "Reps",
+                             value: ex.reps,
+                             kind: .text,
+                             editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "reps")) {
+                    save(weekIdx, sessionIdx, exerciseIdx, .reps, $0)
+                }
+
+                // Weight is only shown when the exercise has a numeric
+                // working weight; bodyweight moves hide this column
+                // entirely (matches React's `if (!ex.bodyweight)` gate).
                 if let w = ex.weight, w > 0 {
-                    stat(label: ar ? "وزن" : "Weight",
-                         value: formatWeight(w),
-                         suffix: "kg",
-                         accent: true)
-                } else if ex.weight == nil {
-                    stat(label: ar ? "وزن" : "Weight",
-                         value: "BW",
-                         accent: true)
+                    editableCell(label: ar ? "وزن" : "Weight",
+                                 value: formatWeight(w),
+                                 kind: .number,
+                                 suffix: "kg",
+                                 valueColor: HexTheme.accent,
+                                 editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "weight")) {
+                        save(weekIdx, sessionIdx, exerciseIdx, .weight, $0)
+                    }
                 }
-                if let rpe = ex.rpe, !rpe.isEmpty {
-                    stat(label: "RPE", value: rpe, accent: false, dim: true)
+
+                editableCell(label: "RPE",
+                             value: ex.rpe ?? "",
+                             kind: .text,
+                             placeholder: "—",
+                             valueColor: HexTheme.dim,
+                             editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "rpe")) {
+                    save(weekIdx, sessionIdx, exerciseIdx, .rpe, $0)
                 }
+
                 Spacer()
             }
 
-            // Notes
-            if let notes = ex.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.system(size: 11))
-                    .foregroundColor(HexTheme.mute)
-                    .italic()
-            } else {
-                Text(ar ? "أضف ملاحظات…" : "Add notes…")
-                    .font(.system(size: 11))
-                    .foregroundColor(HexTheme.mute)
-                    .italic()
-                    .underlineDashed()
-            }
+            // Notes — tap to edit; placeholder when empty.
+            EditableField(
+                value: ex.notes ?? "",
+                editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "notes"),
+                editedKeys: $editedKeys,
+                kind: .text,
+                placeholder: ar ? "أضف ملاحظات…" : "Add notes…",
+                font: .system(size: 11).italic(),
+                foregroundColor: HexTheme.mute,
+                muteColor: HexTheme.mute,
+                onCommit: { save(weekIdx, sessionIdx, exerciseIdx, .notes, $0) }
+            )
 
             // Rest timer presets
             VStack(alignment: .leading, spacing: 7) {
@@ -540,21 +580,54 @@ struct ProgrammePage: View {
         )
     }
 
-    private func stat(label: String, value: String,
-                      suffix: String? = nil, accent: Bool, dim: Bool = false) -> some View {
+    /// A "label  value" cell that swaps to an inline EditableField on tap.
+    /// Used for the four pills under each exercise (Sets · Reps · Weight · RPE).
+    private func editableCell(label: String,
+                              value: String,
+                              kind: EditableField.Kind,
+                              placeholder: String = "—",
+                              suffix: String? = nil,
+                              valueColor: Color = HexTheme.text,
+                              editKey: String,
+                              onCommit: @escaping (String) -> Void) -> some View {
         HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: 11))
                 .foregroundColor(HexTheme.mute)
-            Text(value)
-                .font(.system(size: 13, weight: .heavy))
-                .foregroundColor(accent ? HexTheme.accent : (dim ? HexTheme.dim : HexTheme.text))
-                .underlineDashed()
-            if let suffix = suffix {
-                Text(suffix)
-                    .font(.system(size: 11))
-                    .foregroundColor(HexTheme.dim)
-            }
+            EditableField(
+                value: value,
+                editKey: editKey,
+                editedKeys: $editedKeys,
+                kind: kind,
+                placeholder: placeholder,
+                suffix: suffix,
+                font: .system(size: 13, weight: .heavy),
+                foregroundColor: valueColor,
+                onCommit: onCommit
+            )
+        }
+    }
+
+    /// Build a stable identifier for an exercise field — appears in
+    /// `editedKeys` and drives the accent underline + edit dot.
+    private func editKey(_ weekIdx: Int, _ sessionIdx: Int,
+                         _ exerciseIdx: Int, _ field: String) -> String {
+        "w\(weekIdx)_s\(sessionIdx)_e\(exerciseIdx)_\(field)"
+    }
+
+    /// Hand a save off to AppState in a detached Task so the UI thread
+    /// doesn't block on the network round-trip.
+    private func save(_ weekIdx: Int, _ sessionIdx: Int, _ exerciseIdx: Int,
+                      _ field: AppState.ExerciseField,
+                      _ value: String) {
+        Task {
+            await app.updateExerciseField(
+                weekIdx: weekIdx,
+                sessionIdx: sessionIdx,
+                exerciseIdx: exerciseIdx,
+                field: field,
+                value: value
+            )
         }
     }
 

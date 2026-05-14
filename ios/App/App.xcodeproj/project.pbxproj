@@ -45,6 +45,7 @@
 		B1A2C3D40000000000280001 /* MusclePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000280002 /* MusclePage.swift */; };
 		B1A2C3D40000000000290001 /* ProgrammePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000290002 /* ProgrammePage.swift */; };
 		B1A2C3D40000000000300001 /* ExercisePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000300002 /* ExercisePickerSheet.swift */; };
+		B1A2C3D40000000000310001 /* EditableField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000310002 /* EditableField.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -101,6 +102,7 @@
 		B1A2C3D40000000000280002 /* MusclePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusclePage.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000290002 /* ProgrammePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammePage.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000300002 /* ExercisePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisePickerSheet.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000310002 /* EditableField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditableField.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +174,7 @@
 				B1A2C3D40000000000280002 /* MusclePage.swift */,
 				B1A2C3D40000000000290002 /* ProgrammePage.swift */,
 				B1A2C3D40000000000300002 /* ExercisePickerSheet.swift */,
+				B1A2C3D40000000000310002 /* EditableField.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -329,6 +332,7 @@
 				B1A2C3D40000000000280001 /* MusclePage.swift in Sources */,
 				B1A2C3D40000000000290001 /* ProgrammePage.swift in Sources */,
 				B1A2C3D40000000000300001 /* ExercisePickerSheet.swift in Sources */,
+				B1A2C3D40000000000310001 /* EditableField.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
