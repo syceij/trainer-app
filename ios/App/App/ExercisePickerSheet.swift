@@ -1,0 +1,339 @@
+import SwiftUI
+
+/// Bottom sheet exercise picker — port of src/components/ExercisePickerSheet.jsx.
+/// Reaches the user via the swap icon in ProgrammePage's exercise rows.
+///
+/// This commit covers the list + search experience faithfully:
+///   • drag-handle sheet style with a centered "SWAP EXERCISE" title
+///   • search bar with clear button
+///   • when not searching: 12 collapsible category sections (Chest,
+///     Front/Side/Rear Shoulders, Back Width/Thickness, Biceps, Triceps,
+///     Quads, Hamstrings & Glutes, Calves, Core). The category that
+///     contains the currently-selected exercise is expanded on open.
+///   • when searching: flat filtered results across the whole library.
+///   • per-row equipment badge (BB / DB / Cable / Machine / BW) and a
+///     checkmark on the currently-selected exercise.
+///
+/// Custom-exercise creation (the "Create custom" inline row in the JS)
+/// is deferred — it needs a new custom_exercises Supabase table.
+struct ExercisePickerSheet: View {
+    /// Key of the exercise currently in the slot (drives the open-state
+    /// auto-expansion + the checkmark). May be nil when the slot was
+    /// populated from an import without a library match.
+    let currentName: String?
+    /// Fires with the picked library exercise; sheet dismisses itself.
+    let onSelect: (ProgrammeBuilder.LibraryExercise) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var app: AppState
+
+    @State private var search: String = ""
+    @State private var expanded: Set<String> = []
+    @FocusState private var searchFocused: Bool
+
+    private var ar: Bool { app.language == "ar" }
+
+    // MARK: - Category definitions (verbatim from ExercisePickerSheet.jsx)
+
+    private struct Category {
+        let label: String
+        let muscle: String          // CATEGORY_TO_MUSCLE in the JS
+        let keys: [String]          // EXERCISE_CATEGORIES keys
+    }
+
+    private static let categories: [Category] = [
+        .init(label: "Chest",                 muscle: "chest",      keys: ["bench_press","incline_bench","db_press","incline_db_press","db_fly","cable_fly","chest_press_machine","pec_deck","pushup","dip"]),
+        .init(label: "Front Shoulders",       muscle: "shoulders",  keys: ["ohp","db_ohp","machine_shoulder","front_raise"]),
+        .init(label: "Side Shoulders",        muscle: "shoulders",  keys: ["lateral_raise","cable_lateral"]),
+        .init(label: "Rear Shoulders",        muscle: "shoulders",  keys: ["rear_delt_fly","face_pull"]),
+        .init(label: "Back Width",            muscle: "back",       keys: ["pullup","chinup","lat_pulldown"]),
+        .init(label: "Back Thickness",        muscle: "back",       keys: ["deadlift","barbell_row","db_row","cable_row","machine_row","inverted_row"]),
+        .init(label: "Biceps",                muscle: "biceps",     keys: ["barbell_curl","db_curl","hammer_curl","cable_curl","preacher_curl"]),
+        .init(label: "Triceps",               muscle: "triceps",    keys: ["tricep_pushdown","overhead_tricep","skull_crusher","close_grip_bench","bench_dip"]),
+        .init(label: "Quads",                 muscle: "quads",      keys: ["squat","front_squat","leg_press","leg_ext","db_lunge","bodyweight_squat","jump_squat"]),
+        .init(label: "Hamstrings & Glutes",   muscle: "hamstrings", keys: ["rdl","sumo_deadlift","db_rdl","leg_curl","hip_thrust","glute_bridge"]),
+        .init(label: "Calves",                muscle: "calves",     keys: ["calf_raise","seated_calf"]),
+        .init(label: "Core",                  muscle: "core",       keys: ["plank","ab_wheel","cable_crunch","hanging_leg_raise"]),
+    ]
+
+    /// Reverse lookup: exercise key → category label.
+    private static let keyToCategory: [String: String] = {
+        var m: [String: String] = [:]
+        for c in categories {
+            for k in c.keys { m[k] = c.label }
+        }
+        return m
+    }()
+
+    /// Cache the library by key so row rendering doesn't re-scan.
+    private static let libraryByKey: [String: ProgrammeBuilder.LibraryExercise] = {
+        var m: [String: ProgrammeBuilder.LibraryExercise] = [:]
+        for ex in ProgrammeBuilder.exercises { m[ex.key] = ex }
+        return m
+    }()
+
+    /// Best-effort: given a name (the slot's current exercise) figure
+    /// out which library key + category it belongs to. Falls back to nil
+    /// when the slot was populated from a custom/imported name.
+    private static func resolveCategory(forName name: String?) -> String? {
+        guard let n = name?.lowercased() else { return nil }
+        if let ex = ProgrammeBuilder.exercises.first(where: { $0.name.lowercased() == n }) {
+            return keyToCategory[ex.key]
+        }
+        return nil
+    }
+
+    private static func resolveKey(forName name: String?) -> String? {
+        guard let n = name?.lowercased() else { return nil }
+        return ProgrammeBuilder.exercises.first(where: { $0.name.lowercased() == n })?.key
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        VStack(spacing: 0) {
+            dragHandle
+            header
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+                .overlay(
+                    Rectangle().fill(HexTheme.border).frame(height: 1),
+                    alignment: .bottom
+                )
+
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: []) {
+                    if isSearching {
+                        searchResultsList
+                    } else {
+                        categoriesList
+                    }
+                    Spacer(minLength: 24)
+                }
+            }
+        }
+        .background(HexTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .ignoresSafeArea(edges: .bottom)
+        .onAppear {
+            // Auto-expand the category containing the current slot's exercise.
+            if let cat = Self.resolveCategory(forName: currentName) {
+                expanded.insert(cat)
+            }
+        }
+    }
+
+    private var dragHandle: some View {
+        VStack {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(HexTheme.border)
+                .frame(width: 40, height: 4)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            Text(ar ? "تبديل التمرين" : "SWAP EXERCISE")
+                .font(.system(size: 11, weight: .heavy))
+                .kerning(ar ? 0 : 1.0)
+                .foregroundColor(HexTheme.dim)
+                .frame(maxWidth: .infinity)
+
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(HexTheme.dim)
+                TextField("", text: $search,
+                          prompt: Text(ar ? "ابحث عن تمارين…" : "Search exercises…")
+                            .foregroundColor(HexTheme.mute))
+                    .font(.system(size: 16))
+                    .foregroundColor(HexTheme.text)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .focused($searchFocused)
+                if !search.isEmpty {
+                    Button { search = "" } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(HexTheme.mute)
+                            .padding(2)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1.5)
+            )
+        }
+    }
+
+    private var isSearching: Bool {
+        !search.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    // MARK: - Flat search results
+
+    @ViewBuilder
+    private var searchResultsList: some View {
+        let q = search.lowercased().trimmingCharacters(in: .whitespaces)
+        let results = ProgrammeBuilder.exercises.filter { $0.name.lowercased().contains(q) }
+        if results.isEmpty {
+            Text((ar ? "لا تمارين مطابقة لـ " : "No exercises match ") + "\"\(search)\"")
+                .font(.system(size: 13))
+                .foregroundColor(HexTheme.mute)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+                .padding(.horizontal, 20)
+        } else {
+            let currentKey = Self.resolveKey(forName: currentName)
+            ForEach(results, id: \.key) { ex in
+                exerciseRow(ex: ex,
+                            selected: ex.key == currentKey,
+                            indent: false)
+            }
+        }
+    }
+
+    // MARK: - Categories accordion
+
+    @ViewBuilder
+    private var categoriesList: some View {
+        let currentKey = Self.resolveKey(forName: currentName)
+        ForEach(Self.categories, id: \.label) { cat in
+            let isExpanded = expanded.contains(cat.label)
+            // Category header row
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    if isExpanded { expanded.remove(cat.label) }
+                    else          { expanded.insert(cat.label) }
+                }
+            } label: {
+                HStack {
+                    Text(localizedCategory(cat.label))
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(HexTheme.mute)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity)
+                .background(HexTheme.surface)
+                .overlay(
+                    Rectangle().fill(HexTheme.border).frame(height: 1),
+                    alignment: .top
+                )
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                ForEach(cat.keys, id: \.self) { key in
+                    if let ex = Self.libraryByKey[key] {
+                        exerciseRow(ex: ex,
+                                    selected: ex.key == currentKey,
+                                    indent: true)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Exercise row
+
+    @ViewBuilder
+    private func exerciseRow(ex: ProgrammeBuilder.LibraryExercise,
+                             selected: Bool,
+                             indent: Bool) -> some View {
+        Button {
+            onSelect(ex)
+            dismiss()
+        } label: {
+            HStack(spacing: 10) {
+                Text(ex.name)
+                    .font(.system(size: 14,
+                                  weight: selected ? .heavy : .medium))
+                    .foregroundColor(selected ? HexTheme.accent : HexTheme.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Equipment badge
+                Text(equipBadge(ex.equipment))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(HexTheme.surface2)
+                    )
+
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundColor(HexTheme.accent)
+                        .frame(width: 14)
+                } else {
+                    Spacer().frame(width: 14)
+                }
+            }
+            .padding(.leading, indent ? 30 : 16)
+            .padding(.trailing, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(selected
+                        ? HexTheme.accent.opacity(0.08)
+                        : Color.clear)
+            .overlay(
+                Rectangle().fill(HexTheme.border).frame(height: 1),
+                alignment: .top
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func equipBadge(_ equipment: String) -> String {
+        switch equipment {
+        case "barbell":    return "BB"
+        case "dumbbell":   return "DB"
+        case "cable":      return "Cable"
+        case "machine":    return "Machine"
+        case "bodyweight": return "BW"
+        default:           return equipment
+        }
+    }
+
+    /// Bilingual category label. We keep the English label as the
+    /// dictionary key (matching the JS) and translate only for display.
+    private func localizedCategory(_ label: String) -> String {
+        if !ar { return label }
+        switch label {
+        case "Chest":               return "صدر"
+        case "Front Shoulders":     return "كتف أمامي"
+        case "Side Shoulders":      return "كتف جانبي"
+        case "Rear Shoulders":      return "كتف خلفي"
+        case "Back Width":          return "عرض الظهر"
+        case "Back Thickness":      return "سمك الظهر"
+        case "Biceps":              return "بايسبس"
+        case "Triceps":             return "ترايسبس"
+        case "Quads":               return "أمامية الفخذ"
+        case "Hamstrings & Glutes": return "خلفية الفخذ والمؤخرة"
+        case "Calves":              return "السمانة"
+        case "Core":                return "البطن"
+        default:                    return label
+        }
+    }
+}

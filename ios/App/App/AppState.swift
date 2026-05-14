@@ -237,6 +237,68 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Replace one exercise in the active programme with a different one
+    /// from the library (typically picked from ExercisePickerSheet) and
+    /// persist the resulting programme. Indices come from ProgrammePage,
+    /// which threads (weekIdx, sessionIdx, exerciseIdx) through its rows.
+    ///
+    /// The replacement preserves the user's sets/reps/RPE/notes/weight
+    /// (except the weight resets when the swap is to a bodyweight move)
+    /// and updates the tag from the library's `isMain` flag.
+    func swapExercise(weekIdx: Int,
+                      sessionIdx: Int,
+                      exerciseIdx: Int,
+                      replacement: ProgrammeBuilder.LibraryExercise) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        guard sessionIdx < week.sessions.count else { return }
+        var session = week.sessions[sessionIdx]
+        guard exerciseIdx < session.exercises.count else { return }
+
+        let old = session.exercises[exerciseIdx]
+        let newWeight: Double? = replacement.bodyweight ? nil : (old.weight ?? 20)
+        let newTag: String = replacement.isMain ? "compound" : "accessory"
+        let swappedNotes: String? = {
+            let prefix = old.notes.flatMap { $0.isEmpty ? nil : "\($0) · " } ?? ""
+            return "\(prefix)Swapped from \(old.name)"
+        }()
+
+        session.exercises[exerciseIdx] = Exercise(
+            name:   replacement.name,
+            tag:    newTag,
+            sets:   old.sets,
+            reps:   old.reps,
+            weight: newWeight,
+            rpe:    old.rpe,
+            notes:  swappedNotes
+        )
+        week.sessions[sessionIdx] = session
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+
+        // Reflect the swap in `currentSession` too, so the Train tab
+        // refreshes if the user happens to be looking at the swapped
+        // session right now.
+        if let cur = currentSession,
+           cur.programmeId == programme.id,
+           cur.name == session.name,
+           var d = cur.data {
+            d.exercises = session.exercises
+            var updated = cur
+            updated.data = d
+            currentSession = updated
+        }
+
+        do {
+            try await SupabaseManager.shared.upsertProgramme(programme)
+        } catch {
+            print("[AppState] swapExercise persist failed:", error)
+        }
+    }
+
     /// Pick today's session (or the first one as fallback) from the active
     /// programme and stage it as `currentSession`, ready to be logged on
     /// the Train tab. No-op when there's no active programme yet.

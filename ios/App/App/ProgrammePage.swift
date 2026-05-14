@@ -17,6 +17,19 @@ struct ProgrammePage: View {
     @State private var expanded: Set<String> = []
     /// Selected week tab in imported mode (defaults to week 1).
     @State private var importedTab: Int = 1
+    /// Set when the user taps an exercise's swap chevron. Drives the
+    /// ExercisePickerSheet via .sheet(item:).
+    @State private var swapContext: SwapContext?
+
+    /// Identifies a single exercise slot in the active programme so the
+    /// picker callback knows where to write the replacement.
+    private struct SwapContext: Identifiable {
+        let id = UUID()
+        let weekIdx: Int
+        let sessionIdx: Int
+        let exerciseIdx: Int
+        let currentName: String
+    }
 
     private var ar: Bool { app.language == "ar" }
 
@@ -49,6 +62,21 @@ struct ProgrammePage: View {
         }
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(item: $swapContext) { ctx in
+            ExercisePickerSheet(currentName: ctx.currentName) { picked in
+                Task {
+                    await app.swapExercise(
+                        weekIdx: ctx.weekIdx,
+                        sessionIdx: ctx.sessionIdx,
+                        exerciseIdx: ctx.exerciseIdx,
+                        replacement: picked
+                    )
+                }
+            }
+            .environmentObject(app)
+            .presentationDetents([.fraction(0.82), .large])
+            .presentationDragIndicator(.hidden)
+        }
     }
 
     // MARK: - Top bar
@@ -178,7 +206,9 @@ struct ProgrammePage: View {
             ForEach(Array(week.sessions.enumerated()), id: \.offset) { idx, session in
                 sessionCard(session: session,
                             keyPrefix: "auto_\(idx)",
-                            isToday: session.name == app.currentSession?.name)
+                            isToday: session.name == app.currentSession?.name,
+                            weekIdx: 0,
+                            sessionIdx: idx)
             }
         }
 
@@ -276,11 +306,14 @@ struct ProgrammePage: View {
             .foregroundColor(HexTheme.dim)
             .padding(.bottom, 10)
 
+        let activeWeekIdx = weeks.firstIndex(where: { $0.weekNumber == activeWeek.weekNumber }) ?? 0
         VStack(spacing: 10) {
             ForEach(Array(activeWeek.sessions.enumerated()), id: \.offset) { idx, session in
                 sessionCard(session: session,
                             keyPrefix: "imp_w\(activeWeek.weekNumber)_\(session.day)",
-                            isToday: session.name == app.currentSession?.name)
+                            isToday: session.name == app.currentSession?.name,
+                            weekIdx: activeWeekIdx,
+                            sessionIdx: idx)
             }
         }
 
@@ -311,7 +344,9 @@ struct ProgrammePage: View {
 
     private func sessionCard(session: ProgrammeSession,
                              keyPrefix: String,
-                             isToday: Bool) -> some View {
+                             isToday: Bool,
+                             weekIdx: Int,
+                             sessionIdx: Int) -> some View {
         let isExpanded = expanded.contains(keyPrefix) || isToday
         return VStack(spacing: 0) {
             // Header (tap to expand/collapse)
@@ -369,8 +404,11 @@ struct ProgrammePage: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 8)
 
-                    ForEach(Array(session.exercises.enumerated()), id: \.offset) { _, ex in
-                        exerciseRow(ex)
+                    ForEach(Array(session.exercises.enumerated()), id: \.offset) { exIdx, ex in
+                        exerciseRow(ex,
+                                    weekIdx: weekIdx,
+                                    sessionIdx: sessionIdx,
+                                    exerciseIdx: exIdx)
                     }
                 }
                 .padding(.horizontal, 14)
@@ -398,31 +436,44 @@ struct ProgrammePage: View {
 
     // MARK: - Exercise row
 
-    private func exerciseRow(_ ex: Exercise) -> some View {
+    private func exerciseRow(_ ex: Exercise,
+                             weekIdx: Int,
+                             sessionIdx: Int,
+                             exerciseIdx: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Name row (with tag pill + swap chevron — visual only)
-            HStack(spacing: 6) {
-                if let tag = ex.tag {
-                    Text(tag.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundColor(tag == "compound" ? HexTheme.accent : HexTheme.mute)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(HexTheme.surface)
-                        )
+            // Name row — tapping anywhere on it opens the swap picker.
+            Button {
+                swapContext = SwapContext(
+                    weekIdx: weekIdx,
+                    sessionIdx: sessionIdx,
+                    exerciseIdx: exerciseIdx,
+                    currentName: ex.name
+                )
+            } label: {
+                HStack(spacing: 6) {
+                    if let tag = ex.tag {
+                        Text(tag.uppercased())
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundColor(tag == "compound" ? HexTheme.accent : HexTheme.mute)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(HexTheme.surface)
+                            )
+                    }
+                    Text(ex.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HexTheme.text)
+                        .lineLimit(1)
+                        .underlineDashed()
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(HexTheme.mute)
+                    Spacer()
                 }
-                Text(ex.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(HexTheme.text)
-                    .lineLimit(1)
-                    .underlineDashed()
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(HexTheme.mute)
-                Spacer()
             }
+            .buttonStyle(.plain)
 
             // Sets · Reps · Weight · RPE
             HStack(spacing: 14) {
