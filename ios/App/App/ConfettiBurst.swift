@@ -20,7 +20,7 @@ struct ConfettiBurst: View {
     private static let count = 30
 
     /// Pre-randomised piece definitions for one burst.
-    private struct Piece: Identifiable {
+    fileprivate struct Piece: Identifiable {
         let id = UUID()
         let dx: CGFloat
         let dy: CGFloat

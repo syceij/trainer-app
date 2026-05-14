@@ -581,8 +581,8 @@ struct AccountView: View {
             let path = "\(uid.uuidString)/\(Int(Date().timeIntervalSince1970)).jpg"
             _ = try await SupabaseManager.shared.client.storage
                 .from("avatars")
-                .upload(path: path,
-                        file: jpeg,
+                .upload(path,
+                        data: jpeg,
                         options: FileOptions(contentType: "image/jpeg", upsert: true))
             // 4) Build the public URL
             let publicURL = try SupabaseManager.shared.client.storage

@@ -51,8 +51,13 @@ final class RealtimeSync {
             table: "activity_feed"
         )
 
-        await ch.subscribe()
-        print("[RealtimeSync] subscribed (uid=\(uid))")
+        do {
+            try await ch.subscribeWithError()
+            print("[RealtimeSync] subscribed (uid=\(uid))")
+        } catch {
+            print("[RealtimeSync] subscribe failed:", error)
+            return
+        }
 
         listenerTasks = [
             Task { [weak self] in
