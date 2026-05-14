@@ -5,6 +5,7 @@ import SwiftUI
 /// badge, stats grid, and a "View full programme" link.
 struct HomeView: View {
     @EnvironmentObject var app: AppState
+    @State private var showProgramme = false
 
     private var ar: Bool { app.language == "ar" }
 
@@ -66,6 +67,10 @@ struct HomeView: View {
         .scrollContentBackground(.hidden)
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $showProgramme) {
+            ProgrammeModalView()
+                .environmentObject(app)
+        }
     }
 
     // MARK: - Pieces
@@ -156,7 +161,7 @@ struct HomeView: View {
 
     private var programmeLink: some View {
         Button {
-            // TODO: navigate to programme view
+            showProgramme = true
         } label: {
             HStack {
                 Text(ar ? "عرض البرنامج كاملاً" : "View full programme")

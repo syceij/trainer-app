@@ -38,6 +38,7 @@ struct AccountView: View {
                 VStack(spacing: 10) {
                     buildProgrammeRow
                     importProgrammeRow
+                    calendarRow
                 }
                 .padding(.bottom, 24)
 
@@ -251,6 +252,43 @@ struct AccountView: View {
                     Text(ar
                          ? "٧ خطوات · مولّد تلقائياً"
                          : "7-step setup · auto-generated")
+                        .font(.system(size: 11))
+                        .foregroundColor(HexTheme.mute)
+                }
+                Spacer()
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Calendar shortcut
+
+    private var calendarRow: some View {
+        NavigationLink {
+            CalendarView()
+        } label: {
+            HStack(spacing: 14) {
+                iconBox(name: "calendar", accent: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ar ? "تقويم التمارين" : "Workout calendar")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HexTheme.text)
+                    Text(ar
+                         ? "اعرض شهرك في لمحة"
+                         : "See your month at a glance")
                         .font(.system(size: 11))
                         .foregroundColor(HexTheme.mute)
                 }
