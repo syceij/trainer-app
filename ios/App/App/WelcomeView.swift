@@ -1,92 +1,158 @@
 import SwiftUI
 
-/// Onboarding choice screen, shown the first time after sign-in if the user
-/// has no active programme. Three options: build, manual, import.
+/// Welcome / onboarding-choice screen — mirrors WelcomeScreen.jsx.
+/// Logo image, headline with accent split, three CTAs, footer.
 struct WelcomeView: View {
+    @EnvironmentObject var app: AppState
 
     let onBuild:  () -> Void
     let onManual: () -> Void
     let onImport: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 0) {
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("HEX")
-                    .font(.system(size: 56, weight: .heavy, design: .rounded))
+            // ── Logo + top-right sign out ─────────────────────────
+            ZStack(alignment: .topTrailing) {
+                HStack {
+                    Spacer()
+                    Image("HexLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 120)
+                    Spacer()
+                }
+
+                Button {
+                    Task { await app.signOut() }
+                } label: {
+                    Text(app.language == "ar" ? "تسجيل الخروج" : "Sign out")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundStyle(HexTheme.mute)
+                }
+            }
+            .padding(.bottom, 48)
+
+            // ── Headline ──────────────────────────────────────────
+            (
+                Text(app.language == "ar" ? "قوّتك. " : "Your strength. ")
+                    .foregroundStyle(HexTheme.text)
+                + Text(app.language == "ar" ? "موثّقة." : "Tracked.")
                     .foregroundStyle(HexTheme.accent)
-                Text("Your strength. Tracked.")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(HexTheme.textMuted)
+            )
+            .font(.system(size: 36, weight: .heavy))
+            .lineSpacing(2)
+            .padding(.bottom, 16)
+
+            Text(app.language == "ar"
+                 ? "ابنِ برنامجك، سجّل تمارينك، تحكّم."
+                 : "Build your programme, log your sessions, dominate.")
+                .font(.system(size: 16))
+                .foregroundStyle(HexTheme.dim)
+                .lineSpacing(4)
+                .padding(.bottom, 36)
+
+            // ── CTAs ──────────────────────────────────────────────
+            VStack(spacing: 10) {
+                ctaButton(
+                    title:    app.language == "ar" ? "ابنِ برنامجي" : "Build my programme",
+                    subtitle: app.language == "ar"
+                        ? "٧ خطوات · مولّد تلقائياً"
+                        : "7-step setup · auto-generated",
+                    icon: "bolt.fill",
+                    primary: true,
+                    action: onBuild
+                )
+                ctaButton(
+                    title:    app.language == "ar" ? "بناء يدوي" : "Build manually",
+                    subtitle: app.language == "ar"
+                        ? "٦ خطوات · قابل للتخصيص"
+                        : "6-step wizard · fully customisable",
+                    icon: "pencil.line",
+                    primary: false,
+                    action: onManual
+                )
+                ctaButton(
+                    title:    app.language == "ar"
+                        ? "استيراد برنامج موجود"
+                        : "Import existing programme",
+                    subtitle: app.language == "ar"
+                        ? "الصق JSON · دعم متعدد الأسابيع"
+                        : "Paste JSON · multi-week support",
+                    icon: "doc.text",
+                    primary: false,
+                    action: onImport
+                )
             }
-            .padding(.top, 40)
 
-            Spacer()
+            Spacer(minLength: 40)
 
-            VStack(spacing: 12) {
-                option(title: "Build my programme",
-                       subtitle: "Answer a few questions and we'll generate one.",
-                       icon: "sparkles",
-                       primary: true,
-                       action: onBuild)
-                option(title: "Build manually",
-                       subtitle: "Pick exercises, sets, reps yourself.",
-                       icon: "slider.horizontal.3",
-                       primary: false,
-                       action: onManual)
-                option(title: "Import existing programme",
-                       subtitle: "Paste a JSON / spreadsheet you already use.",
-                       icon: "tray.and.arrow.down",
-                       primary: false,
-                       action: onImport)
-            }
-
-            Spacer()
+            // ── Footer ────────────────────────────────────────────
+            Text(app.language == "ar"
+                 ? "بياناتك تتزامن عبر جميع الأجهزة"
+                 : "YOUR DATA SYNCS ACROSS DEVICES")
+                .font(.system(size: 11, weight: .heavy))
+                .kerning(app.language == "ar" ? 0 : 1.2)
+                .foregroundStyle(HexTheme.mute)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
         }
-        .padding(.horizontal, HexTheme.padBase)
+        .padding(.horizontal, 24)
+        .padding(.top, 48)
+        .padding(.bottom, 40)
+        .frame(maxWidth: 460)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .hexBackground()
     }
 
+    // MARK: - CTA button
+
     @ViewBuilder
-    private func option(title: String,
-                        subtitle: String,
-                        icon: String,
-                        primary: Bool,
-                        action: @escaping () -> Void) -> some View {
+    private func ctaButton(
+        title: String,
+        subtitle: String,
+        icon: String,
+        primary: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(primary ? Color.black.opacity(0.15) : HexTheme.accent.opacity(0.14))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(primary ? .black : HexTheme.accent)
-                }
+            HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 16, weight: .heavy))
                         .foregroundStyle(primary ? .black : HexTheme.text)
                     Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundStyle(primary ? Color.black.opacity(0.65) : HexTheme.textMuted)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(primary
+                                         ? Color.black.opacity(0.7)
+                                         : HexTheme.dim)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(primary ? .black.opacity(0.5) : HexTheme.textMuted)
+                Spacer(minLength: 12)
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: primary ? .heavy : .semibold))
+                    .foregroundStyle(primary ? .black : HexTheme.dim)
             }
-            .padding(14)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: HexTheme.cornerCard, style: .continuous)
-                    .fill(primary ? HexTheme.accent : HexTheme.card)
+                    .fill(primary ? HexTheme.accent : HexTheme.surface2)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: HexTheme.cornerCard, style: .continuous)
-                    .stroke(primary ? Color.clear : HexTheme.cardBorder, lineWidth: 1)
+                    .stroke(primary ? Color.clear : HexTheme.border, lineWidth: 1.5)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(WelcomeCTAButtonStyle())
+    }
+}
+
+/// Press feedback: scale-down on tap.
+private struct WelcomeCTAButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }

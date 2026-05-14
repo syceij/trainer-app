@@ -1,125 +1,197 @@
 import SwiftUI
 
-/// 6-digit OTP verification screen. Individual boxes with auto-advance.
+/// 6-digit OTP verification — mirrors OtpView in src/components/AuthScreen.jsx.
 struct OTPView: View {
     @EnvironmentObject var app: AppState
 
     let email: String
 
     @State private var digits: [String] = Array(repeating: "", count: 6)
-    @State private var isLoading = false
+    @State private var isLoading   = false
     @State private var isResending = false
+    @State private var resentOk    = false
     @State private var errorMsg: String?
     @FocusState private var focusedIndex: Int?
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(alignment: .leading, spacing: 0) {
 
-                VStack(spacing: 8) {
-                    Text("Check your email")
-                        .font(.system(size: 28, weight: .heavy))
-                        .foregroundStyle(HexTheme.text)
-                    Text("We sent a 6-digit code to")
-                        .font(.system(size: 14))
-                        .foregroundStyle(HexTheme.textMuted)
-                    Text(email)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HexTheme.accent)
+                // ── Back button ───────────────────────────────────
+                Button {
+                    Task { await app.cancelOTP() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: app.language == "ar"
+                              ? "arrow.right" : "arrow.left")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(app.language == "ar" ? "رجوع" : "Back")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(HexTheme.dim)
                 }
-                .padding(.top, 32)
-                .padding(.horizontal, HexTheme.padBase)
+                .padding(.bottom, 32)
 
-                HStack(spacing: 10) {
+                // ── Logo (hides when keyboard is up) ──────────────
+                if focusedIndex == nil {
+                    HStack {
+                        Spacer()
+                        Image("LoginLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 160)
+                        Spacer()
+                    }
+                    .padding(.bottom, 32)
+                    .transition(.opacity)
+                }
+
+                Text(app.language == "ar"
+                     ? "تحقق من بريدك الإلكتروني"
+                     : "Check your email")
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundStyle(HexTheme.text)
+                    .padding(.bottom, 8)
+
+                (
+                    Text(app.language == "ar"
+                         ? "أدخل الرمز المكوّن من ٦ أرقام المُرسَل إلى "
+                         : "Enter the 6-digit code sent to ")
+                        .foregroundStyle(HexTheme.dim)
+                    + Text(email)
+                        .foregroundStyle(HexTheme.text)
+                        .fontWeight(.heavy)
+                )
+                .font(.system(size: 14))
+                .lineSpacing(4)
+                .padding(.bottom, 28)
+
+                if let err = errorMsg {
+                    HexErrorBanner(msg: err)
+                        .padding(.bottom, 16)
+                }
+
+                // ── 6 digit boxes ─────────────────────────────────
+                HStack(spacing: 8) {
                     ForEach(0..<6, id: \.self) { i in
                         otpBox(at: i)
                     }
                 }
-                .padding(.horizontal, HexTheme.padBase)
+                .padding(.bottom, 28)
 
-                if let err = errorMsg {
-                    Text(err)
-                        .font(.system(size: 13))
-                        .foregroundStyle(HexTheme.danger)
-                        .padding(.horizontal, HexTheme.padBase)
-                }
-
+                // ── Verify button ─────────────────────────────────
                 Button(action: verify) {
                     if isLoading {
-                        ProgressView().tint(.black)
+                        ProgressView().tint(HexTheme.mute)
                     } else {
-                        Text("Verify")
+                        Text(app.language == "ar" ? "تحقق" : "Verify")
                     }
                 }
-                .buttonStyle(HexPrimaryButton())
-                .disabled(isLoading || code.count != 6)
-                .padding(.horizontal, HexTheme.padBase)
+                .buttonStyle(HexPrimaryButton(
+                    disabled: !filled || isLoading
+                ))
+                .disabled(!filled || isLoading)
 
-                Button(action: resend) {
-                    if isResending {
-                        ProgressView().tint(HexTheme.accent)
-                    } else {
-                        Text("Resend code")
-                            .foregroundStyle(HexTheme.accent)
+                // ── Resend ────────────────────────────────────────
+                VStack(spacing: 8) {
+                    if resentOk {
+                        Text(app.language == "ar" ? "تم إعادة الإرسال ✓" : "Code resent ✓")
+                            .font(.system(size: 12))
+                            .foregroundStyle(HexTheme.success)
+                            .transition(.opacity)
                     }
+                    Button(action: resend) {
+                        HStack(spacing: 6) {
+                            if isResending {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .tint(HexTheme.mute)
+                                Text(app.language == "ar" ? "جارٍ الإرسال…" : "Sending…")
+                                    .foregroundStyle(HexTheme.mute)
+                            } else {
+                                Text(app.language == "ar" ? "إعادة إرسال الرمز" : "Resend code")
+                                    .foregroundStyle(HexTheme.accent)
+                            }
+                        }
+                        .font(.system(size: 13, weight: .heavy))
+                    }
+                    .disabled(isResending)
                 }
-                .font(.system(size: 14, weight: .semibold))
-                .disabled(isResending)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 20)
+                .animation(.easeInOut(duration: 0.2), value: resentOk)
 
                 Spacer(minLength: 40)
             }
+            .padding(.horizontal, 28)
+            .padding(.top, 20)
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity)
+            .animation(.easeInOut(duration: 0.22), value: focusedIndex == nil)
         }
-        .hexBackground()
+        .scrollDismissesKeyboard(.interactively)
+        .hexAuthBackground()
         .navigationBarHidden(true)
         .onAppear { focusedIndex = 0 }
     }
 
     // MARK: - One digit box
 
+    @ViewBuilder
     private func otpBox(at i: Int) -> some View {
         TextField("", text: Binding(
             get: { digits[i] },
             set: { newValue in
                 let filtered = newValue.filter(\.isNumber)
+                if filtered.count >= 6 {
+                    // user pasted full code
+                    for (j, ch) in filtered.prefix(6).enumerated() {
+                        digits[j] = String(ch)
+                    }
+                    focusedIndex = nil
+                    return
+                }
                 if filtered.count <= 1 {
                     digits[i] = filtered
                     if !filtered.isEmpty && i < 5 {
                         focusedIndex = i + 1
                     } else if filtered.isEmpty && i > 0 {
-                        // user deleted — go back
                         focusedIndex = i - 1
                     }
-                } else if filtered.count == 6 {
-                    // user pasted full code
-                    for (j, ch) in filtered.enumerated() where j < 6 {
-                        digits[j] = String(ch)
-                    }
-                    focusedIndex = nil
+                    errorMsg = nil
                 }
             }
         ))
         .keyboardType(.numberPad)
+        .textContentType(.oneTimeCode)
         .multilineTextAlignment(.center)
-        .font(.system(size: 22, weight: .bold).monospacedDigit())
+        .font(.system(size: 24, weight: .heavy).monospacedDigit())
         .foregroundStyle(HexTheme.text)
-        .frame(width: 48, height: 56)
+        .frame(maxWidth: 52)
+        .frame(height: 58)
         .background(
-            RoundedRectangle(cornerRadius: HexTheme.cornerCard, style: .continuous)
-                .fill(HexTheme.card)
+            RoundedRectangle(cornerRadius: HexTheme.cornerInput, style: .continuous)
+                .fill(HexTheme.surface2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: HexTheme.cornerCard, style: .continuous)
-                .stroke(focusedIndex == i ? HexTheme.accent : HexTheme.cardBorder,
-                        lineWidth: focusedIndex == i ? 2 : 1)
+            RoundedRectangle(cornerRadius: HexTheme.cornerInput, style: .continuous)
+                .stroke(borderColor(for: i), lineWidth: 1.5)
         )
         .focused($focusedIndex, equals: i)
     }
 
+    private func borderColor(for i: Int) -> Color {
+        if focusedIndex == i { return HexTheme.accent }
+        return digits[i].isEmpty ? HexTheme.border : HexTheme.accent
+    }
+
     private var code: String { digits.joined() }
+    private var filled: Bool { digits.allSatisfy { !$0.isEmpty } }
 
     // MARK: - Actions
 
     private func verify() {
+        focusedIndex = nil
         Task {
             isLoading = true
             errorMsg  = nil
@@ -127,7 +199,16 @@ struct OTPView: View {
             do {
                 try await app.verifyOTP(email: email, token: code)
             } catch {
-                errorMsg = error.localizedDescription
+                let lower = error.localizedDescription.lowercased()
+                if lower.contains("expired") {
+                    errorMsg = app.language == "ar"
+                        ? "انتهت صلاحية الرمز. اضغط إعادة الإرسال."
+                        : "Code expired. Tap Resend to get a new one."
+                } else {
+                    errorMsg = app.language == "ar"
+                        ? "رمز غير صالح. يرجى المحاولة مجدداً."
+                        : "Invalid code. Please try again."
+                }
             }
         }
     }
@@ -135,11 +216,14 @@ struct OTPView: View {
     private func resend() {
         Task {
             isResending = true
-            errorMsg = nil
+            resentOk    = false
+            errorMsg    = nil
             defer { isResending = false }
             do {
                 try await app.resendOTP(email: email)
-                app.showToast("Code resent")
+                resentOk = true
+                digits = Array(repeating: "", count: 6)
+                focusedIndex = 0
             } catch {
                 errorMsg = error.localizedDescription
             }

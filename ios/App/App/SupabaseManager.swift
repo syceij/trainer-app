@@ -46,6 +46,34 @@ final class SupabaseManager {
         try await client.auth.signIn(email: email, password: password)
     }
 
+    /// Look up the email stored on a profile row by username. Returns nil if
+    /// no row matches. Used so users can sign in with either email or username.
+    func emailForUsername(_ username: String) async throws -> String? {
+        struct Row: Decodable { let email: String? }
+        let rows: [Row] = try await client
+            .from("profiles")
+            .select("email")
+            .eq("username", value: username.lowercased())
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.email
+    }
+
+    /// Check whether a username is already taken. Used for real-time
+    /// availability hint on the signup screen.
+    func isUsernameTaken(_ username: String) async throws -> Bool {
+        struct Row: Decodable { let id: UUID }
+        let rows: [Row] = try await client
+            .from("profiles")
+            .select("id")
+            .eq("username", value: username.lowercased())
+            .limit(1)
+            .execute()
+            .value
+        return !rows.isEmpty
+    }
+
     /// Sign up with email + password. Optionally pass extra metadata
     /// (name, username) that gets stored on the auth user.
     func signUp(

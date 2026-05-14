@@ -48,12 +48,15 @@ struct ContentView: View {
     }
 
     private var splash: some View {
-        VStack(spacing: 16) {
-            Text("HEX")
-                .font(.system(size: 48, weight: .heavy, design: .rounded))
-                .foregroundStyle(HexTheme.accent)
+        VStack(spacing: 24) {
+            Image("HexLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 120)
             ProgressView()
                 .tint(HexTheme.accent)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .hexBackground()
     }
 }
