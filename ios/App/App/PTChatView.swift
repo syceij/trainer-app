@@ -279,17 +279,36 @@ struct PTChatView: View {
         input = ""
         isTyping = true
 
-        // Simulated reply — replace with Claude API call
+        // Build a Context from AppState — read-only slice the matcher uses.
+        let ctx = PTReplies.Context(
+            bodyweight:          nil,   // bodyweight isn't persisted yet
+            currentSession:      app.currentSession,
+            activeProgrammeName: app.activeProgramme?.name,
+            programmeWeeks:      app.activeProgramme?.data?.weeks ?? [],
+            history:             app.workoutHistory,
+            workingWeights:      app.workingWeights
+        )
+        // Generate reply on a background hop, then apply any mutations.
         Task {
-            try? await Task.sleep(nanoseconds: UInt64.random(in: 600_000_000...1_200_000_000))
+            try? await Task.sleep(nanoseconds: UInt64.random(in: 400_000_000...800_000_000))
+            let reply = PTReplies.reply(to: trimmed, ctx: ctx)
             await MainActor.run {
                 isTyping = false
-                messages.append(.init(
-                    role: .assistant,
-                    text: ar
-                        ? "تم. (الردود الذكية قادمة قريباً.)"
-                        : "Got it. (Smart replies coming soon.)"
-                ))
+                messages.append(.init(role: .assistant, text: reply.text))
+                applyMutations(reply.mutations)
+                if let toast = reply.toast { app.toast = toast }
+            }
+        }
+    }
+
+    /// Translate PTReplies mutation enums into AppState calls.
+    private func applyMutations(_ mutations: [PTReplies.Mutation]) {
+        for m in mutations {
+            switch m {
+            case .lighterToday:
+                app.scaleCurrentSessionWeights(by: 0.9)
+            case .bumpLift(let name, let deltaKg):
+                Task { await app.bumpLiftInCurrentSession(name: name, deltaKg: deltaKg) }
             }
         }
     }

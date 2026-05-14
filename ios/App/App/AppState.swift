@@ -27,6 +27,10 @@ final class AppState: ObservableObject {
     /// `finishWorkout(_:sets:)` call.
     @Published var workoutHistory: [WorkoutSession] = []
 
+    /// Cached working-weights map (exercise key/name → current weight in kg).
+    /// Used by PT chat for the "current lifts" snapshot.
+    @Published var workingWeights: [String: Double] = [:]
+
     // MARK: - Social state (friends / requests / activity)
 
     @Published var friends: [FriendListEntry] = []
@@ -656,6 +660,64 @@ final class AppState: ObservableObject {
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             if toast == msg { toast = nil }
+        }
+    }
+
+    // MARK: - PT-driven session mutations
+
+    /// Scale every exercise's weight in `currentSession` by `factor`, rounded
+    /// to nearest 0.5 kg. Mirrors React's "lighter today" handler.
+    func scaleCurrentSessionWeights(by factor: Double) {
+        guard var session = currentSession,
+              var data = session.data else { return }
+        data.exercises = data.exercises.map { ex in
+            var copy = ex
+            if let w = ex.weight {
+                let scaled = (w * factor * 2.0).rounded() / 2.0
+                copy.weight = scaled
+            }
+            return copy
+        }
+        session.data = data
+        currentSession = session
+    }
+
+    /// Add `deltaKg` to the matching exercise in the current session (by
+    /// name or library-key heuristic).  Persists no DB writes — the change
+    /// lives in `currentSession` only until the user finishes the workout.
+    func bumpLiftInCurrentSession(name: String, deltaKg: Double) async {
+        guard var session = currentSession,
+              var data = session.data else { return }
+        let key = name.lowercased()
+        data.exercises = data.exercises.map { ex in
+            var copy = ex
+            // Match by exercise name substring OR canonical-key alias
+            if ex.name.lowercased().contains(key)
+                || liftKeyMatches(ex.name, key: key)
+            {
+                let curr = ex.weight ?? 0
+                copy.weight = max(0, curr + deltaKg)
+            }
+            return copy
+        }
+        session.data = data
+        currentSession = session
+        // Also reflect the bump in workingWeights so the chat-side snapshot
+        // stays in sync until the next finishWorkout cycle.
+        workingWeights[key] = (workingWeights[key] ?? 0) + deltaKg
+    }
+
+    /// Lightweight alias matcher — turns "bench" into a match for
+    /// "Barbell Bench Press" etc. Backed by the canonical exercise library.
+    private func liftKeyMatches(_ exerciseName: String, key: String) -> Bool {
+        let needle = exerciseName.lowercased()
+        switch key {
+        case "bench":    return needle.contains("bench")
+        case "squat":    return needle.contains("squat")
+        case "deadlift": return needle.contains("deadlift")
+        case "ohp":      return needle.contains("overhead") || needle.contains("ohp") || needle.contains("press")
+        case "row":      return needle.contains("row")
+        default:         return false
         }
     }
 }
