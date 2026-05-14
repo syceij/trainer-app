@@ -1,52 +1,78 @@
 import SwiftUI
 
-/// Progress tab — visual scaffold matching src/components/ProgressTab.jsx.
-/// Tracked lifts grid, muscle progress chart placeholder, and "add" CTAs.
-/// Real history-driven data wiring comes in a later pass.
+/// Progress tab — full port of src/components/ProgressTab.jsx.
+///
+/// Layout, top to bottom:
+///   • "Progress" header (no subtitle — React doesn't have one).
+///   • 2×2 tracked-lifts grid — slots come from `profiles.tracked_lifts`
+///     so picks made on iOS surface on the web and vice versa.
+///   • "View Gym Calendar" pill (navigates to CalendarView).
+///   • "MOST IMPROVED" exercise list — top 4 by absolute kg delta;
+///     hidden when there's no improvement yet, matching React.
+///   • Muscle-progress chart (6 bars) with the "MOST IMPROVED / NEEDS
+///     WORK" stats card pair under it.
+///   • "HISTORY" expandable session list.
+///
+/// All sources of truth are Supabase — the workoutHistory, profile,
+/// working_weights, and tracked lifts are loaded by AppState and read
+/// here without any local-only mutations.
 struct ProgressTabView: View {
     @EnvironmentObject var app: AppState
 
-    @State private var showLiftPicker = false
-    @State private var pickedLift: String? = nil
+    // Picker state — when not nil, the ExercisePickerSheet opens and any
+    // selection writes back to that specific slot.
+    @State private var pickerSlot: Int? = nil
+
+    // Action-sheet state — when not nil, the confirmation dialog opens
+    // for that filled slot with "Change exercise" / "View progress".
+    @State private var actionSheetSlot: Int? = nil
+
+    // Set after the user taps "View progress" — drives the
+    // navigationDestination to ExerciseLiftPage.
+    @State private var viewingLiftName: String? = nil
+
+    // History row expansion (one open at a time, like React).
+    @State private var expandedSessionId: UUID? = nil
 
     private var ar: Bool { app.language == "ar" }
+
+    // MARK: - Body
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
 
                 // ── Header ────────────────────────────────────────
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(ar ? "تقدمك" : "Progress")
-                        .font(.system(size: 26, weight: .heavy))
-                        .kerning(ar ? 0 : -0.5)
-                        .foregroundColor(HexTheme.text)
-                    Text(ar
-                         ? "تابع تطورك أسبوعاً بعد أسبوع"
-                         : "Track your gains week over week")
-                        .font(.system(size: 13))
-                        .foregroundColor(HexTheme.dim)
-                }
-                .padding(.bottom, 24)
+                Text(ar ? "تقدمك" : "Progress")
+                    .font(.system(size: 26, weight: .heavy))
+                    .kerning(ar ? 0 : -0.5)
+                    .foregroundColor(HexTheme.text)
+                    .padding(.bottom, 18)
 
-                // ── Tracked lifts ────────────────────────────────
-                sectionHeader(label: ar ? "أوزانك" : "TRACKED LIFTS",
-                              trailingIcon: "plus.circle.fill")
-                    .padding(.bottom, 10)
-
+                // ── Tracked lifts grid ────────────────────────────
                 liftsGrid
                     .padding(.bottom, 24)
 
-                // ── Muscle progress ──────────────────────────────
-                sectionHeader(label: ar ? "تقدم العضلات" : "MUSCLE PROGRESS",
-                              trailingIcon: nil)
-                    .padding(.bottom, 10)
+                // ── View Gym Calendar pill ────────────────────────
+                calendarPill
+                    .padding(.bottom, 24)
 
+                // ── MOST IMPROVED exercise list (hidden if empty) ──
+                if !mostImprovedExercises.isEmpty {
+                    mostImprovedSection
+                        .padding(.bottom, 24)
+                }
+
+                // ── Muscle progress chart ─────────────────────────
                 muscleProgressCard
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 12)
 
-                // ── Most improved card ───────────────────────────
-                mostImprovedCard
+                // ── Dual MOST IMPROVED / NEEDS WORK stats row ─────
+                muscleStatsRow
+                    .padding(.bottom, 24)
+
+                // ── HISTORY ───────────────────────────────────────
+                historySection
 
                 Spacer(minLength: 100) // room for floating tab bar
             }
@@ -55,151 +81,193 @@ struct ProgressTabView: View {
         }
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
-        .sheet(isPresented: $showLiftPicker) {
-            LiftPickerSheet(
-                allExerciseNames: allLoggedExerciseNames,
-                onPick: { name in
-                    showLiftPicker = false
-                    pickedLift = name
+        // ExercisePickerSheet — opens for a specific slot when pickerSlot
+        // is non-nil. Picking writes through AppState.setTrackedLift.
+        .sheet(isPresented: pickerSlotIsActive) {
+            ExercisePickerSheet(
+                currentName: pickerSlot.flatMap { app.trackedLiftSlots[$0]?.name }
+            ) { lib in
+                if let slot = pickerSlot {
+                    Task {
+                        await app.setTrackedLift(
+                            slot: slot,
+                            lift: TrackedLift(name: lib.name, key: lib.key)
+                        )
+                    }
                 }
-            )
+                pickerSlot = nil
+            }
             .environmentObject(app)
         }
-        .navigationDestination(isPresented: Binding(
-            get: { pickedLift != nil },
-            set: { if !$0 { pickedLift = nil } }
-        )) {
-            if let name = pickedLift {
+        // Action sheet — open when actionSheetSlot is set. Two options:
+        // change the exercise (re-open picker) or view its full history.
+        .confirmationDialog(
+            actionSheetTitle,
+            isPresented: actionSheetIsActive,
+            titleVisibility: .visible
+        ) {
+            Button(ar ? "تغيير التمرين" : "Change exercise") {
+                let slot = actionSheetSlot
+                actionSheetSlot = nil
+                pickerSlot = slot
+            }
+            Button(ar ? "عرض التقدم" : "View progress") {
+                if let slot = actionSheetSlot,
+                   let lift = app.trackedLiftSlots[slot] {
+                    viewingLiftName = lift.name
+                }
+                actionSheetSlot = nil
+            }
+            Button(ar ? "إزالة" : "Remove", role: .destructive) {
+                if let slot = actionSheetSlot {
+                    Task { await app.setTrackedLift(slot: slot, lift: nil) }
+                }
+                actionSheetSlot = nil
+            }
+            Button(ar ? "إلغاء" : "Cancel", role: .cancel) {
+                actionSheetSlot = nil
+            }
+        }
+        // ExerciseLiftPage navigation, driven by viewingLiftName.
+        .navigationDestination(isPresented: viewingLiftIsActive) {
+            if let name = viewingLiftName {
                 ExerciseLiftPage(exerciseName: name)
                     .environmentObject(app)
             }
         }
     }
 
-    /// Every distinct exercise name that's appeared in workout history.
-    /// Used by the lift-picker sheet so the list reflects real data.
-    private var allLoggedExerciseNames: [String] {
-        var seen = Set<String>()
-        var ordered: [String] = []
-        for session in app.workoutHistory {
-            for ex in session.data?.exercises ?? [] {
-                if !seen.contains(ex.name) {
-                    seen.insert(ex.name)
-                    ordered.append(ex.name)
-                }
-            }
-        }
-        return ordered
+    // MARK: - Binding helpers
+
+    private var pickerSlotIsActive: Binding<Bool> {
+        Binding(get: { pickerSlot != nil },
+                set: { if !$0 { pickerSlot = nil } })
+    }
+    private var actionSheetIsActive: Binding<Bool> {
+        Binding(get: { actionSheetSlot != nil },
+                set: { if !$0 { actionSheetSlot = nil } })
+    }
+    private var viewingLiftIsActive: Binding<Bool> {
+        Binding(get: { viewingLiftName != nil },
+                set: { if !$0 { viewingLiftName = nil } })
     }
 
-    // MARK: - Sections
+    private var actionSheetTitle: String {
+        guard let slot = actionSheetSlot,
+              let lift = app.trackedLiftSlots[slot]
+        else { return "" }
+        return lift.name
+    }
 
-    private func sectionHeader(label: String, trailingIcon: String?) -> some View {
-        HStack {
-            Text(label)
+    // MARK: - Tracked lifts grid
+
+    private var liftsGrid: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(ar ? "أوزانك" : "TRACKED LIFTS")
                 .font(.system(size: 10, weight: .heavy))
                 .kerning(ar ? 0 : 0.9)
                 .foregroundColor(HexTheme.dim)
-            Spacer()
-            if let icon = trailingIcon {
-                Button { showLiftPicker = true } label: {
-                    Image(systemName: icon)
-                        .font(.system(size: 18))
-                        .foregroundColor(HexTheme.accent)
-                }
-            }
-        }
-    }
 
-    private var liftsGrid: some View {
-        let lifts = trackedLifts
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
-                                   GridItem(.flexible(), spacing: 10)],
-                         spacing: 10) {
-            ForEach(0..<4, id: \.self) { i in
-                if i < lifts.count {
-                    NavigationLink {
-                        ExerciseLiftPage(exerciseName: lifts[i])
-                            .environmentObject(app)
-                    } label: {
-                        liftCard(name: lifts[i])
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
+                                GridItem(.flexible(), spacing: 10)],
+                      spacing: 10) {
+                ForEach(0..<4, id: \.self) { i in
+                    if let lift = app.trackedLiftSlots[i] {
+                        Button {
+                            actionSheetSlot = i
+                        } label: {
+                            filledLiftCard(lift: lift)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button {
+                            pickerSlot = i
+                        } label: {
+                            emptyLiftCard
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                } else {
-                    liftCard(name: nil)
                 }
             }
         }
     }
 
-    /// Tracked lifts — derived from the user's workout history (top 4 by
-    /// frequency). Mirrors how ProgressTab.jsx picks which lifts to plot.
-    private var trackedLifts: [String] {
-        var counts: [String: Int] = [:]
-        for session in app.workoutHistory {
-            for ex in session.data?.exercises ?? [] {
-                counts[ex.name, default: 0] += 1
+    /// Empty slot: dashed-border placeholder with a "+" and copy CTA.
+    private var emptyLiftCard: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle().fill(HexTheme.surface2)
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(HexTheme.dim)
             }
+            .frame(width: 28, height: 28)
+            .overlay(Circle().stroke(HexTheme.border, lineWidth: 1))
+
+            Text(ar ? "اضغط لإضافة تمرين" : "Tap to add a lift to track")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(HexTheme.mute)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        return counts.sorted { $0.value > $1.value }.prefix(4).map(\.key)
+        .frame(maxWidth: .infinity, minHeight: 100)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(HexTheme.border, style: StrokeStyle(
+                    lineWidth: 1.5, dash: [5, 4]))
+        )
     }
 
-    /// Latest logged weight for a lift name (workoutHistory is newest first).
-    private func currentWeight(for name: String) -> Double? {
-        for session in app.workoutHistory {
-            if let ex = session.data?.exercises.first(where: { $0.name == name }),
-               let w = ex.weight, w > 0 {
-                return w
-            }
-        }
-        return nil
-    }
+    /// Filled slot: uppercase tiny name + big kg value + sparkline polyline.
+    private func filledLiftCard(lift: TrackedLift) -> some View {
+        let weight = resolveWorkingWeight(for: lift)
+        let sparkData = sparklineWeights(for: lift.name)
 
-    /// Up to 8 most-recent weights for the sparkline (oldest → newest).
-    private func sparklineWeights(for name: String) -> [Double] {
-        var out: [Double] = []
-        for session in app.workoutHistory {
-            if let ex = session.data?.exercises.first(where: { $0.name == name }),
-               let w = ex.weight, w > 0 {
-                out.append(w)
-                if out.count >= 8 { break }
-            }
-        }
-        return out.reversed()
-    }
-
-    /// One tracked-lift card. Empty layout (placeholder text + grey bars)
-    /// when `name` is nil — same look as before.
-    @ViewBuilder
-    private func liftCard(name: String?) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(name ?? (ar ? "اختر تمريناً" : "Pick a lift"))
-                    .font(.system(size: 13, weight: .heavy))
-                    .foregroundColor(name == nil ? HexTheme.dim : HexTheme.text)
-                    .lineLimit(1)
-                Spacer()
+        return VStack(alignment: .leading, spacing: 0) {
+            // Name + pencil row
+            HStack(alignment: .top, spacing: 4) {
+                Text(lift.name.uppercased())
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(0.5)
+                    .foregroundColor(HexTheme.dim)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "pencil")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(HexTheme.mute)
             }
+            .padding(.bottom, 6)
 
-            if let name = name, let w = currentWeight(for: name) {
-                Text(formatCardWeight(w))
-                    .font(.system(size: 22, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
-                    .padding(.top, 2)
-            } else {
-                Text("—")
-                    .font(.system(size: 22, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
-                    .padding(.top, 2)
+            // Weight value (or em dash when unknown)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                if let w = weight {
+                    Text(formatWeight(w))
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                    Text("kg")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(HexTheme.dim)
+                } else {
+                    Text("—")
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                }
             }
+            .padding(.bottom, 8)
 
-            sparkline(weights: name.map(sparklineWeights) ?? [])
-                .padding(.top, 4)
+            // Polyline sparkline
+            sparkline(weights: sparkData.isEmpty
+                      ? (weight.map { [$0] } ?? [])
+                      : sparkData)
+                .frame(height: 28)
         }
-        .padding(14)
+        .padding(.horizontal, 13)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -211,44 +279,186 @@ struct ProgressTabView: View {
         )
     }
 
-    /// 8-bar sparkline. Empty data → 8 grey placeholder bars (same look
-    /// as the original placeholder). With data, bars scale to the max.
+    // MARK: - Sparkline (polyline + endpoint dot)
+
+    /// Polyline sparkline matching React's Sparkline component:
+    /// W ≈ container width, H = 28, stroke 1.5, dot r=2.5, accent colour.
+    /// Renders nothing for <2 data points (returns empty space).
     private func sparkline(weights: [Double]) -> some View {
-        let maxBars = 8
-        let maxW = max(weights.max() ?? 1, 1)
-        return HStack(spacing: 3) {
-            ForEach(0..<maxBars, id: \.self) { i in
-                let w = i < weights.count ? weights[i] : nil
-                if let w = w {
-                    Capsule()
-                        .fill(HexTheme.accent)
-                        .frame(width: 3,
-                               height: max(4, CGFloat(w / maxW) * 16))
-                } else {
-                    Capsule()
-                        .fill(HexTheme.border)
-                        .frame(width: 3, height: 16)
+        GeometryReader { geo in
+            if weights.count >= 2 {
+                let w = geo.size.width, h: CGFloat = 28
+                let lo  = weights.min() ?? 0
+                let hi  = weights.max() ?? 1
+                let range = max(hi - lo, 1)
+                let pts: [CGPoint] = weights.enumerated().map { i, v in
+                    let x = CGFloat(i) / CGFloat(weights.count - 1) * w
+                    let y = h - CGFloat((v - lo) / range) * (h - 4) - 2
+                    return CGPoint(x: x, y: y)
+                }
+                ZStack(alignment: .topLeading) {
+                    Path { p in
+                        if let first = pts.first { p.move(to: first) }
+                        for pt in pts.dropFirst() { p.addLine(to: pt) }
+                    }
+                    .stroke(HexTheme.accent, style: StrokeStyle(
+                        lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+
+                    if let last = pts.last {
+                        Circle()
+                            .fill(HexTheme.accent)
+                            .frame(width: 5, height: 5)
+                            .position(x: last.x, y: last.y)
+                    }
+                }
+            } else {
+                // <2 points — just an empty band, matches React's blank div.
+                Color.clear
+            }
+        }
+    }
+
+    // MARK: - Calendar pill
+
+    private var calendarPill: some View {
+        NavigationLink {
+            CalendarView().environmentObject(app)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(HexTheme.accent)
+                Text(ar ? "عرض التقويم" : "View Gym Calendar")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(HexTheme.text)
+                Spacer()
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - MOST IMPROVED exercise list
+
+    /// Top 4 weighted exercises by absolute kg delta. Mirrors React's
+    /// `getMostImproved` in ProgressTab.jsx — skip bodyweight, require
+    /// 2+ entries, delta > 0, descending order, take 4.
+    private struct ImprovedExercise: Identifiable, Hashable {
+        let id: String        // exercise key (or lowercased name)
+        let name: String
+        let first: Double
+        let last: Double
+        var delta: Double { last - first }
+        var pct: Int { Int(((last - first) / max(first, 0.0001) * 100).rounded()) }
+    }
+
+    private var mostImprovedExercises: [ImprovedExercise] {
+        struct Entry { var name: String; var entries: [(Date, Double)] = [] }
+        var byKey: [String: Entry] = [:]
+        for session in app.workoutHistory {
+            for ex in session.data?.exercises ?? [] {
+                if ex.bodyweight { continue }
+                guard let w = ex.weight, w > 0 else { continue }
+                let key = ex.key.isEmpty ? ex.name.lowercased() : ex.key
+                var e = byKey[key] ?? Entry(name: ex.name)
+                e.entries.append((session.date, w))
+                byKey[key] = e
+            }
+        }
+        var out: [ImprovedExercise] = []
+        for (key, entry) in byKey where entry.entries.count >= 2 {
+            let sorted = entry.entries.sorted(by: { $0.0 < $1.0 })
+            let first = sorted.first!.1
+            let last  = sorted.last!.1
+            if last - first > 0 {
+                out.append(ImprovedExercise(
+                    id: key, name: entry.name, first: first, last: last
+                ))
+            }
+        }
+        return out
+            .sorted(by: { $0.delta > $1.delta })
+            .prefix(4)
+            .map { $0 }
+    }
+
+    private var mostImprovedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(HexTheme.accent)
+                Text(ar ? "الأكثر تحسناً" : "MOST IMPROVED")
+                    .font(.system(size: 12, weight: .heavy))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.dim)
+            }
+            VStack(spacing: 8) {
+                ForEach(mostImprovedExercises) { item in
+                    improvedRow(item: item)
                 }
             }
         }
-        .frame(height: 16, alignment: .bottom)
     }
 
-    private func formatCardWeight(_ w: Double) -> String {
-        let int = Int(w.rounded())
-        return "\(int) kg"
+    private func improvedRow(item: ImprovedExercise) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name)
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                Text("\(formatWeight(item.first)) kg → \(formatWeight(item.last)) kg")
+                    .font(.system(size: 11))
+                    .foregroundColor(HexTheme.dim)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("+\(formatWeight(item.delta)) kg")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(Color(red: 74/255, green: 222/255, blue: 128/255))
+                Text("+\(item.pct)%")
+                    .font(.system(size: 11))
+                    .foregroundColor(HexTheme.dim)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(HexTheme.border, lineWidth: 1)
+        )
     }
+
+    // MARK: - Muscle progress chart + stats row
 
     private var muscleProgressCard: some View {
-        // Compute stats + derived scaling values once per render so the
-        // 6 ForEach iterations don't each re-walk workoutHistory.
         let stats  = muscleStats
         let maxPct = max(stats.map(\.pct).max() ?? 1, 1)
         let bestId = stats.filter { $0.seen && $0.pct > 0 }
                           .max(by: { $0.pct < $1.pct })?.id
 
-        return VStack(alignment: .leading, spacing: 16) {
-            // 6 muscle group bars — each is a NavigationLink to MusclePage
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(ar ? "تقدم العضلات" : "MUSCLE PROGRESS")
+                .font(.system(size: 12, weight: .heavy))
+                .kerning(ar ? 0 : 0.8)
+                .foregroundColor(HexTheme.dim)
+
             HStack(alignment: .bottom, spacing: 10) {
                 ForEach(stats, id: \.id) { stat in
                     NavigationLink {
@@ -261,42 +471,14 @@ struct ProgressTabView: View {
                 }
             }
             .frame(height: 130)
-
-            // Legend
-            HStack {
-                Text(legendText)
-                    .font(.system(size: 11))
-                    .foregroundColor(HexTheme.mute)
-                Spacer()
-            }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(HexTheme.surface2)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(HexTheme.border, lineWidth: 1)
-        )
     }
 
-    /// One bar in the chart. Mirrors React's MuscleProgressChart at
-    /// ProgressTab.jsx:136-220:
-    ///   - groups with NO logged data: dashed stub at STUB_H (~8px)
-    ///   - groups WITH data but pct==0: solid bar at MIN_BAR (~12px)
-    ///   - groups with data + pct>0: bar scaled to maxPct, accent colour for
-    ///     the single top group, neutral for the rest
-    ///   - "+X%" / "0%" / "—" label above each bar
-    ///
-    /// `maxPct` and `bestId` are passed in from `muscleProgressCard` so
-    /// the 6 iterations don't each re-walk `workoutHistory` to recompute
-    /// them.
+    /// One bar in the chart. Same logic as before but extracted from the
+    /// previous file so the stats-cards row can render alongside.
     private func muscleBar(stat: MuscleStat, maxPct: Int, bestId: String?) -> some View {
         let label = barLabel(forId: stat.id)
         let pctClamped = max(min(stat.pct, 100), 0)
-        // CGFloat fractions: seen + data → 0.10 minimum; seen no-pair → 0.10 too
-        // (matches React MIN_BAR=12 / MAX_H=110 ≈ 0.11); no data → 0.06 stub.
         let frac: CGFloat = stat.seen
             ? max(CGFloat(pctClamped) / CGFloat(maxPct), 0.10)
             : 0.06
@@ -308,14 +490,12 @@ struct ProgressTabView: View {
         }()
 
         return VStack(spacing: 4) {
-            // Tiny % label above the bar
             Text(pctLabel)
                 .font(.system(size: 9, weight: .heavy))
                 .foregroundColor(isBest ? HexTheme.accent
                                  : stat.seen ? HexTheme.dim : HexTheme.mute)
                 .frame(height: 11)
 
-            // Bar area
             GeometryReader { geo in
                 VStack {
                     Spacer(minLength: 0)
@@ -324,7 +504,6 @@ struct ProgressTabView: View {
                             .fill(isBest ? HexTheme.accent : HexTheme.border)
                             .frame(height: max(8, geo.size.height * frac))
                     } else {
-                        // Dashed stub for groups with no logged data
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(HexTheme.border, style: StrokeStyle(
                                 lineWidth: 1.5, dash: [4, 3]))
@@ -333,7 +512,6 @@ struct ProgressTabView: View {
                     }
                 }
             }
-            // Muscle label
             Text(label)
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundColor(isBest ? HexTheme.accent
@@ -343,87 +521,314 @@ struct ProgressTabView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Subtitle under the muscle chart — copy from React.
-    private var legendText: String {
-        let hasData = muscleStats.contains(where: { $0.pct > 0 })
-        if hasData {
-            return ar ? "اضغط على عضلة لعرض التفاصيل" : "Tap a muscle to see details"
+    /// Pair of cards under the muscle chart: best muscle group (accent
+    /// background) + worst muscle group (neutral). Hidden when there's
+    /// no data at all (matches React's `withData.length > 0` guard).
+    @ViewBuilder
+    private var muscleStatsRow: some View {
+        let stats = muscleStats
+        let withData = stats.filter { $0.seen }
+        let improved = stats.filter { $0.seen && $0.pct > 0 }
+        let best = improved.max(by: { $0.pct < $1.pct })
+        let worst = withData.count > 1
+            ? withData.min(by: { $0.pct < $1.pct })
+            : nil
+
+        if withData.isEmpty {
+            Text(ar
+                 ? "سجّل جلستك الأولى لرؤية تقدم العضلات"
+                 : "Log your first session to see muscle progress")
+                .font(.system(size: 12))
+                .foregroundColor(HexTheme.mute)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        } else {
+            HStack(spacing: 8) {
+                bestImprovementCard(best: best)
+                if let worst = worst, worst.id != best?.id {
+                    needsWorkCard(worst: worst)
+                }
+            }
         }
-        return ar ? "سجّل تمرينين على الأقل لرؤية تقدمك" : "Log 2+ workouts to see your progress"
     }
 
-    private var mostImprovedCard: some View {
-        // Pick the muscle group with the highest positive avg improvement,
-        // matching React's `improved.reduce((b, g) => g.pct > b.pct ? g : b)`.
-        let top: MuscleStat? = muscleStats
-            .filter { $0.seen && $0.pct > 0 }
-            .max(by: { $0.pct < $1.pct })
-
-        let groupLabel: String? = top.flatMap { stat in
-            MuscleUtils.group(id: stat.id).map { mg in
-                ar ? barLabel(forId: mg.id) : mg.label
-            }
-        }
-        let valueText: String = {
-            if let top = top, let label = groupLabel {
-                return "\(label)  +\(top.pct)%"
-            }
-            return ar ? "ابدأ بتسجيل تمارينك" : "Start logging to see"
-        }()
-
-        return HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(HexTheme.accent.opacity(0.12))
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(HexTheme.accent)
-            }
-            .frame(width: 44, height: 44)
-
-            VStack(alignment: .leading, spacing: 2) {
+    @ViewBuilder
+    private func bestImprovementCard(best: MuscleStat?) -> some View {
+        // When a positive improvement exists, render the lime-accent
+        // card matching React. Otherwise fall back to a neutral
+        // "Keep training" card with the same dimensions.
+        if let b = best {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(ar ? "الأكثر تحسناً" : "MOST IMPROVED")
-                    .font(.system(size: 10, weight: .heavy))
-                    .kerning(ar ? 0 : 0.9)
-                    .foregroundColor(HexTheme.dim)
-                Text(valueText)
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(top != nil ? HexTheme.accent : HexTheme.text)
+                    .font(.system(size: 9, weight: .heavy))
+                    .kerning(ar ? 0 : 0.6)
+                    .foregroundColor(HexTheme.accent)
+                Text(barLabel(forId: b.id, full: true))
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                Text("+\(b.pct)%")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(HexTheme.accent)
+                    .padding(.top, 2)
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(HexTheme.accent.opacity(0.07))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(HexTheme.accent.opacity(0.20), lineWidth: 1)
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(ar ? "التقدم" : "PROGRESS")
+                    .font(.system(size: 9, weight: .heavy))
+                    .kerning(ar ? 0 : 0.6)
+                    .foregroundColor(HexTheme.mute)
+                Text(ar ? "واصل التدريب" : "Keep training")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.dim)
+                Text(ar
+                     ? "يظهر التحسن بعد عدة جلسات"
+                     : "Improvements appear after more sessions")
+                    .font(.system(size: 11))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
         }
-        .padding(14)
+    }
+
+    private func needsWorkCard(worst: MuscleStat) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(ar ? "بحاجة لعمل" : "NEEDS WORK")
+                .font(.system(size: 9, weight: .heavy))
+                .kerning(ar ? 0 : 0.6)
+                .foregroundColor(HexTheme.mute)
+            Text(barLabel(forId: worst.id, full: true))
+                .font(.system(size: 15, weight: .heavy))
+                .foregroundColor(HexTheme.text)
+            Text(worst.pct > 0
+                 ? "+\(worst.pct)%"
+                 : (ar ? "لا تقدم بعد" : "No gains yet"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(HexTheme.dim)
+                .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(HexTheme.surface2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(HexTheme.border, lineWidth: 1)
         )
     }
 
-    // MARK: - Muscle bar data
+    // MARK: - HISTORY
 
-    /// One row of the muscle progress chart.
-    /// - `id`: group key from MuscleUtils (chest | back | shoulders | arms | legs | core)
-    /// - `pct`: average improvement % across exercises mapped to this group
-    /// - `seen`: true when the user has logged at least one set tagged to
-    ///           this group, even if not enough sessions for an improvement.
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(ar ? "السجل" : "HISTORY")
+                .font(.system(size: 12, weight: .heavy))
+                .kerning(ar ? 0 : 0.8)
+                .foregroundColor(HexTheme.dim)
+
+            if app.workoutHistory.isEmpty {
+                Text(ar
+                     ? "أكمل تمرينك الأول لعرض السجل."
+                     : "Complete your first session to see history.")
+                    .font(.system(size: 13))
+                    .foregroundColor(HexTheme.mute)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+            } else {
+                VStack(spacing: 8) {
+                    // workoutHistory is already DESC by date — render as-is.
+                    ForEach(app.workoutHistory) { session in
+                        historyRow(session: session)
+                    }
+                }
+            }
+        }
+    }
+
+    private func historyRow(session: WorkoutSession) -> some View {
+        let expanded = expandedSessionId == session.id
+        let exercises = session.data?.exercises ?? []
+        let volume = exercises.reduce(0.0) { acc, ex in
+            if ex.bodyweight { return acc }
+            guard let w = ex.weight, w > 0 else { return acc }
+            return acc + w * Double(max(ex.sets, 1))
+        }
+
+        return VStack(spacing: 0) {
+            Button {
+                expandedSessionId = expanded ? nil : session.id
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(session.name)
+                            .font(.system(size: 14, weight: .heavy))
+                            .foregroundColor(HexTheme.text)
+                            .multilineTextAlignment(.leading)
+                        Text(historySubtitle(date: session.date,
+                                             exerciseCount: exercises.count,
+                                             volume: volume))
+                            .font(.system(size: 11))
+                            .foregroundColor(HexTheme.dim)
+                    }
+                    Spacer()
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(HexTheme.mute)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                VStack(spacing: 0) {
+                    ForEach(Array(exercises.enumerated()), id: \.offset) { idx, ex in
+                        HStack {
+                            Text(ex.name)
+                                .font(.system(size: 13))
+                                .foregroundColor(HexTheme.text)
+                            Spacer()
+                            Text(exerciseSummary(ex))
+                                .font(.system(size: 12))
+                                .foregroundColor(HexTheme.dim)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        if idx < exercises.count - 1 {
+                            Rectangle()
+                                .fill(HexTheme.border)
+                                .frame(height: 1)
+                                .padding(.horizontal, 14)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.bottom, 10)
+                .overlay(
+                    Rectangle()
+                        .fill(HexTheme.border)
+                        .frame(height: 1),
+                    alignment: .top
+                )
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(HexTheme.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func historySubtitle(date: Date, exerciseCount: Int, volume: Double) -> String {
+        let df = DateFormatter()
+        df.dateStyle = .short
+        let dateStr = df.string(from: date)
+        let vol = Int(volume.rounded())
+        return ar
+            ? "\(dateStr) · \(exerciseCount) تمارين · \(vol) كغ"
+            : "\(dateStr) · \(exerciseCount) exercises · \(vol) kg vol."
+    }
+
+    private func exerciseSummary(_ ex: Exercise) -> String {
+        let load: String = {
+            if ex.bodyweight { return ar ? "وزن الجسم" : "BW" }
+            if let w = ex.weight, w > 0 { return "\(formatWeight(w))kg" }
+            return "—"
+        }()
+        return "\(ex.sets)×\(ex.reps) @ \(load)"
+    }
+
+    // MARK: - Working-weight resolution + sparkline data
+
+    /// Resolve the current weight for a tracked lift. Mirrors React's
+    /// `resolveWeight` — exact match in `workingWeights`, else first-2-word
+    /// prefix match, else fall back to the most-recent session weight.
+    private func resolveWorkingWeight(for lift: TrackedLift) -> Double? {
+        // 1. Exact match in workingWeights (keyed by canonical lift key OR
+        //    display name depending on which writer wrote it).
+        if let w = app.workingWeights[lift.name], w > 0 { return w }
+        if let key = lift.key, let w = app.workingWeights[key], w > 0 { return w }
+        // 2. First-2-word case-insensitive prefix match — handles
+        //    "Lateral Raise" → "Lateral raise (DB)" etc.
+        let prefix = lift.name
+            .split(separator: " ").prefix(2)
+            .joined(separator: " ").lowercased()
+        if !prefix.isEmpty {
+            for (k, v) in app.workingWeights
+                where v > 0 && k.lowercased().contains(prefix) {
+                return v
+            }
+        }
+        // 3. Fall back to the most recent session weight for that name.
+        for session in app.workoutHistory {
+            if let ex = session.data?.exercises.first(where: {
+                $0.name.lowercased() == lift.name.lowercased()
+            }), let w = ex.weight, w > 0 {
+                return w
+            }
+        }
+        return nil
+    }
+
+    /// Up to 8 weights chronologically (oldest → newest) for the sparkline.
+    private func sparklineWeights(for name: String) -> [Double] {
+        var weights: [Double] = []
+        // workoutHistory is DESC by date — walk reversed to get oldest first.
+        for session in app.workoutHistory.reversed() {
+            if let ex = session.data?.exercises.first(where: {
+                $0.name.lowercased() == name.lowercased()
+            }), !ex.bodyweight, let w = ex.weight, w > 0 {
+                weights.append(w)
+            }
+        }
+        if weights.count > 8 {
+            weights = Array(weights.suffix(8))
+        }
+        return weights
+    }
+
+    private func formatWeight(_ w: Double) -> String {
+        if w == w.rounded() { return "\(Int(w))" }
+        return String(format: "%.1f", w)
+    }
+
+    // MARK: - Muscle stats (unchanged from previous file)
+
     private struct MuscleStat { let id: String; let pct: Int; let seen: Bool }
 
     /// Aggregate stats per muscle group computed from `workoutHistory`.
-    /// Mirrors the MuscleProgressChart aggregator in ProgressTab.jsx.
+    /// Same logic React uses in calcMuscleImprovements.
     private var muscleStats: [MuscleStat] {
-        // 1. Exercises grouped by name across all sessions → list of weights.
-        // Mirrors React's calcMuscleImprovements in ProgressTab.jsx:
-        //   - skip bodyweight rows
-        //   - skip entries without a numeric, positive weight
-        //   - resolve the muscle via the full Exercise object so `ex.muscle`
-        //     (auto-builder / custom) is honoured before any name heuristics.
         struct Entry { var muscle: String; var weights: [Double] = [] }
         var byName: [String: Entry] = [:]
-        // workoutHistory is newest-first; reverse so we accumulate oldest → newest
         for session in app.workoutHistory.reversed() {
             for ex in session.data?.exercises ?? [] {
                 if ex.bodyweight { continue }
@@ -435,9 +840,6 @@ struct ProgressTabView: View {
                 byName[key] = e
             }
         }
-
-        // 2. Per group: collect improvement % from exercises with ≥2 weights;
-        //    also mark a group as "seen" if any logged exercise maps to it.
         var pctsByGroup: [String: [Double]] = [:]
         var seenByGroup: Set<String>        = []
         for (_, entry) in byName {
@@ -450,8 +852,6 @@ struct ProgressTabView: View {
                 }
             }
         }
-
-        // 3. Final per-group average (clamped to 0 for bar height).
         return MuscleUtils.groups.map { mg in
             let pcts = pctsByGroup[mg.id] ?? []
             let avg  = pcts.isEmpty ? 0 : pcts.reduce(0, +) / Double(pcts.count)
@@ -463,8 +863,8 @@ struct ProgressTabView: View {
         }
     }
 
-    /// Short label used under each chart bar — keeps the original UI text.
-    private func barLabel(forId id: String) -> String {
+    /// Bar label — short variant for the chart, full variant for stats cards.
+    private func barLabel(forId id: String, full: Bool = false) -> String {
         if ar {
             switch id {
             case "chest":     return "صدر"
@@ -479,7 +879,7 @@ struct ProgressTabView: View {
         switch id {
         case "chest":     return "Chest"
         case "back":      return "Back"
-        case "shoulders": return "Shldr"
+        case "shoulders": return full ? "Shoulders" : "Shldr"
         case "arms":      return "Arms"
         case "legs":      return "Legs"
         case "core":      return "Core"
