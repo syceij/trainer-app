@@ -23,8 +23,11 @@ public class LiveActivityPlugin: CAPPlugin {
 
     @objc func isSupported(_ call: CAPPluginCall) {
         if #available(iOS 16.2, *) {
-            call.resolve(["supported": ActivityAuthorizationInfo().areActivitiesEnabled])
+            let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+            print("[LiveActivity] isSupported() → areActivitiesEnabled=\(enabled)")
+            call.resolve(["supported": enabled])
         } else {
+            print("[LiveActivity] isSupported() → iOS < 16.2, returning false")
             call.resolve(["supported": false])
         }
     }
@@ -32,13 +35,16 @@ public class LiveActivityPlugin: CAPPlugin {
     // MARK: - start
 
     @objc func start(_ call: CAPPluginCall) {
+        print("[LiveActivity] start() called")
         guard #available(iOS 16.2, *) else {
+            print("[LiveActivity] start() rejected — iOS < 16.2")
             call.reject("Live Activities require iOS 16.2+")
             return
         }
 
         // End any existing activity first
         if let existing = activityRef as? Activity<WorkoutActivityAttributes> {
+            print("[LiveActivity] ending previous activity before starting new one")
             Task { await existing.end(nil, dismissalPolicy: .immediate) }
             activityRef = nil
         }
@@ -47,6 +53,7 @@ public class LiveActivityPlugin: CAPPlugin {
             sessionName: call.getString("sessionName") ?? "Workout"
         )
         let state = buildState(from: call)
+        print("[LiveActivity] requesting activity: session=\(attrs.sessionName) exercise=\(state.exerciseName) sets=\(state.setsDone)/\(state.setsTotal)")
 
         do {
             let activity = try Activity<WorkoutActivityAttributes>.request(
@@ -55,8 +62,12 @@ public class LiveActivityPlugin: CAPPlugin {
                 pushType: nil
             )
             activityRef = activity
+            print("[LiveActivity] started successfully, id=\(activity.id)")
             call.resolve(["activityId": activity.id])
         } catch {
+            print("[LiveActivity] Activity.request() FAILED: \(error)")
+            print("[LiveActivity] Error domain: \((error as NSError).domain) code: \((error as NSError).code)")
+            print("[LiveActivity] Full error: \((error as NSError).userInfo)")
             call.reject("Failed to start Live Activity: \(error.localizedDescription)")
         }
     }
