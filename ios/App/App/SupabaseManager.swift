@@ -213,6 +213,45 @@ final class SupabaseManager {
             .execute()
     }
 
+    // MARK: - Working weights
+
+    /// Upsert the current user's working-weights map. Keys are canonical
+    /// exercise names. The leaderboard-score calculator + PT chat both
+    /// read from this table.
+    func upsertWorkingWeights(_ weights: [String: Double]) async throws {
+        guard let uid = currentUser?.id, !weights.isEmpty else { return }
+        struct Row: Encodable {
+            let user_id: UUID
+            let exercise_name: String
+            let weight: Double
+        }
+        let rows = weights.map { Row(user_id: uid, exercise_name: $0.key, weight: $0.value) }
+        _ = try await client
+            .from("working_weights")
+            .upsert(rows, onConflict: "user_id,exercise_name")
+            .execute()
+    }
+
+    /// Fetch the current user's working-weights map. Empty if no rows.
+    func fetchWorkingWeights() async throws -> [String: Double] {
+        guard let uid = currentUser?.id else { return [:] }
+        struct Row: Decodable {
+            let exerciseName: String
+            let weight: Double
+            enum CodingKeys: String, CodingKey {
+                case exerciseName = "exercise_name"
+                case weight
+            }
+        }
+        let rows: [Row] = try await client
+            .from("working_weights")
+            .select("exercise_name, weight")
+            .eq("user_id", value: uid)
+            .execute()
+            .value
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.exerciseName, $0.weight) })
+    }
+
     /// Fetch all performed sets for the current user — used by Progress tab
     /// lift cards and the muscle-page detail view. Optionally limit by
     /// exercise name for the single-lift drill-down.

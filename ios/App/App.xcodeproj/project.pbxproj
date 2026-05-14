@@ -51,6 +51,7 @@
 		B1A2C3D40000000000340001 /* SupabaseManager+Friends.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000340002 /* SupabaseManager+Friends.swift */; };
 		B1A2C3D40000000000350001 /* FriendProfilePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000350002 /* FriendProfilePage.swift */; };
 		B1A2C3D40000000000360001 /* PTReplies.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000360002 /* PTReplies.swift */; };
+		B1A2C3D40000000000370001 /* LiftPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000370002 /* LiftPickerSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -113,6 +114,7 @@
 		B1A2C3D40000000000340002 /* SupabaseManager+Friends.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+Friends.swift"; sourceTree = "<group>"; };
 		B1A2C3D40000000000350002 /* FriendProfilePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendProfilePage.swift; sourceTree = "<group>"; };
 		B1A2C3D40000000000360002 /* PTReplies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PTReplies.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000370002 /* LiftPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftPickerSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -190,6 +192,7 @@
 				B1A2C3D40000000000340002 /* SupabaseManager+Friends.swift */,
 				B1A2C3D40000000000350002 /* FriendProfilePage.swift */,
 				B1A2C3D40000000000360002 /* PTReplies.swift */,
+				B1A2C3D40000000000370002 /* LiftPickerSheet.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -353,6 +356,7 @@
 				B1A2C3D40000000000340001 /* SupabaseManager+Friends.swift in Sources */,
 				B1A2C3D40000000000350001 /* FriendProfilePage.swift in Sources */,
 				B1A2C3D40000000000360001 /* PTReplies.swift in Sources */,
+				B1A2C3D40000000000370001 /* LiftPickerSheet.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

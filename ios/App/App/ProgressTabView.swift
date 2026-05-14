@@ -6,6 +6,9 @@ import SwiftUI
 struct ProgressTabView: View {
     @EnvironmentObject var app: AppState
 
+    @State private var showLiftPicker = false
+    @State private var pickedLift: String? = nil
+
     private var ar: Bool { app.language == "ar" }
 
     var body: some View {
@@ -52,6 +55,41 @@ struct ProgressTabView: View {
         }
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $showLiftPicker) {
+            LiftPickerSheet(
+                allExerciseNames: allLoggedExerciseNames,
+                onPick: { name in
+                    showLiftPicker = false
+                    pickedLift = name
+                }
+            )
+            .environmentObject(app)
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { pickedLift != nil },
+            set: { if !$0 { pickedLift = nil } }
+        )) {
+            if let name = pickedLift {
+                ExerciseLiftPage(exerciseName: name)
+                    .environmentObject(app)
+            }
+        }
+    }
+
+    /// Every distinct exercise name that's appeared in workout history.
+    /// Used by the lift-picker sheet so the list reflects real data.
+    private var allLoggedExerciseNames: [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for session in app.workoutHistory {
+            for ex in session.data?.exercises ?? [] {
+                if !seen.contains(ex.name) {
+                    seen.insert(ex.name)
+                    ordered.append(ex.name)
+                }
+            }
+        }
+        return ordered
     }
 
     // MARK: - Sections
@@ -64,7 +102,7 @@ struct ProgressTabView: View {
                 .foregroundColor(HexTheme.dim)
             Spacer()
             if let icon = trailingIcon {
-                Button { /* TODO: open lift picker */ } label: {
+                Button { showLiftPicker = true } label: {
                     Image(systemName: icon)
                         .font(.system(size: 18))
                         .foregroundColor(HexTheme.accent)

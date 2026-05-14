@@ -73,7 +73,8 @@ final class AppState: ObservableObject {
         async let programme: () = loadActiveProgramme()
         async let history:   () = loadHistory()
         async let social:    () = loadSocial()
-        _ = await (profile, programme, history, social)
+        async let weights:   () = loadWorkingWeights()
+        _ = await (profile, programme, history, social, weights)
         // Once the active programme is loaded, pre-stage today's session
         // so the Train tab has something to show without an extra round-trip.
         if currentSession == nil {
@@ -363,6 +364,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Pull the working-weights map from Supabase.
+    func loadWorkingWeights() async {
+        do {
+            workingWeights = try await SupabaseManager.shared.fetchWorkingWeights()
+        } catch {
+            print("[AppState] loadWorkingWeights failed:", error)
+        }
+    }
+
     /// Persist a completed workout: writes the session row and any performed
     /// sets, refreshes `workoutHistory`, inserts an activity-feed row, and
     /// recalculates the leaderboard score so friends see updated stats.
@@ -372,6 +382,27 @@ final class AppState: ObservableObject {
         try await SupabaseManager.shared.savePerformedSets(sets)
         currentSession = nil
         await loadHistory()
+
+        // Update working_weights with the heaviest non-bodyweight load per
+        // exercise in this session so PT chat + leaderboard scoring see the
+        // freshest values without an extra DB hop.
+        var liftMaxes: [String: Double] = [:]
+        for ex in session.data?.exercises ?? [] {
+            guard let w = ex.weight, w > 0 else { continue }
+            // Use the canonical lift key when one matches; fall back to the
+            // exercise's display name so custom lifts still persist.
+            let key = canonicalLiftKey(forName: ex.name) ?? ex.name
+            liftMaxes[key] = max(liftMaxes[key] ?? 0, w)
+        }
+        if !liftMaxes.isEmpty {
+            do {
+                try await SupabaseManager.shared.upsertWorkingWeights(liftMaxes)
+                // Mirror locally so subsequent PT prompts read the new values
+                for (k, v) in liftMaxes { workingWeights[k] = v }
+            } catch {
+                print("[AppState] upsertWorkingWeights failed:", error)
+            }
+        }
 
         // Compute completed-set volume for the activity-feed row
         let volume: Double = sets.reduce(0) { acc, s in
@@ -705,6 +736,19 @@ final class AppState: ObservableObject {
         // Also reflect the bump in workingWeights so the chat-side snapshot
         // stays in sync until the next finishWorkout cycle.
         workingWeights[key] = (workingWeights[key] ?? 0) + deltaKg
+    }
+
+    /// Reverse-lookup an exercise display name into its canonical short
+    /// key ("bench", "squat", ...). Returns nil for non-tracked lifts.
+    private func canonicalLiftKey(forName name: String) -> String? {
+        let lower = name.lowercased()
+        if lower.contains("bench")    { return "bench" }
+        if lower.contains("squat")    { return "squat" }
+        if lower.contains("deadlift") { return "deadlift" }
+        if lower.contains("overhead") || lower.contains("ohp")
+            || lower.contains("press") { return "ohp" }
+        if lower.contains("row")      { return "row" }
+        return nil
     }
 
     /// Lightweight alias matcher — turns "bench" into a match for

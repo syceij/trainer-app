@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import Supabase
 
 /// Profile tab — visual port of src/components/ProfileTab.jsx.
 /// Avatar header with name + username + camera button, then Account /
@@ -11,6 +13,10 @@ struct AccountView: View {
     @State private var liveActivitiesEnabled = LiveActivityService.shared.isEnabled
     @State private var showSignOutConfirm    = false
     @State private var showDeleteConfirm     = false
+
+    // Avatar picker state
+    @State private var avatarPick: PhotosPickerItem? = nil
+    @State private var uploadingAvatar = false
 
     private var ar: Bool { app.language == "ar" }
 
@@ -71,21 +77,33 @@ struct AccountView: View {
     private var avatarHeader: some View {
         HStack(spacing: 16) {
             ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(HexTheme.accent.opacity(0.12))
-                    .frame(width: 72, height: 72)
-                    .overlay(
-                        Circle().stroke(HexTheme.border, lineWidth: 2)
-                    )
-                    .overlay(
-                        Text(initial)
-                            .font(.system(size: 28, weight: .heavy))
-                            .foregroundColor(HexTheme.accent)
-                    )
+                Group {
+                    if let url = app.currentProfile?.avatarURL,
+                       let parsed = URL(string: url) {
+                        AsyncImage(url: parsed) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFill()
+                            default:
+                                avatarFallback
+                            }
+                        }
+                        .clipShape(Circle())
+                    } else {
+                        avatarFallback
+                    }
+                }
+                .frame(width: 72, height: 72)
+                .overlay(
+                    Circle().stroke(HexTheme.border, lineWidth: 2)
+                )
 
-                // Camera button bottom-right
-                Button { /* TODO: image picker */ } label: {
-                    Image(systemName: "camera.fill")
+                // Camera button bottom-right — opens PhotosPicker, uploads to
+                // Supabase Storage, updates profile.avatar_url.
+                PhotosPicker(selection: $avatarPick,
+                             matching: .images,
+                             photoLibrary: .shared()) {
+                    Image(systemName: uploadingAvatar ? "arrow.triangle.2.circlepath" : "camera.fill")
                         .font(.system(size: 11, weight: .heavy))
                         .foregroundColor(.black)
                         .frame(width: 26, height: 26)
@@ -95,6 +113,10 @@ struct AccountView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .onChange(of: avatarPick) { newItem in
+                    guard let item = newItem else { return }
+                    Task { await handleAvatarPick(item) }
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -518,5 +540,81 @@ struct AccountView: View {
     private var initial: String {
         let s = app.currentProfile?.name ?? app.currentProfile?.username ?? "?"
         return String(s.prefix(1)).uppercased()
+    }
+
+    // MARK: - Avatar fallback (initial on tinted circle)
+
+    private var avatarFallback: some View {
+        ZStack {
+            Circle().fill(HexTheme.accent.opacity(0.12))
+            Text(initial)
+                .font(.system(size: 28, weight: .heavy))
+                .foregroundColor(HexTheme.accent)
+        }
+    }
+
+    // MARK: - Avatar upload
+
+    /// Read the picked photo, downscale to ≤ 1024px, upload as a new file
+    /// in the `avatars` Supabase Storage bucket, then update
+    /// `profile.avatar_url` and refresh the in-memory profile.
+    @MainActor
+    private func handleAvatarPick(_ item: PhotosPickerItem) async {
+        guard let uid = SupabaseManager.shared.currentUser?.id else { return }
+        uploadingAvatar = true
+        defer { uploadingAvatar = false }
+
+        do {
+            // 1) Load image data
+            guard let raw = try await item.loadTransferable(type: Data.self),
+                  let img = UIImage(data: raw) else {
+                app.toast = ar ? "تعذّر قراءة الصورة" : "Couldn't read image"
+                return
+            }
+            // 2) Downscale to ≤ 1024px on longest side, re-encode as JPEG 75%
+            let scaled = downscale(img, max: 1024)
+            guard let jpeg = scaled.jpegData(compressionQuality: 0.75) else {
+                app.toast = ar ? "تعذّر ضغط الصورة" : "Couldn't compress image"
+                return
+            }
+            // 3) Upload to Storage at avatars/<uid>/<timestamp>.jpg
+            let path = "\(uid.uuidString)/\(Int(Date().timeIntervalSince1970)).jpg"
+            _ = try await SupabaseManager.shared.client.storage
+                .from("avatars")
+                .upload(path: path,
+                        file: jpeg,
+                        options: FileOptions(contentType: "image/jpeg", upsert: true))
+            // 4) Build the public URL
+            let publicURL = try SupabaseManager.shared.client.storage
+                .from("avatars")
+                .getPublicURL(path: path)
+            // 5) Persist on the profile row + refresh local state
+            var profile = app.currentProfile ?? Profile(
+                id: uid,
+                name: nil, username: nil, email: nil, language: nil,
+                trackedLifts: nil, trackedMuscles: nil,
+                avatarURL: nil, createdAt: nil
+            )
+            profile.avatarURL = publicURL.absoluteString
+            try await SupabaseManager.shared.upsertOwnProfile(profile)
+            await app.loadOwnProfile()
+            app.toast = ar ? "تم تحديث الصورة ✓" : "Avatar updated ✓"
+        } catch {
+            print("[AccountView] avatar upload failed:", error)
+            app.toast = ar ? "تعذّر رفع الصورة" : "Upload failed"
+        }
+        avatarPick = nil
+    }
+
+    private func downscale(_ img: UIImage, max maxPx: CGFloat) -> UIImage {
+        let w = img.size.width, h = img.size.height
+        let longest = Swift.max(w, h)
+        guard longest > maxPx else { return img }
+        let scale: CGFloat = maxPx / longest
+        let size = CGSize(width: w * scale, height: h * scale)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            img.draw(in: CGRect(origin: .zero, size: size))
+        }
     }
 }
