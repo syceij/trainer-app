@@ -7,4 +7,5 @@ CAP_PLUGIN(LiveActivityPlugin, "LiveActivityPlugin",
     CAP_PLUGIN_METHOD(update,      CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(end,         CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(isSupported, CAPPluginReturnPromise);
+    CAP_PLUGIN_METHOD(diagnostics, CAPPluginReturnPromise);
 )

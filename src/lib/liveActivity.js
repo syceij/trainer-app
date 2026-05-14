@@ -76,10 +76,21 @@ export const liveActivity = {
       console.log('[LiveActivity] started, id:', result?.activityId);
       return 'started';
     } catch (e) {
-      const msg = e?.message ?? String(e);
-      console.error('[LiveActivity] start failed:', msg);
-      // Return the error detail so the UI can display it for diagnosis
-      return 'error:' + msg;
+      // Capacitor can put the message in any of several places — try them all
+      const msg =
+        e?.message ||
+        e?.errorMessage ||
+        e?.error ||
+        (typeof e === 'string' ? e : '') ||
+        JSON.stringify(e);
+      console.error('[LiveActivity] start failed:', msg, e);
+      // Attempt to fetch diagnostics so we can include them in the error
+      let diag = '';
+      try {
+        const d = await _plugin.diagnostics();
+        diag = ` (iOS ${d?.iosVersion ?? '?'}, enabled=${d?.areActivitiesEnabled}, lingering=${d?.lingeringCount})`;
+      } catch {}
+      return 'error:' + msg + diag;
     }
   },
 
