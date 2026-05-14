@@ -130,10 +130,64 @@ struct HomeView: View {
 
     private var statsGrid: some View {
         HStack(spacing: 8) {
-            statCard(value: "0",   label: ar ? "جلسات"    : "SESSIONS")
-            statCard(value: "0 🔥", label: ar ? "الإنجاز"   : "STREAK")
-            statCard(value: "—",   label: ar ? "آخر حجم"   : "LAST VOL.")
+            statCard(value: "\(totalSessions)",
+                     label: ar ? "جلسات"    : "SESSIONS")
+            statCard(value: "\(streakCount) 🔥",
+                     label: ar ? "الإنجاز"   : "STREAK")
+            statCard(value: lastVolumeLabel,
+                     label: ar ? "آخر حجم"   : "LAST VOL.")
         }
+    }
+
+    // MARK: - Stats
+
+    /// Total completed/in-progress sessions in history.
+    private var totalSessions: Int {
+        app.workoutHistory.count
+    }
+
+    /// Current streak — consecutive days (including today or yesterday)
+    /// with at least one logged session. Mirrors the React implementation
+    /// in src/components/HomeTab.jsx.
+    private var streakCount: Int {
+        let cal = Calendar.current
+        let dayKeys: Set<Date> = Set(
+            app.workoutHistory.map { cal.startOfDay(for: $0.date) }
+        )
+        guard !dayKeys.isEmpty else { return 0 }
+        var streak = 0
+        var cursor = cal.startOfDay(for: Date())
+        // Allow the streak to start from "yesterday" if today wasn't logged
+        // yet — matches React.
+        if !dayKeys.contains(cursor) {
+            cursor = cal.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+            if !dayKeys.contains(cursor) { return 0 }
+        }
+        while dayKeys.contains(cursor) {
+            streak += 1
+            guard let prev = cal.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = prev
+        }
+        return streak
+    }
+
+    /// Volume of the most recent session — sum of `weight × sets` across
+    /// exercises that have a real working weight. Displays "—" if not
+    /// computable. Formats >=1000 kg as e.g. "12t".
+    private var lastVolumeLabel: String {
+        guard let last = app.workoutHistory.first,
+              let exercises = last.data?.exercises
+        else { return "—" }
+        let vol = exercises.reduce(0.0) { acc, ex in
+            let w = ex.weight ?? 0
+            guard w > 0 else { return acc }
+            return acc + w * Double(ex.sets)
+        }
+        guard vol > 0 else { return "—" }
+        if vol >= 1000 {
+            return "\(Int(vol / 1000))t"
+        }
+        return "\(Int(vol))kg"
     }
 
     private func statCard(value: String, label: String) -> some View {

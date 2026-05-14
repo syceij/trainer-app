@@ -22,6 +22,10 @@ final class AppState: ObservableObject {
 
     @Published var activeProgramme: Programme?
     @Published var currentSession: WorkoutSession?
+    /// Most recent N completed/in-progress sessions, ordered newest first.
+    /// Populated by `loadHistory()` after sign-in and refreshed after each
+    /// `finishWorkout(_:sets:)` call.
+    @Published var workoutHistory: [WorkoutSession] = []
 
     // MARK: - UI state
 
@@ -41,10 +45,19 @@ final class AppState: ObservableObject {
             // .session throws if no session is stored
             _ = try await sb.client.auth.session
             authPhase = .signedIn
-            await loadOwnProfile()
+            await loadUserData()
         } catch {
             authPhase = .signedOut
         }
+    }
+
+    /// Fan out the three signed-in data loads in parallel. Called after
+    /// every entry point into the signed-in state (restore, sign in, OTP).
+    func loadUserData() async {
+        async let profile: () = loadOwnProfile()
+        async let programme: () = loadActiveProgramme()
+        async let history: () = loadHistory()
+        _ = await (profile, programme, history)
     }
 
     // MARK: - Auth actions
@@ -76,7 +89,7 @@ final class AppState: ObservableObject {
             email: resolvedEmail, password: password
         )
         authPhase = .signedIn
-        await loadOwnProfile()
+        await loadUserData()
     }
 
     enum AuthError: LocalizedError {
@@ -104,7 +117,7 @@ final class AppState: ObservableObject {
     func verifyOTP(email: String, token: String) async throws {
         _ = try await SupabaseManager.shared.verifyOTP(email: email, token: token)
         authPhase = .signedIn
-        await loadOwnProfile()
+        await loadUserData()
     }
 
     func resendOTP(email: String) async throws {
@@ -122,6 +135,7 @@ final class AppState: ObservableObject {
         currentProfile = nil
         activeProgramme = nil
         currentSession = nil
+        workoutHistory = []
         authPhase = .signedOut
     }
 
@@ -136,6 +150,40 @@ final class AppState: ObservableObject {
         } catch {
             print("[AppState] loadOwnProfile failed:", error)
         }
+    }
+
+    // MARK: - Programme
+
+    /// Fetch the currently active programme row for this user. Silently
+    /// leaves `activeProgramme` nil on error — Home/Programme screens render
+    /// an empty state in that case.
+    func loadActiveProgramme() async {
+        do {
+            activeProgramme = try await SupabaseManager.shared.fetchActiveProgramme()
+        } catch {
+            print("[AppState] loadActiveProgramme failed:", error)
+        }
+    }
+
+    // MARK: - Workout history
+
+    /// Pull the most recent sessions for this user (DESC by date).
+    func loadHistory() async {
+        do {
+            workoutHistory = try await SupabaseManager.shared.fetchHistory()
+        } catch {
+            print("[AppState] loadHistory failed:", error)
+        }
+    }
+
+    /// Persist a completed workout: writes the session row and any performed
+    /// sets, then refreshes `workoutHistory` so Home stats update.
+    func finishWorkout(_ session: WorkoutSession,
+                       sets: [PerformedSet]) async throws {
+        try await SupabaseManager.shared.saveWorkoutSession(session)
+        try await SupabaseManager.shared.savePerformedSets(sets)
+        currentSession = nil
+        await loadHistory()
     }
 
     // MARK: - Toast

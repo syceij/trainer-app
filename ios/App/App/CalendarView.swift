@@ -5,8 +5,8 @@ import SwiftUI
 /// colored by status (logged / missed / scheduled / rest), legend, and a
 /// month-stats card at the bottom.
 ///
-/// Status data comes from `app.workoutHistory` once that's wired to
-/// Supabase — for now everything renders as "rest" / no data.
+/// "Logged" days are derived from `app.workoutHistory`; training days are
+/// inferred from the active programme's session days if loaded.
 struct CalendarView: View {
     @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
@@ -24,15 +24,29 @@ struct CalendarView: View {
     private var ar: Bool { app.language == "ar" }
 
     /// JS-day indices (0=Sun … 6=Sat) the user is supposed to train on.
-    /// Default to Mon/Tue/Thu/Fri if no programme data is loaded yet.
+    /// Derived from the active programme's first-week session days; falls
+    /// back to Mon/Tue/Thu/Fri if no programme is loaded.
     private var trainingDayIndices: Set<Int> {
-        // TODO: derive from app.activeProgramme schedule
-        Set([1, 2, 4, 5])
+        let dayKeyToIndex: [String: Int] = [
+            "sun": 0, "mon": 1, "tue": 2, "wed": 3,
+            "thu": 4, "fri": 5, "sat": 6
+        ]
+        if let sessions = app.activeProgramme?.data?.weeks.first?.sessions,
+           !sessions.isEmpty {
+            let set = Set(sessions.compactMap { dayKeyToIndex[$0.day.lowercased()] })
+            if !set.isEmpty { return set }
+        }
+        return Set([1, 2, 4, 5])
     }
 
-    /// Dates the user has actually logged a session on. Empty until
-    /// `WorkoutSession` history wiring is done.
-    private var loggedDates: Set<DateComponents> { [] }
+    /// Dates the user has actually logged a session on (year/month/day
+    /// components keyed off `WorkoutSession.date`).
+    private var loggedDates: Set<DateComponents> {
+        let cal = Calendar.current
+        return Set(app.workoutHistory.map {
+            cal.dateComponents([.year, .month, .day], from: $0.date)
+        })
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -338,8 +352,12 @@ struct CalendarView: View {
     }
 
     private func monthLogCount() -> Int {
-        // TODO: count sessions from app history whose date falls in viewMonth/viewYear
-        0
+        let cal = Calendar.current
+        return app.workoutHistory.reduce(0) { acc, session in
+            let comps = cal.dateComponents([.year, .month], from: session.date)
+            return (comps.year == viewYear && comps.month == viewMonth + 1)
+                ? acc + 1 : acc
+        }
     }
 
     private func passedTrainingDayCount() -> Int {
