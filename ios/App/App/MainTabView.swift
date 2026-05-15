@@ -18,6 +18,35 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var app: AppState
 
+    init() {
+        // Icon-only tab bar — hide every tab item's title and pull the
+        // icon down into the space where the title would have rendered
+        // so the glyph sits centred in the tab cell instead of floating
+        // above an empty gap. The Text inside each `Label` is preserved
+        // (just rendered transparent) so VoiceOver still announces tab
+        // names correctly.
+        let clear: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.clear]
+        let itemAppearance = UITabBarItemAppearance()
+        itemAppearance.normal.titleTextAttributes   = clear
+        itemAppearance.selected.titleTextAttributes = clear
+        itemAppearance.focused.titleTextAttributes  = clear
+        itemAppearance.disabled.titleTextAttributes = clear
+
+        let appearance = UITabBarAppearance()
+        appearance.configureWithDefaultBackground()
+        appearance.stackedLayoutAppearance       = itemAppearance
+        appearance.inlineLayoutAppearance        = itemAppearance
+        appearance.compactInlineLayoutAppearance = itemAppearance
+
+        UITabBar.appearance().standardAppearance = appearance
+        if #available(iOS 15.0, *) {
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
+        // Nudge the icon downwards to fill the title slot.
+        UITabBarItem.appearance().imageInsets =
+            UIEdgeInsets(top: 6, left: 0, bottom: -6, right: 0)
+    }
+
     var body: some View {
         // Bind directly to the AppState tab so any view (e.g. HomeView's
         // "Today's session" card) can switch tabs by writing to

@@ -137,16 +137,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                   />
                 )}
 
-                <TabIcon tab={tab} active={active} size={21} strokeWidth={1.8} />
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: active ? 700 : 500,
-                  color: active ? C.accent : 'rgba(255,255,255,0.38)',
-                  letterSpacing: lang === 'ar' ? '0' : '0.03em',
-                  fontFamily: lang === 'ar' ? "'ThmanyahSans', sans-serif" : undefined,
-                }}>
-                  {t(label)}
-                </span>
+                <TabIcon tab={tab} active={active} size={24} strokeWidth={1.8} />
               </button>
             );
           })}
@@ -205,16 +196,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                   }}
                 />
               )}
-              <TabIcon tab={tab} active={active} size={20} strokeWidth={2} />
-              <span style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: active ? C.accent : C.mute,
-                letterSpacing: lang === 'ar' ? '0' : '0.04em',
-                fontFamily: lang === 'ar' ? "'ThmanyahSans', sans-serif" : undefined,
-              }}>
-                {t(label)}
-              </span>
+              <TabIcon tab={tab} active={active} size={22} strokeWidth={2} />
             </button>
           );
         })}
