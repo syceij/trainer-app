@@ -95,6 +95,74 @@ final class LiveActivityService {
         await activity.update(.init(state: state, staleDate: nil))
     }
 
+    /// Reflect an in-app set toggle in the running Live Activity. Called
+    /// from TrainView's `toggleSet` so the Lock Screen card mirrors the
+    /// in-app checkmarks instead of staying frozen at the staged state.
+    ///
+    /// Behaviour:
+    ///   • No-op if no activity is running.
+    ///   • No-op if the activity is currently showing a DIFFERENT exercise
+    ///     than the one being toggled — the Lock Screen card stays on
+    ///     whatever it was advanced to, the user's in-app progress on
+    ///     other exercises is just kept locally until they finish.
+    ///   • Otherwise flips the bit at `setIdx`, kicks a rest timer when
+    ///     the bit went false→true, and auto-advances to the next
+    ///     exercise (if any) when every set is done — same flow the
+    ///     `ToggleSetIntent` runs from a Lock Screen tap.
+    @available(iOS 16.2, *)
+    func syncSetCompletion(
+        exerciseName: String,
+        setIdx: Int,
+        completed: Bool
+    ) async {
+        guard let activity = currentActivity as? Activity<WorkoutActivityAttributes>
+        else { return }
+        var state = activity.content.state
+        // Only act when the LA is showing this exercise — case-insensitive
+        // so casing drift in user data doesn't drop the sync.
+        guard state.exerciseName.lowercased() == exerciseName.lowercased(),
+              state.setsCompleted.indices.contains(setIdx)
+        else { return }
+        let was = state.setsCompleted[setIdx]
+        state.setsCompleted[setIdx] = completed
+        if completed && !was {
+            // Set just completed — start the rest timer, same as a
+            // Lock Screen tap would.
+            state.restEndsAt = Date().addingTimeInterval(Double(state.restSeconds))
+        } else if !completed && was {
+            // Un-toggle — cancel the timer for symmetry.
+            state.restEndsAt = .distantPast
+        }
+
+        if state.allSetsDone {
+            // Try to advance to the next exercise just like the App
+            // Intent does. Don't end the activity here even on last
+            // exercise — leave it for the in-app Finish Session
+            // flow so the summary modal can run.
+            if let staged = WorkoutGroupStore.loadStagedSession() {
+                let nextIdx = state.exerciseIndex + 1
+                if staged.exercises.indices.contains(nextIdx) {
+                    let next = staged.exercises[nextIdx]
+                    state = WorkoutActivityAttributes.ContentState(
+                        exerciseName:   next.name,
+                        exerciseIndex:  nextIdx,
+                        totalExercises: staged.exercises.count,
+                        setsCompleted:  Array(repeating: false, count: max(next.sets, 1)),
+                        targetReps:     next.reps,
+                        weightKg:       next.weightKg,
+                        weightLabel:    next.bodyweight ? "BW" : nil,
+                        targetRpe:      next.rpe,
+                        tag:            next.tag,
+                        focus:          next.focus,
+                        restEndsAt:     Date().addingTimeInterval(Double(state.restSeconds)),
+                        restSeconds:    state.restSeconds
+                    )
+                }
+            }
+        }
+        await activity.update(.init(state: state, staleDate: nil))
+    }
+
     // MARK: - End
 
     /// End the current activity and dismiss it immediately. Also cleans up any

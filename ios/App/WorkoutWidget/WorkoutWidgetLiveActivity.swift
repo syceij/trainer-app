@@ -30,16 +30,20 @@ import AppIntents
 ///      new state without round-tripping through the main app.
 ///
 /// Available on iOS 17+ because interactive Live Activity buttons
-/// require `AppIntent` integration with `Button(intent:)`. iOS 16
-/// users see the same card but with non-tappable buttons (handled in
-/// the `setLabel(i:done:)` builder below).
+/// require the new `LiveActivityIntent` protocol with `Button(intent:)`.
+/// iOS 16 users see the same card but with non-tappable buttons
+/// (handled in the `setLabel(i:done:)` builder below).
+///
+/// LiveActivityIntent is preferred over plain AppIntent here: it
+/// tells the system to run the intent in-process on a tap from the
+/// Lock Screen / Dynamic Island without trying to launch the host
+/// app. Using vanilla `AppIntent` with `openAppWhenRun = false`
+/// silently no-ops on some iOS versions — the button renders but
+/// taps don't fire. `LiveActivityIntent` makes the binding explicit
+/// and reliable.
 @available(iOS 17.0, *)
-struct ToggleSetIntent: AppIntent {
+struct ToggleSetIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Toggle Workout Set"
-    /// Keep the intent running in the widget extension process so the
-    /// tap doesn't unlock or open the app — the user's whole goal is
-    /// to complete sets without leaving the Lock Screen.
-    static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Set Index")
     var setIndex: Int

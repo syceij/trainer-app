@@ -503,9 +503,25 @@ struct TrainView: View {
     private func toggleSet(exKey: String, setIdx: Int, ex: Exercise) {
         let key = "\(exKey)_\(setIdx)"
         let wasDone = completedSets[key] == true
-        completedSets[key] = !wasDone
+        let nowDone = !wasDone
+        completedSets[key] = nowDone
 
-        if !wasDone {
+        // Push the same flip into the running Live Activity so the
+        // Lock Screen / Dynamic Island card mirrors the in-app state
+        // (it'll only act when the LA is currently showing this
+        // exercise — different exercises stay frozen on the card
+        // until the user explicitly advances).
+        if liveActivityActive, #available(iOS 16.2, *) {
+            Task {
+                await LiveActivityService.shared.syncSetCompletion(
+                    exerciseName: ex.name,
+                    setIdx: setIdx,
+                    completed: nowDone
+                )
+            }
+        }
+
+        if nowDone {
             // Light haptic confirms the tap registered as "set done".
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             // Set just completed — check if all done
