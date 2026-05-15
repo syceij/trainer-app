@@ -58,6 +58,17 @@ struct ContentView: View {
                 Task { await app.drainPendingSets() }
             }
         }
+        // Session Complete sheet — TrainView's Finish button populates
+        // `app.pendingSessionSummary`; this presents the review modal.
+        // Sheet dismisses automatically when the summary is cleared
+        // (either via "Save Session" → `confirmFinishSession` or
+        // "Cancel" → `cancelPendingSession`).
+        .sheet(item: $app.pendingSessionSummary) { summary in
+            SessionCompleteView(summary: summary)
+                .environmentObject(app)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.hidden)
+        }
     }
 
     private var splash: some View {

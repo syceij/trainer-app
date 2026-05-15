@@ -32,6 +32,12 @@ final class AppState: ObservableObject {
 
     @Published var activeProgramme: Programme?
     @Published var currentSession: WorkoutSession?
+    /// Set when the user taps "Finish Session" — drives the Session
+    /// Complete sheet at the root of ContentView. Tapping "Save Session"
+    /// inside the sheet triggers `confirmFinishSession()` which runs the
+    /// actual persistence; tapping Cancel just clears this back to nil.
+    /// Mirrors React's `showSummary` flag + `<SummarySheet>` modal.
+    @Published var pendingSessionSummary: SessionSummary?
     /// Currently-selected week index (1-based) for the Home tab week pills.
     /// Mirrors React's `currentWeek` state. Defaults to 1 and is clamped
     /// to the programme's available weeks whenever the programme arrives.
@@ -763,26 +769,72 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// User tapped "Save Session" inside the Session Complete sheet.
+    /// Persists the workout, fires confetti + toast, and clears the
+    /// summary so the sheet dismisses. Wraps `finishWorkout` so the
+    /// existing persistence path stays a single source of truth.
+    func confirmFinishSession() async {
+        guard let summary = pendingSessionSummary else { return }
+        // Clear the trigger first so the sheet dismisses immediately —
+        // any UI behind the sheet animates back in while we finish the
+        // network round-trip on the side.
+        pendingSessionSummary = nil
+
+        // End any running Live Activity so the lock-screen widget
+        // doesn't outlive the session.
+        await LiveActivityService.shared.end()
+
+        // Snap the celebratory feedback in BEFORE the network call so
+        // the user gets a snappy "done" feel even on slow connections.
+        confettiTrigger &+= 1
+
+        do {
+            try await finishWorkout(summary.session, sets: summary.sets)
+            toast = language == "ar" ? "تم حفظ الجلسة ✓" : "Session saved ✓"
+        } catch {
+            print("[AppState] confirmFinishSession failed:", error)
+            toast = language == "ar"
+                ? "تعذّر حفظ الجلسة"
+                : "Couldn't save session: \(error.localizedDescription)"
+        }
+    }
+
+    /// User tapped Cancel inside the Session Complete sheet. Just dismiss.
+    func cancelPendingSession() {
+        pendingSessionSummary = nil
+    }
+
     /// Persist a completed workout: writes the session row and any performed
     /// sets, refreshes `workoutHistory`, inserts an activity-feed row, and
     /// recalculates the leaderboard score so friends see updated stats.
+    ///
+    /// Ordering: working_weights are upserted BEFORE `loadHistory` so that
+    /// when ProgressTab re-renders off the new `workoutHistory`, the
+    /// `workingWeights` dictionary is already current — otherwise the
+    /// History row appears first with the tracked-lift cards still showing
+    /// the old kg.
     func finishWorkout(_ session: WorkoutSession,
                        sets: [PerformedSet]) async throws {
         try await SupabaseManager.shared.saveWorkoutSession(session)
         try await SupabaseManager.shared.savePerformedSets(sets)
         currentSession = nil
-        await loadHistory()
 
         // Update working_weights with the heaviest non-bodyweight load per
-        // exercise in this session so PT chat + leaderboard scoring see the
-        // freshest values without an extra DB hop.
+        // exercise. Key by `ex.name.trim()` (matches React App.jsx:836)
+        // AND also by `ex.key` when present, so the Progress tab's
+        // `resolveWorkingWeight` lookup hits via EITHER `lift.name` or
+        // `lift.key`. Previously this used a lossy `canonicalLiftKey`
+        // helper that mapped "Barbell OHP" → "ohp" and broke the lookup.
         var liftMaxes: [String: Double] = [:]
         for ex in session.data?.exercises ?? [] {
-            guard let w = ex.weight, w > 0 else { continue }
-            // Use the canonical lift key when one matches; fall back to the
-            // exercise's display name so custom lifts still persist.
-            let key = canonicalLiftKey(forName: ex.name) ?? ex.name
-            liftMaxes[key] = max(liftMaxes[key] ?? 0, w)
+            guard let w = ex.weight, w > 0, !ex.bodyweight else { continue }
+            let displayKey = ex.name.trimmingCharacters(in: .whitespaces)
+            if !displayKey.isEmpty {
+                liftMaxes[displayKey] = max(liftMaxes[displayKey] ?? 0, w)
+            }
+            if !ex.key.isEmpty, ex.key != displayKey {
+                liftMaxes[ex.key] = max(liftMaxes[ex.key] ?? 0, w)
+            }
         }
         if !liftMaxes.isEmpty {
             do {
@@ -793,6 +845,10 @@ final class AppState: ObservableObject {
                 print("[AppState] upsertWorkingWeights failed:", error)
             }
         }
+
+        // Reload history AFTER working-weights so Progress tab re-renders
+        // with both new values in one shot.
+        await loadHistory()
 
         // Compute completed-set volume for the activity-feed row
         let volume: Double = sets.reduce(0) { acc, s in
@@ -1218,5 +1274,48 @@ final class AppState: ObservableObject {
         case "row":      return needle.contains("row")
         default:         return false
         }
+    }
+}
+
+// MARK: - Session Complete summary
+
+/// Snapshot of a just-finished workout displayed in the Session Complete
+/// sheet. TrainView populates this from the current session + the user's
+/// completed sets when the Finish Session button is tapped; the sheet
+/// presents it for review and the user then taps "Save Session" to fire
+/// `AppState.confirmFinishSession()`.
+///
+/// Conforms to `Identifiable` so the sheet can be presented via
+/// `.sheet(item: $app.pendingSessionSummary)`.
+struct SessionSummary: Identifiable, Hashable {
+    let id = UUID()
+
+    /// Fully-built WorkoutSession ready for `finishWorkout`. Carries the
+    /// final (override-applied) exercises list inside its `.data`.
+    let session: WorkoutSession
+    /// Per-set rows ready for `savePerformedSets`. Each carries the
+    /// parsed reps target and the user's chosen weight.
+    let sets: [PerformedSet]
+
+    /// Display fields the sheet reads.
+    let sessionName: String
+    let setsDone: Int
+    let volumeKg: Double
+    let exercises: [ExerciseLine]
+
+    /// One line in the "Final weights" recap inside the sheet.
+    struct ExerciseLine: Hashable {
+        let name: String
+        let weightKg: Double?    // nil for bodyweight
+        let bodyweight: Bool
+    }
+
+    // Custom Hashable conformance because WorkoutSession + PerformedSet
+    // already conform; the auto-synthesized version chokes on the
+    // optional Date fields under some compiler settings. Hash on `id`
+    // since each summary is unique by construction.
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: SessionSummary, rhs: SessionSummary) -> Bool {
+        lhs.id == rhs.id
     }
 }

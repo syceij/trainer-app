@@ -36,6 +36,30 @@ struct TrainView: View {
         }
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        // Reset all per-session UI state whenever the staged session
+        // changes — covers two flows:
+        //   1. Just-finished session (`currentSession` → nil after
+        //      `confirmFinishSession`) — clears the now-stale checkmarks.
+        //   2. User picks a different day on Home — fresh session needs
+        //      a clean slate, otherwise old `completedSets` keyed by
+        //      `"<exIdx>_<name>_<si>"` could falsely match a new
+        //      session's exercise at the same index with the same name.
+        .onChange(of: app.currentSession?.id) { _ in
+            resetSessionState()
+        }
+    }
+
+    /// Wipe every @State variable that's scoped to the current workout.
+    private func resetSessionState() {
+        completedSets      = [:]
+        editedWeights      = [:]
+        expandedKey        = nil
+        activeTimerKey     = nil
+        restTimerChoice    = [:]
+        timerRemaining     = 0
+        timerDuration      = 0
+        timerPaused        = false
+        liveActivityActive = false
     }
 
     // MARK: - Empty state
@@ -596,19 +620,42 @@ struct TrainView: View {
         guard let session = app.currentSession else { return }
 
         // Apply per-exercise weight overrides from the inline stepper.
-        let finalExercises: [Exercise] = exercises.map { ex in
-            guard let override = editedWeights[ex.name] else { return ex }
-            return Exercise(
-                name: ex.name, tag: ex.tag, sets: ex.sets, reps: ex.reps,
-                weight: override, rpe: ex.rpe, notes: ex.notes
-            )
+        //
+        // KEY ALIGNMENT (this used to be broken):
+        //   • the stepper writes `editedWeights[exKey]` where
+        //     `exKey = "<exIdx>_<ex.name>"` (TrainView:222).
+        //   • finishSession used to read `editedWeights[ex.name]`, which
+        //     never matched, so the user's bumped weights silently
+        //     dropped on the floor.
+        //
+        // We also preserve every Exercise field via mutating-copy instead
+        // of re-instantiating via the memberwise init — the old approach
+        // dropped `key`, `bodyweight`, `restTimer`, `muscle`, etc., which
+        // broke library-key lookups and turned BW exercises into weighted
+        // ones on the history side.
+        let finalExercises: [Exercise] = exercises.enumerated().map { (exIdx, ex) -> Exercise in
+            let exKey = "\(exIdx)_\(ex.name)"
+            guard let override = editedWeights[exKey] else { return ex }
+            var copy = ex
+            copy.weight = override
+            return copy
         }
 
         // Build PerformedSet rows for every set the user marked complete.
+        // Same key-alignment fix: completedSets is written with
+        // `"<exKey>_<si>"` (TrainView:447), not `"<ex.name>_<si>"`.
+        //
+        // We also stop sending `reps: nil` — every downstream computation
+        // (MusclePage volume, leaderboard score, "most improved" list)
+        // multiplies weight × reps, so nil reps zeroed the whole flow.
+        // Parse the upper bound of the reps prescription so e.g. "8-10"
+        // becomes 10 and "5" stays 5.
         var sets: [PerformedSet] = []
-        for ex in finalExercises {
+        for (exIdx, ex) in finalExercises.enumerated() {
+            let exKey = "\(exIdx)_\(ex.name)"
+            let parsedReps = parseTargetReps(ex.reps)
             for setIdx in 0..<ex.sets {
-                let key = "\(ex.name)_\(setIdx)"
+                let key = "\(exKey)_\(setIdx)"
                 guard completedSets[key] == true else { continue }
                 sets.append(PerformedSet(
                     id:           UUID(),
@@ -616,7 +663,7 @@ struct TrainView: View {
                     userId:       session.userId,
                     exerciseName: ex.name,
                     setNumber:    setIdx + 1,
-                    reps:         nil,                  // free-form on iOS for now
+                    reps:         parsedReps,
                     weight:       ex.weight,
                     rpe:          nil,
                     completed:    true,
@@ -639,31 +686,61 @@ struct TrainView: View {
             createdAt:   session.createdAt
         )
 
-        // Optimistically clear the local set-tracking state so the UI
-        // resets to a fresh card view (same as React).
-        completedSets = [:]
-        editedWeights = [:]
-        expandedKey = nil
-        activeTimerKey = nil
-        timerRemaining = 0
-        timerDuration  = 0
-        timerPaused    = false
-        liveActivityActive = false
-
-        // Fire the confetti burst + haptic immediately for snappy feedback.
-        app.confettiTrigger &+= 1
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-
-        Task {
-            // End any running Live Activity first so the lock-screen widget
-            // doesn't outlive the session.
-            await LiveActivityService.shared.end()
-            do {
-                try await app.finishWorkout(completedSession, sets: sets)
-            } catch {
-                print("[TrainView] finishWorkout failed:", error)
-            }
+        // Compute the session-complete summary BEFORE we clear local state
+        // — the modal needs the volume + sets-done numbers, and clearing
+        // happens after the user taps "Save Session" inside the sheet.
+        let doneSets = sets.count
+        let volumeKg: Double = sets.reduce(0) { acc, s in
+            guard let w = s.weight, w > 0, let r = s.reps, r > 0 else { return acc }
+            return acc + w * Double(r)
         }
+        let summaryExercises: [SessionSummary.ExerciseLine] = finalExercises.map { ex in
+            SessionSummary.ExerciseLine(
+                name: ex.name,
+                weightKg: ex.bodyweight ? nil : ex.weight,
+                bodyweight: ex.bodyweight
+            )
+        }
+        let summary = SessionSummary(
+            session: completedSession,
+            sets: sets,
+            sessionName: completedSession.name,
+            setsDone: doneSets,
+            volumeKg: volumeKg,
+            exercises: summaryExercises
+        )
+
+        // Surface the Session Complete modal. The actual persistence runs
+        // when the user taps "Save Session ✓" inside the sheet — mirrors
+        // React's `showSummary` → `<SummarySheet>` → `handleSave` flow.
+        app.pendingSessionSummary = summary
+
+        // Light success haptic on Finish tap so the modal feels responsive.
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    /// Extract a numeric reps target from prescription strings like
+    /// `"8-10"` (→10), `"8"` (→8), `"6 reps"` (→6). Falls back to 8 when
+    /// nothing parses — that fallback matches React's TodayTab behaviour.
+    private func parseTargetReps(_ raw: String) -> Int {
+        // Pull out the last digit-run in the string.
+        let chars = Array(raw)
+        var i = chars.count - 1
+        var endIdx = -1
+        while i >= 0 {
+            if chars[i].isNumber {
+                endIdx = i
+                break
+            }
+            i -= 1
+        }
+        guard endIdx >= 0 else { return 8 }
+        var startIdx = endIdx
+        while startIdx > 0, chars[startIdx - 1].isNumber {
+            startIdx -= 1
+        }
+        let slice = String(chars[startIdx...endIdx])
+        return Int(slice) ?? 8
     }
 }
 
@@ -682,5 +759,210 @@ private struct FlexRow<Content: View>: View {
         HStack(spacing: spacing) {
             content()
         }
+    }
+}
+
+// MARK: - Session Complete sheet
+
+/// Modal shown after the user taps "Finish Session" in TrainView. Mirrors
+/// React's `<SummarySheet>` from TodayTab.jsx: SESSION COMPLETE banner,
+/// session name, stat row (Sets / Volume), final-weights recap list,
+/// and a big lime "Save Session ✓" button that fires the actual save.
+///
+/// Presented at the root of ContentView via
+/// `.sheet(item: $app.pendingSessionSummary)`.
+struct SessionCompleteView: View {
+    let summary: SessionSummary
+    @EnvironmentObject var app: AppState
+    @State private var saving = false
+
+    private var ar: Bool { app.language == "ar" }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // ── Grabber ───────────────────────────────────────────
+            Capsule()
+                .fill(HexTheme.surface2)
+                .frame(width: 36, height: 4)
+                .padding(.top, 8)
+                .padding(.bottom, 14)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+
+                    // ── Banner ────────────────────────────────────
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(HexTheme.accent)
+                        Text(ar ? "اكتملت الجلسة" : "SESSION COMPLETE")
+                            .font(.system(size: 11, weight: .heavy))
+                            .kerning(ar ? 0 : 1.2)
+                            .foregroundColor(HexTheme.accent)
+                    }
+
+                    // ── Session name ──────────────────────────────
+                    Text(summary.sessionName)
+                        .font(.system(size: 24, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // ── Stats row ─────────────────────────────────
+                    HStack(spacing: 10) {
+                        statCard(
+                            value: "\(summary.setsDone)",
+                            label: ar ? "مجموعات" : "SETS"
+                        )
+                        statCard(
+                            value: formatVolume(summary.volumeKg),
+                            label: ar ? "الحجم" : "VOLUME"
+                        )
+                    }
+
+                    // ── Final weights recap ───────────────────────
+                    if !summary.exercises.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(ar ? "الأوزان النهائية" : "FINAL WEIGHTS")
+                                .font(.system(size: 10, weight: .heavy))
+                                .kerning(ar ? 0 : 0.8)
+                                .foregroundColor(HexTheme.dim)
+
+                            VStack(spacing: 0) {
+                                ForEach(Array(summary.exercises.enumerated()),
+                                        id: \.offset) { idx, line in
+                                    finalWeightRow(line: line)
+                                    if idx < summary.exercises.count - 1 {
+                                        Rectangle()
+                                            .fill(HexTheme.border)
+                                            .frame(height: 1)
+                                    }
+                                }
+                            }
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(HexTheme.surface2)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(HexTheme.border, lineWidth: 1)
+                            )
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
+                    // ── Save Session button ───────────────────────
+                    Button {
+                        guard !saving else { return }
+                        saving = true
+                        Task {
+                            await app.confirmFinishSession()
+                            saving = false
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if saving {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .tint(.black)
+                                    .scaleEffect(0.85)
+                            } else {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 14, weight: .heavy))
+                                    .foregroundColor(.black)
+                            }
+                            Text(ar ? "حفظ الجلسة" : "Save Session")
+                                .font(.system(size: 16, weight: .heavy))
+                                .foregroundColor(.black)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(HexTheme.accent)
+                        )
+                        .shadow(color: HexTheme.accent.opacity(0.35),
+                                radius: 18, x: 0, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(saving)
+
+                    // ── Cancel ────────────────────────────────────
+                    Button {
+                        app.cancelPendingSession()
+                    } label: {
+                        Text(ar ? "إلغاء" : "Cancel")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(HexTheme.dim)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(saving)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(HexTheme.bg.ignoresSafeArea())
+    }
+
+    // MARK: - Pieces
+
+    private func statCard(value: String, label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundColor(HexTheme.text)
+            Text(label)
+                .font(.system(size: 10, weight: .heavy))
+                .kerning(ar ? 0 : 0.8)
+                .foregroundColor(HexTheme.dim)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(HexTheme.border, lineWidth: 1)
+        )
+    }
+
+    private func finalWeightRow(line: SessionSummary.ExerciseLine) -> some View {
+        HStack {
+            Text(line.name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(HexTheme.text)
+                .lineLimit(1)
+            Spacer()
+            Text(weightLabel(line: line))
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundColor(line.bodyweight ? HexTheme.mute : HexTheme.accent)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+    }
+
+    private func weightLabel(line: SessionSummary.ExerciseLine) -> String {
+        if line.bodyweight { return ar ? "وزن الجسم" : "BW" }
+        guard let w = line.weightKg, w > 0 else { return "—" }
+        return w == w.rounded()
+            ? "\(Int(w)) kg"
+            : String(format: "%.1f kg", w)
+    }
+
+    private func formatVolume(_ vol: Double) -> String {
+        let rounded = Int(vol.rounded())
+        if rounded >= 1000 {
+            let tonnes = Double(rounded) / 1000.0
+            return tonnes == tonnes.rounded()
+                ? "\(Int(tonnes))t"
+                : String(format: "%.1ft", tonnes)
+        }
+        return "\(rounded) kg"
     }
 }
