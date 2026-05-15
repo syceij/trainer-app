@@ -874,7 +874,9 @@ final class AppState: ObservableObject {
     enum SessionField { case name, focus, block }
 
     /// Fields editable on a single exercise in ProgrammePage.
-    enum ExerciseField { case sets, reps, weight, rpe, notes }
+    /// `.restTimer` mirrors React's persisted per-exercise rest seconds
+    /// (Off/30/45/60/90/120/custom). 0 means "Off"; nil means "use default".
+    enum ExerciseField { case sets, reps, weight, rpe, notes, restTimer }
 
     /// Edit a session header field (name/focus/block) inside the active
     /// programme and persist. Mirrors `updateAutoSessionField` /
@@ -940,6 +942,15 @@ final class AppState: ObservableObject {
             ex.rpe = value.isEmpty ? nil : value
         case .notes:
             ex.notes = value.isEmpty ? nil : value
+        case .restTimer:
+            // Empty / unparseable → nil (means "use the default"), so the
+            // user can reset to the tag-based default by clearing the field.
+            let trimmed = value.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                ex.restTimer = nil
+            } else if let n = Int(trimmed), n >= 0 {
+                ex.restTimer = n
+            }
         }
         session.exercises[exerciseIdx] = ex
         week.sessions[sessionIdx] = session

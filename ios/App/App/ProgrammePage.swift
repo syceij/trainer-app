@@ -24,6 +24,11 @@ struct ProgrammePage: View {
     /// the accent-coloured dashed underline + the "N edit(s)" pill in
     /// the top bar (mirrors React's `editedKeys` list on App state).
     @State private var editedKeys: Set<String> = []
+    /// editKey of whichever exercise's "Custom" rest-timer input is open
+    /// right now (only one at a time, like React's bottom-sheet pattern).
+    @State private var customRestKey: String? = nil
+    /// In-progress text for the open custom-rest input.
+    @State private var customRestDraft: String = ""
 
     /// Identifies a single exercise slot in the active programme so the
     /// picker callback knows where to write the replacement.
@@ -250,11 +255,17 @@ struct ProgrammePage: View {
         let weeks = data.weeks
         let activeWeek = weeks.first(where: { $0.weekNumber == importedTab }) ?? weeks.first!
 
-        // Week tab strip
+        let activeWeekIdxForOverview = weeks.firstIndex(where: {
+            $0.weekNumber == activeWeek.weekNumber
+        }) ?? 0
+
+        // Week tab strip with `●` current-week indicator (matches React
+        // ProgrammePage.jsx:547-571).
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(weeks, id: \.weekNumber) { w in
                     let active = w.weekNumber == importedTab
+                    let isCurrent = w.weekNumber == app.currentWeek
                     Button {
                         withAnimation(.spring(response: 0.35)) {
                             importedTab = w.weekNumber
@@ -264,6 +275,11 @@ struct ProgrammePage: View {
                             Text(ar ? "أ\(arabicNumber(w.weekNumber))" : "W\(w.weekNumber)")
                                 .font(.system(size: 12, weight: .heavy))
                                 .foregroundColor(active ? .black : HexTheme.dim)
+                            if isCurrent {
+                                Circle()
+                                    .fill(active ? .black : HexTheme.accent)
+                                    .frame(width: 5, height: 5)
+                            }
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
@@ -282,7 +298,27 @@ struct ProgrammePage: View {
         }
         .padding(.bottom, 10)
 
-        // Day overview
+        // Block / week label pill — e.g. "Block 1 · base volume · week 1".
+        // Only shown when the active week carries a `label` string.
+        if let label = activeWeek.label, !label.isEmpty {
+            Text(label)
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundColor(HexTheme.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(HexTheme.accent.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(HexTheme.accent.opacity(0.35), lineWidth: 1.2)
+                )
+                .padding(.bottom, 12)
+        }
+
+        // Day overview header
         Text((ar ? "الأسبوع " : "Week ") + "\(importedTab) — " +
              (ar ? "نظرة اليوم" : "DAY OVERVIEW"))
             .font(.system(size: 11, weight: .heavy))
@@ -290,32 +326,13 @@ struct ProgrammePage: View {
             .foregroundColor(HexTheme.dim)
             .padding(.bottom, 6)
 
+        // 7 day rows — each tappable to edit the session name/focus
+        // (matches React's DAY OVERVIEW at ProgrammePage.jsx:584-622).
         VStack(spacing: 0) {
             ForEach(["mon","tue","wed","thu","fri","sat","sun"], id: \.self) { dayKey in
-                let s = activeWeek.sessions.first(where: { $0.day == dayKey })
-                let isRest = s == nil
-                HStack(spacing: 10) {
-                    Text(dayLabel(dayKey))
-                        .font(.system(size: 12, weight: .heavy))
-                        .foregroundColor(isRest ? HexTheme.mute : HexTheme.accent)
-                        .frame(width: 50, alignment: .leading)
-                    if let s = s {
-                        Text(s.name)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(HexTheme.text)
-                        Spacer()
-                    } else {
-                        Text(ar ? "راحة" : "Rest")
-                            .font(.system(size: 13))
-                            .foregroundColor(HexTheme.mute)
-                        Spacer()
-                    }
-                }
-                .padding(.vertical, 8)
-                .overlay(
-                    Rectangle().fill(HexTheme.border).frame(height: 1),
-                    alignment: .bottom
-                )
+                dayOverviewRow(dayKey: dayKey,
+                               weekIdx: activeWeekIdxForOverview,
+                               week: activeWeek)
             }
         }
         .padding(.bottom, 16)
@@ -327,13 +344,12 @@ struct ProgrammePage: View {
             .foregroundColor(HexTheme.dim)
             .padding(.bottom, 10)
 
-        let activeWeekIdx = weeks.firstIndex(where: { $0.weekNumber == activeWeek.weekNumber }) ?? 0
         VStack(spacing: 10) {
             ForEach(Array(activeWeek.sessions.enumerated()), id: \.offset) { idx, session in
                 sessionCard(session: session,
                             keyPrefix: "imp_w\(activeWeek.weekNumber)_\(session.day)",
                             isToday: session.name == app.currentSession?.name,
-                            weekIdx: activeWeekIdx,
+                            weekIdx: activeWeekIdxForOverview,
                             sessionIdx: idx)
             }
         }
@@ -359,6 +375,64 @@ struct ProgrammePage: View {
         case "sun": return ar ? "أحد"     : "Sun"
         default:    return key
         }
+    }
+
+    /// One row of the DAY OVERVIEW grid. Renders the day key + session
+    /// name (or "Rest") + focus subtitle. Name + focus are tappable
+    /// `EditableField`s when the day is a real session (not rest), so
+    /// edits made here surface in the session card below + on Home.
+    @ViewBuilder
+    private func dayOverviewRow(dayKey: String,
+                                weekIdx: Int,
+                                week: ProgrammeWeek) -> some View {
+        let sessionIdx = week.sessions.firstIndex(where: { $0.day == dayKey })
+        let s: ProgrammeSession? = sessionIdx.map { week.sessions[$0] }
+        let isRest = s == nil || s?.isRest == true || (s?.name.isEmpty ?? true)
+
+        HStack(alignment: .top, spacing: 10) {
+            Text(dayLabel(dayKey))
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundColor(isRest ? HexTheme.mute : HexTheme.accent)
+                .frame(width: 50, alignment: .leading)
+                .padding(.top, 2)
+
+            if let s = s, let sIdx = sessionIdx, !isRest {
+                VStack(alignment: .leading, spacing: 2) {
+                    EditableField(
+                        value: s.name,
+                        editKey: sessionEditKey(weekIdx, sIdx, "name"),
+                        editedKeys: $editedKeys,
+                        kind: .text,
+                        placeholder: ar ? "اسم الجلسة" : "Session name",
+                        font: .system(size: 13, weight: .semibold),
+                        foregroundColor: HexTheme.text,
+                        onCommit: { saveSession(weekIdx, sIdx, .name, $0) }
+                    )
+                    EditableField(
+                        value: s.focus ?? "",
+                        editKey: sessionEditKey(weekIdx, sIdx, "focus"),
+                        editedKeys: $editedKeys,
+                        kind: .text,
+                        placeholder: ar ? "أضف وصفاً…" : "Add focus…",
+                        font: .system(size: 11),
+                        foregroundColor: HexTheme.dim,
+                        muteColor: HexTheme.mute,
+                        onCommit: { saveSession(weekIdx, sIdx, .focus, $0) }
+                    )
+                }
+                Spacer()
+            } else {
+                Text(ar ? "راحة" : "Rest")
+                    .font(.system(size: 13))
+                    .foregroundColor(HexTheme.mute)
+                Spacer()
+            }
+        }
+        .padding(.vertical, 10)
+        .overlay(
+            Rectangle().fill(HexTheme.border).frame(height: 1),
+            alignment: .bottom
+        )
     }
 
     // MARK: - Session card
@@ -551,27 +625,12 @@ struct ProgrammePage: View {
                 onCommit: { save(weekIdx, sessionIdx, exerciseIdx, .notes, $0) }
             )
 
-            // Rest timer presets
-            VStack(alignment: .leading, spacing: 7) {
-                Text(ar ? "مؤقت الراحة" : "REST TIMER")
-                    .font(.system(size: 10, weight: .heavy))
-                    .kerning(ar ? 0 : 0.7)
-                    .foregroundColor(HexTheme.mute)
-                HStack(spacing: 5) {
-                    ForEach(["30s","60s","90s","2m","Custom"], id: \.self) { preset in
-                        Text(preset)
-                            .font(.system(size: 10, weight: .heavy))
-                            .foregroundColor(HexTheme.dim)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(HexTheme.surface))
-                            .overlay(
-                                Capsule().stroke(HexTheme.border, lineWidth: 1.5)
-                            )
-                    }
-                }
-            }
-            .padding(.top, 4)
+            // Rest timer presets — full React-parity row.
+            restTimerRow(ex: ex,
+                         weekIdx: weekIdx,
+                         sessionIdx: sessionIdx,
+                         exerciseIdx: exerciseIdx)
+                .padding(.top, 4)
         }
         .padding(.vertical, 10)
         .overlay(
@@ -608,6 +667,121 @@ struct ProgrammePage: View {
         }
     }
 
+    /// Per-exercise rest-timer block: title + pill row + (when Custom is
+    /// active or the current seconds aren't in the preset set) a small
+    /// numeric TextField. Mirrors React's RestTimer.jsx + the inline
+    /// renderer in ProgrammePage.jsx (lines 185-258).
+    private func restTimerRow(ex: Exercise,
+                              weekIdx: Int,
+                              sessionIdx: Int,
+                              exerciseIdx: Int) -> some View {
+        let baseKey   = editKey(weekIdx, sessionIdx, exerciseIdx, "restTimer")
+        let effective = RestTimerPresets.effectiveSeconds(for: ex)
+        let activePreset = RestTimerPresets.preset(for: effective)
+        let customOpen = customRestKey == baseKey ||
+                         (activePreset == nil && effective > 0)
+
+        return VStack(alignment: .leading, spacing: 7) {
+            Text(ar ? "مؤقت الراحة" : "REST TIMER")
+                .font(.system(size: 10, weight: .heavy))
+                .kerning(ar ? 0 : 0.7)
+                .foregroundColor(HexTheme.mute)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    ForEach(RestTimerPresets.all) { preset in
+                        let isActive = preset.isCustom
+                            ? customOpen
+                            : (preset.seconds == effective)
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            if preset.isCustom {
+                                if customRestKey == baseKey {
+                                    customRestKey = nil
+                                } else {
+                                    customRestKey = baseKey
+                                    customRestDraft = effective > 0 ? "\(effective)" : ""
+                                }
+                            } else {
+                                customRestKey = nil
+                                save(weekIdx, sessionIdx, exerciseIdx,
+                                     .restTimer, "\(preset.seconds ?? 0)")
+                                editedKeys.insert(baseKey)
+                            }
+                        } label: {
+                            Text(ar ? preset.arabicLabel : preset.label)
+                                .font(.system(size: 10, weight: .heavy))
+                                .foregroundColor(isActive ? .black : HexTheme.dim)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule().fill(isActive
+                                                   ? HexTheme.accent
+                                                   : HexTheme.surface)
+                                )
+                                .overlay(
+                                    Capsule().stroke(
+                                        isActive ? HexTheme.accent : HexTheme.border,
+                                        lineWidth: 1.5
+                                    )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+
+            // Custom seconds input — visible when the user taps "Custom"
+            // OR when the persisted value isn't one of the fixed presets.
+            if customOpen {
+                HStack(spacing: 8) {
+                    TextField(ar ? "ثواني" : "seconds",
+                              text: $customRestDraft)
+                        .keyboardType(.numberPad)
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(HexTheme.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(HexTheme.border, lineWidth: 1)
+                        )
+                        .frame(maxWidth: 120)
+                        .onAppear {
+                            if customRestDraft.isEmpty && effective > 0 {
+                                customRestDraft = "\(effective)"
+                            }
+                        }
+
+                    Button {
+                        let trimmed = customRestDraft.trimmingCharacters(in: .whitespaces)
+                        if let n = Int(trimmed), n >= 0 {
+                            save(weekIdx, sessionIdx, exerciseIdx,
+                                 .restTimer, "\(n)")
+                            editedKeys.insert(baseKey)
+                        }
+                        customRestKey = nil
+                    } label: {
+                        Text(ar ? "حفظ" : "Save")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(HexTheme.accent))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(Int(customRestDraft.trimmingCharacters(in: .whitespaces)) == nil)
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
     /// Build a stable identifier for an exercise field — appears in
     /// `editedKeys` and drives the accent underline + edit dot.
     private func editKey(_ weekIdx: Int, _ sessionIdx: Int,
@@ -629,6 +803,27 @@ struct ProgrammePage: View {
                 value: value
             )
         }
+    }
+
+    /// Session-header save (name / focus / block). Used by both the
+    /// DAY OVERVIEW rows and the session-card header.
+    private func saveSession(_ weekIdx: Int, _ sessionIdx: Int,
+                             _ field: AppState.SessionField,
+                             _ value: String) {
+        Task {
+            await app.updateSessionField(
+                weekIdx: weekIdx,
+                sessionIdx: sessionIdx,
+                field: field,
+                value: value
+            )
+        }
+    }
+
+    /// Stable identifier for a session header field (name/focus/block).
+    private func sessionEditKey(_ weekIdx: Int, _ sessionIdx: Int,
+                                _ field: String) -> String {
+        "w\(weekIdx)_s\(sessionIdx)_\(field)"
     }
 
     private func formatWeight(_ w: Double) -> String {

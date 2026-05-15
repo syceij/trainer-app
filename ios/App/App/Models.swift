@@ -327,6 +327,11 @@ struct Exercise: Codable, Hashable, Identifiable {
     /// ISO timestamp string for custom exercises. Stored as String because
     /// React writes it via `new Date().toISOString()` and never re-parses it.
     var createdAt: String?
+    /// Per-exercise rest-timer duration in seconds, persisted into the
+    /// programme JSON so iOS and the web see the same choice. `nil` means
+    /// "use the default for this exercise's tag" (`RestTimerPresets.defaultSeconds`).
+    /// Mirrors React's `ex.restTimer` field set from ProgrammePage.jsx.
+    var restTimer: Int?
 
     /// Stable Identifiable id — uses `key` so SwiftUI lists don't churn
     /// on every re-render (the old `UUID()` getter caused flicker).
@@ -350,7 +355,8 @@ struct Exercise: Codable, Hashable, Identifiable {
          isCustom: Bool? = nil,
          category: String? = nil,
          equipment: String? = nil,
-         createdAt: String? = nil) {
+         createdAt: String? = nil,
+         restTimer: Int? = nil) {
         self.name            = name
         self.tag             = tag
         self.sets            = sets
@@ -366,6 +372,7 @@ struct Exercise: Codable, Hashable, Identifiable {
         self.category        = category
         self.equipment       = equipment
         self.createdAt       = createdAt
+        self.restTimer       = restTimer
         self.key             = key.flatMap { $0.isEmpty ? nil : $0 }
                                 ?? Self.slug(from: name)
     }
@@ -383,7 +390,7 @@ struct Exercise: Codable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case name, tag, sets, reps, weight, rpe, notes
         case key, weightLabel, bodyweight, muscle, readyToProgress
-        case isCustom, category, equipment, createdAt
+        case isCustom, category, equipment, createdAt, restTimer
     }
 
     init(from decoder: Decoder) throws {
@@ -465,6 +472,18 @@ struct Exercise: Codable, Hashable, Identifiable {
         self.readyToProgress = (try? c.decode(Bool.self, forKey: .readyToProgress)) ?? false
         self.isCustom        = try? c.decode(Bool.self, forKey: .isCustom)
 
+        // restTimer — accept Int or numeric String. Nil = use default.
+        if let n = try? c.decode(Int.self, forKey: .restTimer) {
+            self.restTimer = n
+        } else if let d = try? c.decode(Double.self, forKey: .restTimer) {
+            self.restTimer = Int(d)
+        } else if let s = try? c.decode(String.self, forKey: .restTimer),
+                  let n = Int(s.trimmingCharacters(in: .whitespaces)) {
+            self.restTimer = n
+        } else {
+            self.restTimer = nil
+        }
+
         // key — defaults to a slug from name when null / missing / empty.
         if let k = try? c.decode(String.self, forKey: .key), !k.isEmpty {
             self.key = k
@@ -491,6 +510,57 @@ struct Exercise: Codable, Hashable, Identifiable {
         if let cat = category    { try c.encode(cat, forKey: .category) }
         if let eq = equipment    { try c.encode(eq,  forKey: .equipment) }
         if let cr = createdAt    { try c.encode(cr,  forKey: .createdAt) }
+        if let rt = restTimer    { try c.encode(rt,  forKey: .restTimer) }
+    }
+}
+
+// MARK: - Rest-timer presets
+
+/// Shared rest-timer constants used by ProgrammePage (editing) + TrainView
+/// (display + countdown). Mirrors React's `TIMER_PRESETS` from
+/// `src/components/shared/RestTimer.jsx` so the same selection set surfaces
+/// on iOS and the web.
+enum RestTimerPresets {
+
+    /// One pill in the rest-timer row. `seconds == nil` represents the
+    /// "Custom" trailing pill that opens a numeric input.
+    struct Preset: Hashable, Identifiable {
+        let label: String        // English label, e.g. "30s", "1 min"
+        let arabicLabel: String  // e.g. "٣٠ ث", "دقيقة"
+        let seconds: Int?        // nil → custom (opens input)
+        var id: String { label }
+        var isCustom: Bool { seconds == nil }
+    }
+
+    /// The fixed preset order (Off → 30s → 45s → 1 min → 90s → 2 min → Custom).
+    static let all: [Preset] = [
+        Preset(label: "Off",    arabicLabel: "إيقاف",  seconds: 0),
+        Preset(label: "30s",    arabicLabel: "٣٠ ث",   seconds: 30),
+        Preset(label: "45s",    arabicLabel: "٤٥ ث",   seconds: 45),
+        Preset(label: "1 min",  arabicLabel: "دقيقة",  seconds: 60),
+        Preset(label: "90s",    arabicLabel: "٩٠ ث",   seconds: 90),
+        Preset(label: "2 min",  arabicLabel: "دقيقتان", seconds: 120),
+        Preset(label: "Custom", arabicLabel: "مخصص",   seconds: nil),
+    ]
+
+    /// Default rest seconds for an exercise based on its `tag`/bodyweight,
+    /// matching `getDefaultRestDuration` in React's RestTimer.jsx.
+    /// Compounds rest 90s; everything else 60s.
+    static func defaultSeconds(for ex: Exercise) -> Int {
+        let tag = (ex.tag ?? "").lowercased()
+        return tag == "compound" ? 90 : 60
+    }
+
+    /// Resolve the effective rest seconds for an exercise — the user's
+    /// persisted choice if set, otherwise the tag-based default.
+    static func effectiveSeconds(for ex: Exercise) -> Int {
+        ex.restTimer ?? defaultSeconds(for: ex)
+    }
+
+    /// Returns the matching preset for a given seconds value, or `nil`
+    /// when the value isn't one of the fixed presets (use "Custom" pill).
+    static func preset(for seconds: Int) -> Preset? {
+        all.first { $0.seconds == seconds }
     }
 }
 
