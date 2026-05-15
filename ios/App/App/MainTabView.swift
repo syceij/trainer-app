@@ -1,13 +1,20 @@
 import SwiftUI
 
 /// Root tabbed interface — 5 tabs match the React BottomNav design:
-/// Home / Train / Progress / Bros / PT. AccountView is reachable from the
-/// chip in PTChatView's header (matches WelcomeScreen + ProfileTab routing
-/// in the React app).
+/// Home / Train / Progress / Bros / PT.
 ///
-/// Icons use the outline SF Symbol variants to match the Lucide-style
-/// stroke look of the React app — SwiftUI's TabView fills + tints them
-/// on selection automatically via `.tint(HexTheme.accent)`.
+/// The first four tabs use custom PNG icons shipped in Assets.xcassets
+/// (HomeIcon / TrainIcon / ProgressIcon / BrosIcon — same source artwork
+/// as `public/{home,train,progress,bros}.png` on the React side, so the
+/// two clients look identical). The PT tab keeps its SF Symbol because
+/// no custom icon was provided for it.
+///
+/// Custom-asset tab icons require:
+///   • The image rendered as a template (so `tint(...)` recolours the
+///     stroke instead of the icon shipping with a fixed colour).
+///   • Asking SwiftUI to render the symbolic variant, not the colour
+///     variant — done via `.renderingMode(.template)` on the Image
+///     before it goes into Label. iOS's TabView handles the rest.
 struct MainTabView: View {
     @EnvironmentObject var app: AppState
 
@@ -18,29 +25,37 @@ struct MainTabView: View {
         TabView(selection: $app.activeTab) {
             NavigationStack { HomeView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "الرئيسية" : "Home",
-                          systemImage: "house")
+                    customTabLabel(
+                        title: app.language == "ar" ? "الرئيسية" : "Home",
+                        imageName: "HomeIcon"
+                    )
                 }
                 .tag(AppState.Tab.home)
 
             NavigationStack { TrainView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "تدريب" : "Train",
-                          systemImage: "dumbbell")
+                    customTabLabel(
+                        title: app.language == "ar" ? "تدريب" : "Train",
+                        imageName: "TrainIcon"
+                    )
                 }
                 .tag(AppState.Tab.train)
 
             NavigationStack { ProgressTabView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "تقدم" : "Progress",
-                          systemImage: "chart.line.uptrend.xyaxis")
+                    customTabLabel(
+                        title: app.language == "ar" ? "تقدم" : "Progress",
+                        imageName: "ProgressIcon"
+                    )
                 }
                 .tag(AppState.Tab.progress)
 
             NavigationStack { CrewView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "أصدقاء" : "Bros",
-                          systemImage: "person.3")
+                    customTabLabel(
+                        title: app.language == "ar" ? "أصدقاء" : "Bros",
+                        imageName: "BrosIcon"
+                    )
                 }
                 .tag(AppState.Tab.bros)
 
@@ -54,6 +69,29 @@ struct MainTabView: View {
         .tint(HexTheme.accent)
         .onChange(of: app.activeTab) { _ in
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+    }
+
+    /// Build a `Label` whose icon comes from an Asset-catalog PNG
+    /// rendered as a tintable template. Using a UIImage with
+    /// `withRenderingMode(.alwaysTemplate)` is the cleanest way to
+    /// guarantee the tab tint propagates through — wrapping a
+    /// SwiftUI `Image(...).renderingMode(.template)` inside a Label
+    /// works for selection states but iOS pre-17 sometimes shows the
+    /// raw PNG colours on unselected tabs.
+    @ViewBuilder
+    private func customTabLabel(title: String, imageName: String) -> some View {
+        if let ui = UIImage(named: imageName)?
+            .withRenderingMode(.alwaysTemplate) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(uiImage: ui)
+            }
+        } else {
+            // Fallback if the asset is missing — keeps the tab usable
+            // instead of rendering an empty icon slot.
+            Label(title, systemImage: "circle")
         }
     }
 }

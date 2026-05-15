@@ -69,9 +69,29 @@ struct HomeView: View {
                         .padding(.bottom, 20)
                 }
 
+                // ── Auto-mode: streak row ─────────────────────────
+                // 5 Mon-Fri dots, lit when there's a logged session
+                // on that weekday this week. Mirrors HomeTab.jsx:252-269.
+                // Only renders for auto-mode programmes (flat session
+                // list with no day-keys) — imported programmes get the
+                // day grid above instead.
+                if isAutoMode {
+                    autoStreakRow
+                        .padding(.bottom, 20)
+                }
+
                 // ── Stats grid ────────────────────────────────────
                 statsGrid
                     .padding(.bottom, 20)
+
+                // ── Auto-mode: Up Next card ───────────────────────
+                // Mirrors HomeTab.jsx:295-310 — preview the next
+                // session in the rotation + its first 3 exercises.
+                // Only renders for auto programmes with 2+ sessions.
+                if let upNext = upNextSession {
+                    upNextCard(session: upNext)
+                        .padding(.bottom, 14)
+                }
 
                 // ── Programme link ────────────────────────────────
                 programmeLink
@@ -455,6 +475,125 @@ struct HomeView: View {
             statCard(value: lastVolumeLabel,
                      label: ar ? "آخر حجم"   : "LAST VOL.")
         }
+    }
+
+    // MARK: - Auto-mode chrome (streak row + Up Next card)
+
+    /// True when the active programme is an auto-generated rotation
+    /// (single week, sessions carry no day-key). React calls this
+    /// `programmeMode === 'auto'`. Imported programmes return false
+    /// and get the day-grid chrome instead.
+    private var isAutoMode: Bool {
+        guard let weeks = app.activeProgramme?.data?.weeks,
+              weeks.count == 1,
+              let firstWeek = weeks.first
+        else { return false }
+        // A flat session list with no day-keys is the auto-mode shape;
+        // any session carrying a day slug means imported.
+        return !firstWeek.sessions.contains(where: { !$0.day.isEmpty })
+    }
+
+    /// Five dots representing Mon-Fri training, lit when a session
+    /// was logged on that weekday this calendar week. Mirrors
+    /// HomeTab.jsx:252-269.
+    private var autoStreakRow: some View {
+        // Bool array indexed Mon → Fri (iOS weekday 2-6, JS getDay 1-5).
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let weekStart = cal.date(
+            from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        ) ?? today
+        var dots: [Bool] = Array(repeating: false, count: 5)
+        for session in app.workoutHistory {
+            let d = cal.startOfDay(for: session.date)
+            guard d >= weekStart else { continue }
+            // iOS Calendar weekday: 1=Sun, 2=Mon, ..., 7=Sat.
+            // Map Mon..Fri → 0..4.
+            let wd = cal.component(.weekday, from: d)
+            if wd >= 2 && wd <= 6 {
+                dots[wd - 2] = true
+            }
+        }
+
+        return HStack(spacing: 8) {
+            Text(ar ? "الإنجاز" : "Streak")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(HexTheme.dim)
+
+            HStack(spacing: 5) {
+                ForEach(0..<5, id: \.self) { i in
+                    Circle()
+                        .fill(dots[i] ? HexTheme.accent : HexTheme.surface2)
+                        .frame(width: 10, height: 10)
+                        .overlay(
+                            Circle().stroke(
+                                dots[i] ? HexTheme.accent : HexTheme.border,
+                                lineWidth: 1.5
+                            )
+                        )
+                }
+            }
+
+            if streakCount > 0 {
+                Text("\(streakCount) 🔥")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundColor(HexTheme.accent)
+            }
+            Spacer()
+        }
+    }
+
+    /// The session in the auto-rotation that comes RIGHT AFTER whatever
+    /// the user just finished — i.e. `sessions[1]` from the staged
+    /// programme. Returns nil when auto mode is off OR the rotation
+    /// has fewer than two sessions (nothing to preview).
+    private var upNextSession: ProgrammeSession? {
+        guard isAutoMode,
+              let sessions = app.activeProgramme?.data?.weeks.first?.sessions,
+              sessions.count > 1
+        else { return nil }
+        // Find the index of the currently-staged session, default 0,
+        // then return the session that comes AFTER it.
+        let currentName = app.currentSession?.name
+        let curIdx = sessions.firstIndex(where: { $0.name == currentName }) ?? 0
+        let nextIdx = (curIdx + 1) % sessions.count
+        return sessions[nextIdx]
+    }
+
+    /// UP NEXT preview card. Shows the next session's name + first 3
+    /// exercises (bulleted). Mirrors HomeTab.jsx:295-310.
+    private func upNextCard(session: ProgrammeSession) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(ar ? "التالي" : "UP NEXT")
+                .font(.system(size: 10, weight: .heavy))
+                .kerning(ar ? 0 : 1.0)
+                .foregroundColor(HexTheme.dim)
+                .padding(.bottom, 8)
+
+            Text(session.name)
+                .font(.system(size: 15, weight: .heavy))
+                .foregroundColor(HexTheme.text)
+                .padding(.bottom, 6)
+
+            ForEach(Array(session.exercises.prefix(3).enumerated()),
+                    id: \.offset) { _, ex in
+                Text("· \(ex.name)")
+                    .font(.system(size: 12))
+                    .foregroundColor(HexTheme.dim)
+                    .padding(.vertical, 1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(HexTheme.border, lineWidth: 1)
+        )
     }
 
     // MARK: - Stats

@@ -1,16 +1,52 @@
 import { motion } from 'framer-motion';
-import { Home, Dumbbell, TrendingUp, Users, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { C, spring } from '../tokens.js';
 import { hapticLight } from '../lib/haptics.js';
 
+// Four tabs use the custom PNG icons shipped in /public — same source
+// artwork as iOS's `Assets.xcassets/{Home,Train,Progress,Bros}Icon.imageset`
+// so the two clients render identical chrome. Profile keeps its Lucide
+// `User` glyph because no custom PNG was provided for it.
 const TABS = [
-  { key: 'home',     label: 'Home',     Icon: Home },
-  { key: 'today',    label: 'Train',    Icon: Dumbbell },
-  { key: 'progress', label: 'Progress', Icon: TrendingUp },
-  { key: 'gymbros',  label: 'Bros',     Icon: Users },
-  { key: 'profile',  label: 'Profile',  Icon: User },
+  { key: 'home',     label: 'Home',     iconSrc: '/home.png'     },
+  { key: 'today',    label: 'Train',    iconSrc: '/train.png'    },
+  { key: 'progress', label: 'Progress', iconSrc: '/progress.png' },
+  { key: 'gymbros',  label: 'Bros',     iconSrc: '/bros.png'     },
+  { key: 'profile',  label: 'Profile',  Icon: User               },
 ];
+
+// Single icon renderer that handles both the PNG and Lucide cases —
+// keeps the tab-button JSX free of conditional chains.
+function TabIcon({ tab, active, size = 21, strokeWidth = 1.8 }) {
+  if (tab.iconSrc) {
+    return (
+      <img
+        src={tab.iconSrc}
+        alt=""
+        width={size}
+        height={size}
+        style={{
+          // PNGs already carry the accent silhouette; we just modulate
+          // opacity for the inactive state so all five tabs share the
+          // same dim/active feel without per-icon variants.
+          opacity: active ? 1 : 0.38,
+          filter: active ? 'none' : 'grayscale(1) brightness(1.4)',
+          objectFit: 'contain',
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+  const { Icon } = tab;
+  return (
+    <Icon
+      size={size}
+      color={active ? C.accent : 'rgba(255,255,255,0.38)'}
+      strokeWidth={active ? 2.5 : strokeWidth}
+    />
+  );
+}
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -53,7 +89,8 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
             pointerEvents: 'none',
           }} />
 
-          {TABS.map(({ key, label, Icon }) => {
+          {TABS.map((tab) => {
+            const { key, label } = tab;
             const active = activeTab === key;
             return (
               <button
@@ -94,11 +131,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                   />
                 )}
 
-                <Icon
-                  size={21}
-                  color={active ? C.accent : 'rgba(255,255,255,0.38)'}
-                  strokeWidth={active ? 2.5 : 1.8}
-                />
+                <TabIcon tab={tab} active={active} size={21} strokeWidth={1.8} />
                 <span style={{
                   fontSize: 10,
                   fontWeight: active ? 700 : 500,
@@ -129,7 +162,8 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
       paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
       <div style={{ display: 'flex', height: 49 }}>
-        {TABS.map(({ key, label, Icon }) => {
+        {TABS.map((tab) => {
+          const { key, label } = tab;
           const active = activeTab === key;
           return (
             <button
@@ -165,7 +199,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                   }}
                 />
               )}
-              <Icon size={20} color={active ? C.accent : C.mute} strokeWidth={active ? 2.5 : 2} />
+              <TabIcon tab={tab} active={active} size={20} strokeWidth={2} />
               <span style={{
                 fontSize: 10,
                 fontWeight: 600,
