@@ -226,13 +226,20 @@ struct ExerciseLiftPage: View {
                 .font(.system(size: 10, weight: .heavy))
                 .kerning(ar ? 0 : 0.7)
                 .foregroundColor(HexTheme.dim)
+                .lineLimit(1)
+            // Force the value onto a single line and shrink it to fit
+            // — without this, longer strings like "107.5 kg" /
+            // "+77.5 kg" wrap to two lines and visually break the
+            // four-pill row's alignment.
             Text(value)
                 .font(.system(size: 17, weight: .heavy))
                 .foregroundColor(accent ? HexTheme.accent : HexTheme.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 56)
         .padding(.vertical, 12)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(HexTheme.surface2)

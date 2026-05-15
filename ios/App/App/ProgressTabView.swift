@@ -23,9 +23,19 @@ struct ProgressTabView: View {
     // selection writes back to that specific slot.
     @State private var pickerSlot: Int? = nil
 
-    // Action-sheet state — when not nil, the confirmation dialog opens
-    // for that filled slot with "Change exercise" / "View progress".
-    @State private var actionSheetSlot: Int? = nil
+    // Action-sheet state — when not nil, the custom bottom sheet opens
+    // for that filled slot with "View progress" / "Change exercise" /
+    // "Remove". Wrapped in an Identifiable target struct so we can
+    // present it via `.sheet(item:)` and get the standard system
+    // slide-up animation + drag-to-dismiss for free.
+    @State private var actionSheetTarget: LiftActionTarget? = nil
+
+    /// Identifies which lift slot the action sheet is open for, so the
+    /// `.sheet(item:)` modifier can pass it through to the body.
+    struct LiftActionTarget: Identifiable, Hashable {
+        let slot: Int
+        var id: Int { slot }
+    }
 
     // Set after the user taps "View progress" — drives the
     // navigationDestination to ExerciseLiftPage.
@@ -99,34 +109,33 @@ struct ProgressTabView: View {
             }
             .environmentObject(app)
         }
-        // Action sheet — open when actionSheetSlot is set. Two options:
-        // change the exercise (re-open picker) or view its full history.
-        .confirmationDialog(
-            actionSheetTitle,
-            isPresented: actionSheetIsActive,
-            titleVisibility: .visible
-        ) {
-            Button(ar ? "تغيير التمرين" : "Change exercise") {
-                let slot = actionSheetSlot
-                actionSheetSlot = nil
-                pickerSlot = slot
-            }
-            Button(ar ? "عرض التقدم" : "View progress") {
-                if let slot = actionSheetSlot,
-                   let lift = app.trackedLiftSlots[slot] {
-                    viewingLiftName = lift.name
-                }
-                actionSheetSlot = nil
-            }
-            Button(ar ? "إزالة" : "Remove", role: .destructive) {
-                if let slot = actionSheetSlot {
-                    Task { await app.setTrackedLift(slot: slot, lift: nil) }
-                }
-                actionSheetSlot = nil
-            }
-            Button(ar ? "إلغاء" : "Cancel", role: .cancel) {
-                actionSheetSlot = nil
-            }
+        // Action sheet — custom-styled bottom sheet for the lift card
+        // tap. Three actions stacked vertically (lime primary "View
+        // progress", neutral "Change exercise", red "Remove") so the
+        // sheet matches the rest of the lime/dark app theme instead
+        // of using the native iOS .confirmationDialog look.
+        .sheet(item: $actionSheetTarget) { target in
+            LiftActionSheet(
+                lift: app.trackedLiftSlots[safe: target.slot] ?? nil,
+                onViewProgress: {
+                    if let lift = app.trackedLiftSlots[safe: target.slot] ?? nil {
+                        viewingLiftName = lift.name
+                    }
+                    actionSheetTarget = nil
+                },
+                onChangeExercise: {
+                    actionSheetTarget = nil
+                    pickerSlot = target.slot
+                },
+                onRemove: {
+                    Task { await app.setTrackedLift(slot: target.slot, lift: nil) }
+                    actionSheetTarget = nil
+                },
+                onCancel: { actionSheetTarget = nil }
+            )
+            .environmentObject(app)
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.visible)
         }
         // ExerciseLiftPage navigation, driven by viewingLiftName.
         .navigationDestination(isPresented: viewingLiftIsActive) {
@@ -143,20 +152,9 @@ struct ProgressTabView: View {
         Binding(get: { pickerSlot != nil },
                 set: { if !$0 { pickerSlot = nil } })
     }
-    private var actionSheetIsActive: Binding<Bool> {
-        Binding(get: { actionSheetSlot != nil },
-                set: { if !$0 { actionSheetSlot = nil } })
-    }
     private var viewingLiftIsActive: Binding<Bool> {
         Binding(get: { viewingLiftName != nil },
                 set: { if !$0 { viewingLiftName = nil } })
-    }
-
-    private var actionSheetTitle: String {
-        guard let slot = actionSheetSlot,
-              let lift = app.trackedLiftSlots[slot]
-        else { return "" }
-        return lift.name
     }
 
     // MARK: - Tracked lifts grid
@@ -174,7 +172,7 @@ struct ProgressTabView: View {
                 ForEach(0..<4, id: \.self) { i in
                     if let lift = app.trackedLiftSlots[i] {
                         Button {
-                            actionSheetSlot = i
+                            actionSheetTarget = LiftActionTarget(slot: i)
                         } label: {
                             filledLiftCard(lift: lift)
                         }
@@ -368,12 +366,17 @@ struct ProgressTabView: View {
         struct Entry { var name: String; var entries: [(Date, Double)] = [] }
         var byKey: [String: Entry] = [:]
         for session in app.workoutHistory {
+            // Prefer the row-level Postgres timestamp so multiple
+            // sessions logged on the same calendar day still order
+            // chronologically — `session.date` alone is day-coarse and
+            // would leave the sort to break ties arbitrarily.
+            let effectiveDate = session.createdAt ?? session.date
             for ex in session.data?.exercises ?? [] {
                 if ex.bodyweight { continue }
                 guard let w = ex.weight, w > 0 else { continue }
                 let key = ex.key.isEmpty ? ex.name.lowercased() : ex.key
                 var e = byKey[key] ?? Entry(name: ex.name)
-                e.entries.append((session.date, w))
+                e.entries.append((effectiveDate, w))
                 byKey[key] = e
             }
         }
@@ -846,18 +849,26 @@ struct ProgressTabView: View {
     private struct MuscleStat { let id: String; let pct: Int; let seen: Bool }
 
     /// Aggregate stats per muscle group computed from `workoutHistory`.
-    /// Same logic React uses in calcMuscleImprovements.
+    /// Same logic React uses in `calcMuscleImprovements` — but each
+    /// weight is now stored alongside its session's effective date so
+    /// the "first" and "last" picks order chronologically even when
+    /// multiple sessions share the same `session.date` (the day-coarse
+    /// finish timestamp). Without this, 13 same-day Dumbbell Bench
+    /// sessions would pick `first` and `last` arbitrarily from the
+    /// dict-iteration order and surface 0% improvement on Chest even
+    /// when the load actually climbed 30 → 107.5 kg.
     private var muscleStats: [MuscleStat] {
-        struct Entry { var muscle: String; var weights: [Double] = [] }
+        struct Entry { var muscle: String; var entries: [(Date, Double)] = [] }
         var byName: [String: Entry] = [:]
-        for session in app.workoutHistory.reversed() {
+        for session in app.workoutHistory {
+            let effectiveDate = session.createdAt ?? session.date
             for ex in session.data?.exercises ?? [] {
                 if ex.bodyweight { continue }
                 guard let w = ex.weight, w > 0 else { continue }
                 guard let muscle = MuscleUtils.resolveMuscle(for: ex) else { continue }
                 let key = ex.name.lowercased()
                 var e = byName[key] ?? Entry(muscle: muscle)
-                e.weights.append(w)
+                e.entries.append((effectiveDate, w))
                 byName[key] = e
             }
         }
@@ -866,10 +877,13 @@ struct ProgressTabView: View {
         for (_, entry) in byName {
             for mg in MuscleUtils.groups where mg.muscles.contains(entry.muscle) {
                 seenByGroup.insert(mg.id)
-                if entry.weights.count >= 2,
-                   let first = entry.weights.first, first > 0,
-                   let last = entry.weights.last {
-                    pctsByGroup[mg.id, default: []].append((last - first) / first * 100)
+                if entry.entries.count >= 2 {
+                    let sorted = entry.entries.sorted(by: { $0.0 < $1.0 })
+                    let first = sorted.first!.1
+                    let last  = sorted.last!.1
+                    if first > 0 {
+                        pctsByGroup[mg.id, default: []].append((last - first) / first * 100)
+                    }
                 }
             }
         }
@@ -906,5 +920,127 @@ struct ProgressTabView: View {
         case "core":      return "Core"
         default:          return id.capitalized
         }
+    }
+}
+
+// MARK: - Lift action sheet (filled tracked-lift card → "what to do" bottom sheet)
+
+/// Custom bottom sheet shown when the user taps a filled tracked-lift
+/// card. Replaces the native `.confirmationDialog` so the look matches
+/// the rest of the lime/dark app surface (the system dialog renders
+/// with iOS standard glass + light blue button text).
+///
+/// Layout, top → bottom:
+///   • TRACKED LIFT mini-label + the lift's name (big)
+///   • "View Progress" — primary lime button → opens ExerciseLiftPage
+///   • "Change exercise" — neutral surface button → re-opens the picker
+///   • "Remove" — red destructive button → clears the slot
+///   • implicit dismiss via the drag handle / pull-down
+struct LiftActionSheet: View {
+    let lift: TrackedLift?
+    let onViewProgress: () -> Void
+    let onChangeExercise: () -> Void
+    let onRemove: () -> Void
+    let onCancel: () -> Void
+
+    @EnvironmentObject var app: AppState
+    private var ar: Bool { app.language == "ar" }
+
+    var body: some View {
+        VStack(spacing: 0) {
+
+            // ── Header (label + lift name) ────────────────────────
+            VStack(alignment: .leading, spacing: 4) {
+                Text(ar ? "وزن متتبع" : "TRACKED LIFT")
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.dim)
+                Text(lift?.name ?? "—")
+                    .font(.system(size: 22, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+
+            // ── Action buttons ────────────────────────────────────
+            VStack(spacing: 10) {
+                // Primary: View Progress
+                Button(action: onViewProgress) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 14, weight: .heavy))
+                            .foregroundColor(.black)
+                        Text(ar ? "عرض التقدم" : "View Progress")
+                            .font(.system(size: 15, weight: .heavy))
+                            .foregroundColor(.black)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(HexTheme.accent)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Secondary: Change exercise
+                Button(action: onChangeExercise) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(HexTheme.text)
+                        Text(ar ? "تغيير التمرين" : "Change exercise")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(HexTheme.text)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(HexTheme.surface2)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(HexTheme.border, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Destructive: Remove
+                Button(action: onRemove) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(HexTheme.danger)
+                        Text(ar ? "إزالة" : "Remove")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(HexTheme.danger)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+
+            Spacer(minLength: 0)
+        }
+        .background(HexTheme.bg.ignoresSafeArea())
+    }
+}
+
+// MARK: - Array safe-index subscript
+
+extension Array {
+    /// Out-of-bounds-safe subscript so `app.trackedLiftSlots[safe: 2]`
+    /// returns nil instead of crashing when the index is past the end.
+    /// Used by `LiftActionSheet` lookups so the sheet can't crash if
+    /// the slot count ever drops mid-animation.
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
