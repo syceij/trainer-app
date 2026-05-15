@@ -24,19 +24,34 @@ struct CalendarView: View {
     private var ar: Bool { app.language == "ar" }
 
     /// JS-day indices (0=Sun … 6=Sat) the user is supposed to train on.
-    /// Derived from the active programme's first-week session days; falls
-    /// back to Mon/Tue/Thu/Fri if no programme is loaded.
+    /// Mirrors React's `getTrainingDayIndices` in CalendarPage.jsx:11-28:
+    ///
+    ///   • Walks the active programme's first week.
+    ///   • Skips sessions where `isRest == true` so explicit rest days
+    ///     (e.g. `{day: "fri", isRest: true}`) DON'T get marked as
+    ///     missed training when the user inevitably doesn't log them.
+    ///   • Skips sessions whose `name` is empty (a rest day with no
+    ///     other indicator beyond the missing name).
+    ///   • Normalises the day key with `.lowercased().prefix(3)` so
+    ///     "Friday", "FRI", and "fri" all resolve to the same index.
+    ///
+    /// When no programme is loaded the set is empty → every day reads
+    /// as "rest" (transparent) rather than every past day reading as
+    /// "missed" (red), matching React's behaviour for new users.
     private var trainingDayIndices: Set<Int> {
         let dayKeyToIndex: [String: Int] = [
             "sun": 0, "mon": 1, "tue": 2, "wed": 3,
             "thu": 4, "fri": 5, "sat": 6
         ]
-        if let sessions = app.activeProgramme?.data?.weeks.first?.sessions,
-           !sessions.isEmpty {
-            let set = Set(sessions.compactMap { dayKeyToIndex[$0.day.lowercased()] })
-            if !set.isEmpty { return set }
-        }
-        return Set([1, 2, 4, 5])
+        guard let sessions = app.activeProgramme?.data?.weeks.first?.sessions,
+              !sessions.isEmpty
+        else { return [] }
+        return Set(sessions.compactMap { s -> Int? in
+            if s.isRest { return nil }
+            if s.name.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+            let key = String(s.day.lowercased().prefix(3))
+            return dayKeyToIndex[key]
+        })
     }
 
     /// Dates the user has actually logged a session on (year/month/day
