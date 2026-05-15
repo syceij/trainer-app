@@ -220,20 +220,23 @@ struct ProgressTabView: View {
     }
 
     /// Filled slot: uppercase tiny name + big kg value + sparkline polyline.
+    /// Name reserves space for two lines even when it only renders one,
+    /// so a long name like "DUMBBELL BENCH PRESS" doesn't make that
+    /// card visibly taller than its three siblings in the 2×2 grid.
     private func filledLiftCard(lift: TrackedLift) -> some View {
         let weight = resolveWorkingWeight(for: lift)
         let sparkData = sparklineWeights(for: lift.name)
 
         return VStack(alignment: .leading, spacing: 0) {
-            // Name + pencil row
+            // Name + pencil row — fixed 2-line height for grid alignment.
             HStack(alignment: .top, spacing: 4) {
                 Text(lift.name.uppercased())
                     .font(.system(size: 10, weight: .heavy))
                     .kerning(0.5)
                     .foregroundColor(HexTheme.dim)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 Image(systemName: "pencil")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(HexTheme.mute)

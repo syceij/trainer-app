@@ -754,22 +754,33 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Backfill `working_weights` from session history when the table
-    /// is empty but the user has past sessions. Mirrors React's
-    /// `App.jsx:319-340` recovery path — without this, users whose
-    /// pre-fix iOS sessions never wrote to working_weights see "—" on
-    /// their tracked-lift cards forever.
+    /// Reconcile `working_weights` from session history on every sign-in.
+    /// Mirrors React's `App.jsx:319-340` recovery path but RUNS UNCONDITIONALLY,
+    /// not just when working_weights is empty — that gated version meant a
+    /// once-bad backfill (e.g. arbitrary same-day ordering picked 70 kg
+    /// instead of 107.5 kg as the "latest" Dumbbell Bench Press) stuck
+    /// permanently because the gate kept it from re-running.
     ///
-    /// Walks history oldest → newest so the most-recent weight per
-    /// exercise name wins. Writes the result both to Supabase
-    /// (`upsertWorkingWeights`) AND mirrors locally so the Progress
-    /// cards refresh immediately without an extra round-trip.
+    /// Idempotent: walking sessions in chronological order and overwriting
+    /// the dict means the last entry per exercise = the latest weight ever
+    /// logged. Upserting the same value twice is a no-op write. Cheap on
+    /// every load (one walk through history, one batched upsert).
+    ///
+    /// Crucial: ordering uses `session.createdAt ?? session.date` so
+    /// multiple sessions logged on the same calendar day still order
+    /// chronologically. `session.date` alone is the day-coarse finish-time
+    /// timestamp and breaks ties arbitrarily.
     func backfillWorkingWeightsIfNeeded() async {
-        guard workingWeights.isEmpty, !workoutHistory.isEmpty else { return }
+        guard !workoutHistory.isEmpty else { return }
+        // Sort ASC by effective date so the chronologically-last session
+        // overwrites earlier entries in the dict.
+        let chronologicallyAsc = workoutHistory.sorted { lhs, rhs in
+            let l = lhs.createdAt ?? lhs.date
+            let r = rhs.createdAt ?? rhs.date
+            return l < r
+        }
         var backfill: [String: Double] = [:]
-        // workoutHistory is DESC by date — walk oldest-first so later
-        // entries overwrite earlier ones (latest weight wins).
-        for session in workoutHistory.reversed() {
+        for session in chronologicallyAsc {
             for ex in session.data?.exercises ?? [] {
                 if ex.bodyweight { continue }
                 let name = ex.name.trimmingCharacters(in: .whitespaces)
@@ -781,7 +792,12 @@ final class AppState: ObservableObject {
             }
         }
         guard !backfill.isEmpty else { return }
-        print("[AppState] backfilling working_weights from history:",
+        // Only write to Supabase if anything actually differs from what
+        // we already have locally — avoids spamming the upsert endpoint
+        // on every sign-in when nothing has changed.
+        let changed = backfill.contains { (k, v) in workingWeights[k] != v }
+        guard changed else { return }
+        print("[AppState] reconciling working_weights from history:",
               backfill.keys.sorted())
         do {
             try await SupabaseManager.shared.upsertWorkingWeights(backfill)
