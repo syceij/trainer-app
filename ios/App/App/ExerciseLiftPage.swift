@@ -301,18 +301,125 @@ struct ExerciseLiftPage: View {
 
     // MARK: - Data loading
 
+    /// Load the drill-down data, then patch two gaps that come from the
+    /// app having two parallel sources of truth:
+    ///
+    ///   • The `sets` table holds one row per performed set — the
+    ///     primary source.
+    ///   • The `sessions` table's `data.exercises[]` jsonb holds the
+    ///     workout snapshot — what the Progress card + most-improved
+    ///     list both read.
+    ///
+    /// These two diverge when a session was saved before the
+    /// `completedSets` key alignment fix (7d0a1d1): the session row
+    /// landed in the DB but `savePerformedSets([])` silently no-op'd
+    /// because the lookup keys didn't match. Result: tracked-lift card
+    /// shows the session's weight, but the drill-down (which reads only
+    /// `sets`) thinks the session never happened.
+    ///
+    /// The fix here is a UNION:
+    ///   1. Fetch real `sets` rows.
+    ///   2. For every session in `workoutHistory` that touched this
+    ///      exercise and has NO matching set rows, synthesize
+    ///      `PerformedSet` entries from the session's
+    ///      `data.exercises[].weight` so the drill-down "sees" it.
+    ///   3. For real set rows that have `reps == nil` (also a legacy
+    ///      bug — set rows used to be written with `reps: nil`),
+    ///      back-fill by parsing the prescription string off the
+    ///      matching session's exercise (e.g. "8-10" → 10).
+    ///
+    /// Once both gaps are patched, the drill-down's stat cards,
+    /// chart, and session log all line up with the outer Progress
+    /// card.
     private func load() async {
         do {
             let fetched = try await SupabaseManager.shared
                 .fetchAllSets(exerciseName: exerciseName, limit: 500)
-            // fetchAllSets returns DESC by created_at; the chart helpers
-            // expect oldest-first, so reverse here once.
-            rows = fetched.reversed()
+
+            // Build a session.id → (exercise, date) map from history
+            // for this exercise (case-insensitive name match).
+            let needleLc = exerciseName.lowercased()
+            var sessionToExercise: [UUID: (Exercise, Date)] = [:]
+            for session in app.workoutHistory {
+                if let ex = session.data?.exercises.first(where: {
+                    $0.name.lowercased() == needleLc
+                }) {
+                    sessionToExercise[session.id] = (ex, session.date)
+                }
+            }
+
+            // (1) Patch nil reps on real set rows by parsing the
+            //     prescription string off the matching session.
+            var combined: [PerformedSet] = fetched.map { row in
+                guard row.reps == nil,
+                      let (ex, _) = sessionToExercise[row.sessionId],
+                      let parsed = Self.parsePrescriptionReps(ex.reps)
+                else { return row }
+                var copy = row
+                copy.reps = parsed
+                return copy
+            }
+
+            // (2) Synthesize rows for sessions that aren't represented
+            //     in the `sets` table at all (the pre-fix bug).
+            let coveredSessionIds = Set(fetched.map(\.sessionId))
+            if let uid = SupabaseManager.shared.currentUser?.id {
+                for (sid, (ex, date)) in sessionToExercise
+                    where !coveredSessionIds.contains(sid)
+                {
+                    // Skip exercises with no recorded weight — they'd
+                    // clutter the chart with `nil` points.
+                    guard let w = ex.weight, w > 0 else { continue }
+                    let setCount = max(ex.sets, 1)
+                    let parsedReps = Self.parsePrescriptionReps(ex.reps)
+                    for setIdx in 0..<setCount {
+                        combined.append(PerformedSet(
+                            id:           UUID(),
+                            sessionId:    sid,
+                            userId:       uid,
+                            exerciseName: ex.name,
+                            setNumber:    setIdx + 1,
+                            reps:         parsedReps,
+                            weight:       w,
+                            rpe:          nil,
+                            completed:    true,
+                            failed:       false,
+                            createdAt:    date
+                        ))
+                    }
+                }
+            }
+
+            // Sort oldest-first as the chart + table helpers expect.
+            rows = combined.sorted { lhs, rhs in
+                let l = lhs.createdAt ?? .distantPast
+                let r = rhs.createdAt ?? .distantPast
+                return l < r
+            }
             failed = false
         } catch {
             print("[ExerciseLiftPage] load failed:", error)
             failed = true
         }
+    }
+
+    /// Extract the upper-bound numeric reps from a prescription string
+    /// like `"8-10"` → 10, `"8"` → 8, `"5 reps"` → 5. Returns nil when
+    /// nothing parses (so the table still shows `—` rather than 0).
+    static func parsePrescriptionReps(_ raw: String) -> Int? {
+        let chars = Array(raw)
+        var endIdx = -1
+        var i = chars.count - 1
+        while i >= 0 {
+            if chars[i].isNumber { endIdx = i; break }
+            i -= 1
+        }
+        guard endIdx >= 0 else { return nil }
+        var startIdx = endIdx
+        while startIdx > 0, chars[startIdx - 1].isNumber {
+            startIdx -= 1
+        }
+        return Int(String(chars[startIdx...endIdx]))
     }
 
     // MARK: - Derived data

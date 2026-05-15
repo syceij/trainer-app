@@ -381,10 +381,90 @@ struct MusclePage: View {
 
     // MARK: - Data load
 
+    /// Pulls performed sets and unions in synthesized rows for any
+    /// session that touched a relevant exercise but never wrote to
+    /// the `sets` table (legacy pre-7d0a1d1 sessions had their set
+    /// rows silently dropped due to a key-mismatch bug — the session
+    /// row still landed in `sessions`, so the data is recoverable
+    /// from `data.exercises[]`).
+    ///
+    /// Also back-fills `reps` on real rows that came in with `nil`,
+    /// by parsing the prescription off the matching session.
+    ///
+    /// Mirrors what `ExerciseLiftPage.load()` does for a single
+    /// exercise — same logic, just unscoped here because MusclePage
+    /// summarises every exercise in the group.
     private func load() async {
         do {
             let fetched = try await SupabaseManager.shared.fetchAllSets(limit: 2000)
-            allSets = fetched.reversed()      // chronological
+
+            // Build a per-session map of (exercise, date) for every
+            // exercise in workoutHistory. Multiple exercises can share
+            // a session, so the value is an array.
+            var sessionToExercises: [UUID: (Date, [Exercise])] = [:]
+            for session in app.workoutHistory {
+                let exs = session.data?.exercises ?? []
+                if !exs.isEmpty {
+                    sessionToExercises[session.id] = (session.date, exs)
+                }
+            }
+
+            // (1) Patch nil reps on real set rows by parsing the
+            //     matching session's exercise prescription.
+            var combined: [PerformedSet] = fetched.map { row in
+                guard row.reps == nil,
+                      let (_, exs) = sessionToExercises[row.sessionId],
+                      let ex = exs.first(where: {
+                          $0.name.lowercased() == row.exerciseName.lowercased()
+                      }),
+                      let parsed = ExerciseLiftPage.parsePrescriptionReps(ex.reps)
+                else { return row }
+                var copy = row
+                copy.reps = parsed
+                return copy
+            }
+
+            // (2) Synthesize rows for `(session, exercise)` pairs that
+            //     have no representation in the `sets` table at all.
+            //     Key by (sessionId, exerciseName.lowercased) so we
+            //     only synthesize what's actually missing.
+            let covered: Set<String> = Set(fetched.map { row in
+                "\(row.sessionId.uuidString)|\(row.exerciseName.lowercased())"
+            })
+            if let uid = SupabaseManager.shared.currentUser?.id {
+                for (sid, (date, exs)) in sessionToExercises {
+                    for ex in exs {
+                        let key = "\(sid.uuidString)|\(ex.name.lowercased())"
+                        if covered.contains(key) { continue }
+                        // Skip rows with no recorded weight — they'd
+                        // produce zero-weight points in the chart.
+                        guard let w = ex.weight, w > 0 else { continue }
+                        let setCount = max(ex.sets, 1)
+                        let parsedReps = ExerciseLiftPage.parsePrescriptionReps(ex.reps)
+                        for setIdx in 0..<setCount {
+                            combined.append(PerformedSet(
+                                id:           UUID(),
+                                sessionId:    sid,
+                                userId:       uid,
+                                exerciseName: ex.name,
+                                setNumber:    setIdx + 1,
+                                reps:         parsedReps,
+                                weight:       w,
+                                rpe:          nil,
+                                completed:    true,
+                                failed:       false,
+                                createdAt:    date
+                            ))
+                        }
+                    }
+                }
+            }
+
+            allSets = combined.sorted { lhs, rhs in
+                let l = lhs.createdAt ?? .distantPast
+                let r = rhs.createdAt ?? .distantPast
+                return l < r
+            }
             failed = false
         } catch {
             print("[MusclePage] load failed:", error)
