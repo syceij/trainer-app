@@ -297,6 +297,11 @@ final class AppState: ObservableObject {
         async let weights:   () = loadWorkingWeights()
         async let custom:    () = loadCustomExercises()
         _ = await (profile, programme, history, social, weights, custom)
+        // If the user's `working_weights` table is empty but they have
+        // past sessions (e.g. existed before the iOS port wrote to that
+        // table reliably), backfill from history so tracked-lift cards
+        // populate. Mirrors React's App.jsx:319-340 backfill path.
+        await backfillWorkingWeightsIfNeeded()
         // Drain any sets the user completed on the Lock Screen while the
         // app was backgrounded — the queue lives in the App Group store
         // and was written by `ToggleSetIntent`. Has to run AFTER
@@ -735,12 +740,54 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Pull the working-weights map from Supabase.
+    /// Pull the working-weights map from Supabase. Surface errors via toast
+    /// so a silent failure here doesn't show up as blank Progress cards
+    /// without any user-visible signal.
     func loadWorkingWeights() async {
         do {
             workingWeights = try await SupabaseManager.shared.fetchWorkingWeights()
         } catch {
             print("[AppState] loadWorkingWeights failed:", error)
+            if toast == nil {
+                toast = "Working weights fetch failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Backfill `working_weights` from session history when the table
+    /// is empty but the user has past sessions. Mirrors React's
+    /// `App.jsx:319-340` recovery path — without this, users whose
+    /// pre-fix iOS sessions never wrote to working_weights see "—" on
+    /// their tracked-lift cards forever.
+    ///
+    /// Walks history oldest → newest so the most-recent weight per
+    /// exercise name wins. Writes the result both to Supabase
+    /// (`upsertWorkingWeights`) AND mirrors locally so the Progress
+    /// cards refresh immediately without an extra round-trip.
+    func backfillWorkingWeightsIfNeeded() async {
+        guard workingWeights.isEmpty, !workoutHistory.isEmpty else { return }
+        var backfill: [String: Double] = [:]
+        // workoutHistory is DESC by date — walk oldest-first so later
+        // entries overwrite earlier ones (latest weight wins).
+        for session in workoutHistory.reversed() {
+            for ex in session.data?.exercises ?? [] {
+                if ex.bodyweight { continue }
+                let name = ex.name.trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty, let w = ex.weight, w > 0 else { continue }
+                backfill[name] = w
+                if !ex.key.isEmpty, ex.key != name {
+                    backfill[ex.key] = w
+                }
+            }
+        }
+        guard !backfill.isEmpty else { return }
+        print("[AppState] backfilling working_weights from history:",
+              backfill.keys.sorted())
+        do {
+            try await SupabaseManager.shared.upsertWorkingWeights(backfill)
+            for (k, v) in backfill { workingWeights[k] = v }
+        } catch {
+            print("[AppState] backfillWorkingWeights upsert failed:", error)
         }
     }
 

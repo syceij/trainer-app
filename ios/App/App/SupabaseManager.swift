@@ -406,6 +406,13 @@ final class SupabaseManager {
     }
 
     /// Fetch the current user's working-weights map. Empty if no rows.
+    ///
+    /// Defensive against duplicate `(user_id, exercise_name)` rows: if the
+    /// `working_weights` table is missing its composite UNIQUE constraint
+    /// then the upsert clause silently degrades to plain insert, and
+    /// `Dictionary(uniqueKeysWithValues:)` would crash on the duplicates.
+    /// We use `uniquingKeysWith: max` so duplicates collapse to the
+    /// heaviest entry — same semantic the constraint would have enforced.
     func fetchWorkingWeights() async throws -> [String: Double] {
         guard let uid = currentUser?.id else { return [:] }
         struct Row: Decodable {
@@ -422,7 +429,10 @@ final class SupabaseManager {
             .eq("user_id", value: uid)
             .execute()
             .value
-        return Dictionary(uniqueKeysWithValues: rows.map { ($0.exerciseName, $0.weight) })
+        return Dictionary(rows.map { ($0.exerciseName, $0.weight) },
+                          uniquingKeysWith: { current, incoming in
+                              max(current, incoming)
+                          })
     }
 
     /// Fetch all performed sets for the current user — used by Progress tab

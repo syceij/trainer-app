@@ -768,16 +768,36 @@ struct ProgressTabView: View {
 
     // MARK: - Working-weight resolution + sparkline data
 
-    /// Resolve the current weight for a tracked lift. Mirrors React's
-    /// `resolveWeight` — exact match in `workingWeights`, else first-2-word
-    /// prefix match, else fall back to the most-recent session weight.
+    /// Resolve the current weight for a tracked lift.
+    ///
+    /// Two-pass match, mirroring React's `resolveWeight` in
+    /// ProgrammeTab.jsx:301-327:
+    ///
+    ///   1. Exact match by display name AND library key. Case-insensitive
+    ///      on both sides so cross-device casing differences don't drop the
+    ///      lookup (e.g. iOS saved "Barbell OHP", web fetches it back as
+    ///      "barbell ohp" via some path).
+    ///   2. First-2-word case-insensitive prefix match — handles
+    ///      "Lateral Raise" → "Lateral raise (DB)" etc.
+    ///   3. Last-ditch fallback to the most-recent session weight for the
+    ///      same exercise name. Not in React, but harmless and useful when
+    ///      a tracked lift was added BEFORE working_weights ever got the
+    ///      backfill from history.
     private func resolveWorkingWeight(for lift: TrackedLift) -> Double? {
-        // 1. Exact match in workingWeights (keyed by canonical lift key OR
-        //    display name depending on which writer wrote it).
-        if let w = app.workingWeights[lift.name], w > 0 { return w }
-        if let key = lift.key, let w = app.workingWeights[key], w > 0 { return w }
-        // 2. First-2-word case-insensitive prefix match — handles
-        //    "Lateral Raise" → "Lateral raise (DB)" etc.
+        let targetName = lift.name.lowercased()
+        let targetKey  = lift.key?.lowercased() ?? ""
+
+        // 1. Exact match (case-insensitive). Iterate once instead of two
+        //    dictionary lookups so we don't miss when the stored key has
+        //    different casing from the lookup key.
+        for (k, v) in app.workingWeights where v > 0 {
+            let lower = k.lowercased()
+            if lower == targetName || (!targetKey.isEmpty && lower == targetKey) {
+                return v
+            }
+        }
+
+        // 2. First-2-word prefix match.
         let prefix = lift.name
             .split(separator: " ").prefix(2)
             .joined(separator: " ").lowercased()
@@ -787,10 +807,11 @@ struct ProgressTabView: View {
                 return v
             }
         }
-        // 3. Fall back to the most recent session weight for that name.
+
+        // 3. Session-history fallback.
         for session in app.workoutHistory {
             if let ex = session.data?.exercises.first(where: {
-                $0.name.lowercased() == lift.name.lowercased()
+                $0.name.lowercased() == targetName
             }), let w = ex.weight, w > 0 {
                 return w
             }
