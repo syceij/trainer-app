@@ -377,7 +377,13 @@ struct ProgressTabView: View {
             for ex in session.data?.exercises ?? [] {
                 if ex.bodyweight { continue }
                 guard let w = ex.weight, w > 0 else { continue }
-                let key = ex.key.isEmpty ? ex.name.lowercased() : ex.key
+                // Group by lowercased name only. Using `ex.key` (or
+                // splitting on key vs name) caused case-variants of the
+                // same exercise — e.g. "Dumbbell Bench Press" and
+                // "Dumbbell bench press" — to appear as two separate
+                // MOST IMPROVED rows even though they're the same lift.
+                let key = ex.name.lowercased().trimmingCharacters(in: .whitespaces)
+                guard !key.isEmpty else { continue }
                 var e = byKey[key] ?? Entry(name: ex.name)
                 e.entries.append((effectiveDate, w))
                 byKey[key] = e
@@ -776,51 +782,64 @@ struct ProgressTabView: View {
 
     /// Resolve the current weight for a tracked lift.
     ///
-    /// Two-pass match, mirroring React's `resolveWeight` in
-    /// ProgrammeTab.jsx:301-327:
+    /// Priority order (different from React because iOS history can have
+    /// case-variant duplicates of the same exercise — e.g. "Dumbbell Bench
+    /// Press" and "Dumbbell bench press" coexisting as separate working_weights
+    /// rows, fragmenting the lookup):
     ///
-    ///   1. Exact match by display name AND library key. Case-insensitive
-    ///      on both sides so cross-device casing differences don't drop the
-    ///      lookup (e.g. iOS saved "Barbell OHP", web fetches it back as
-    ///      "barbell ohp" via some path).
-    ///   2. First-2-word case-insensitive prefix match — handles
-    ///      "Lateral Raise" → "Lateral raise (DB)" etc.
-    ///   3. Last-ditch fallback to the most-recent session weight for the
-    ///      same exercise name. Not in React, but harmless and useful when
-    ///      a tracked lift was added BEFORE working_weights ever got the
-    ///      backfill from history.
+    ///   1. LATEST weight from `workoutHistory` matching the lift name
+    ///      case-insensitively. This is the same source the drill-down
+    ///      uses for its "CURRENT" stat pill, so the card and the
+    ///      drill-down agree by construction.
+    ///   2. Case-insensitive exact-match in `workingWeights` (name OR
+    ///      library key). Picks the MAX across any case-variant rows
+    ///      so a stale lower-case row can't shadow a fresher
+    ///      title-case row (or vice versa).
+    ///   3. First-2-word prefix fallback — handles "Lateral Raise" →
+    ///      "Lateral raise (DB)" etc.
     private func resolveWorkingWeight(for lift: TrackedLift) -> Double? {
         let targetName = lift.name.lowercased()
         let targetKey  = lift.key?.lowercased() ?? ""
 
-        // 1. Exact match (case-insensitive). Iterate once instead of two
-        //    dictionary lookups so we don't miss when the stored key has
-        //    different casing from the lookup key.
-        for (k, v) in app.workingWeights where v > 0 {
-            let lower = k.lowercased()
-            if lower == targetName || (!targetKey.isEmpty && lower == targetKey) {
-                return v
+        // 1. Latest session weight from history (chronological, matches
+        //    the drill-down's CURRENT). Walk sessions newest → oldest
+        //    using effective date so same-day sessions still order
+        //    correctly.
+        let sortedDesc = app.workoutHistory.sorted { lhs, rhs in
+            let l = lhs.createdAt ?? lhs.date
+            let r = rhs.createdAt ?? rhs.date
+            return l > r
+        }
+        for session in sortedDesc {
+            if let ex = session.data?.exercises.first(where: {
+                $0.name.lowercased() == targetName && !$0.bodyweight
+            }), let w = ex.weight, w > 0 {
+                return w
             }
         }
 
-        // 2. First-2-word prefix match.
+        // 2. Case-insensitive max across working_weights — covers the
+        //    case where a tracked lift exists but the user hasn't logged
+        //    a session with this name yet (e.g. a freshly-added slot).
+        var bestMatch: Double = 0
+        for (k, v) in app.workingWeights where v > 0 {
+            let lower = k.lowercased()
+            if lower == targetName || (!targetKey.isEmpty && lower == targetKey) {
+                bestMatch = max(bestMatch, v)
+            }
+        }
+        if bestMatch > 0 { return bestMatch }
+
+        // 3. First-2-word prefix match (case-insensitive max).
         let prefix = lift.name
             .split(separator: " ").prefix(2)
             .joined(separator: " ").lowercased()
         if !prefix.isEmpty {
             for (k, v) in app.workingWeights
                 where v > 0 && k.lowercased().contains(prefix) {
-                return v
+                bestMatch = max(bestMatch, v)
             }
-        }
-
-        // 3. Session-history fallback.
-        for session in app.workoutHistory {
-            if let ex = session.data?.exercises.first(where: {
-                $0.name.lowercased() == targetName
-            }), let w = ex.weight, w > 0 {
-                return w
-            }
+            if bestMatch > 0 { return bestMatch }
         }
         return nil
     }
