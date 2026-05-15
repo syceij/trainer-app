@@ -336,15 +336,25 @@ struct ExerciseLiftPage: View {
             let fetched = try await SupabaseManager.shared
                 .fetchAllSets(exerciseName: exerciseName, limit: 500)
 
-            // Build a session.id → (exercise, date) map from history
-            // for this exercise (case-insensitive name match).
+            // Build a session.id → (exercise, effectiveDate) map from
+            // history for this exercise (case-insensitive name match).
+            //
+            // `effectiveDate` prefers `session.createdAt` (Postgres
+            // `now()` default — distinct per session, millisecond
+            // precision) and falls back to `session.date` (day-coarse,
+            // set at finish time in TrainView). The Postgres value is
+            // what lets us order multiple sessions logged on the
+            // SAME day correctly — without it, ties in `session.date`
+            // break arbitrarily and the most recent 107.5kg session
+            // gets buried mid-list instead of ending the chart.
             let needleLc = exerciseName.lowercased()
             var sessionToExercise: [UUID: (Exercise, Date)] = [:]
             for session in app.workoutHistory {
                 if let ex = session.data?.exercises.first(where: {
                     $0.name.lowercased() == needleLc
                 }) {
-                    sessionToExercise[session.id] = (ex, session.date)
+                    let effectiveDate = session.createdAt ?? session.date
+                    sessionToExercise[session.id] = (ex, effectiveDate)
                 }
             }
 

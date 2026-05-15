@@ -398,14 +398,22 @@ struct MusclePage: View {
         do {
             let fetched = try await SupabaseManager.shared.fetchAllSets(limit: 2000)
 
-            // Build a per-session map of (exercise, date) for every
-            // exercise in workoutHistory. Multiple exercises can share
-            // a session, so the value is an array.
+            // Build a per-session map of (effectiveDate, exercises)
+            // for every exercise in workoutHistory. Multiple exercises
+            // can share a session, so the value carries the full list.
+            //
+            // `effectiveDate` prefers `session.createdAt` (Postgres
+            // `now()` default, distinct per row, millisecond precision)
+            // over `session.date` (day-coarse, identical across sessions
+            // logged on the same day). Without that preference, the
+            // chart and table sort by `session.date` break ties
+            // arbitrarily — most recent sessions get buried mid-list.
             var sessionToExercises: [UUID: (Date, [Exercise])] = [:]
             for session in app.workoutHistory {
                 let exs = session.data?.exercises ?? []
                 if !exs.isEmpty {
-                    sessionToExercises[session.id] = (session.date, exs)
+                    let effectiveDate = session.createdAt ?? session.date
+                    sessionToExercises[session.id] = (effectiveDate, exs)
                 }
             }
 
