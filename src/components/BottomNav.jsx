@@ -137,7 +137,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                   />
                 )}
 
-                <TabIcon tab={tab} active={active} size={24} strokeWidth={1.8} />
+                <TabIcon tab={tab} active={active} size={32} strokeWidth={1.8} />
               </button>
             );
           })}
@@ -196,7 +196,7 @@ export default function BottomNav({ activeTab, setActiveTab, t = k => k, lang = 
                   }}
                 />
               )}
-              <TabIcon tab={tab} active={active} size={22} strokeWidth={2} />
+              <TabIcon tab={tab} active={active} size={28} strokeWidth={2} />
             </button>
           );
         })}

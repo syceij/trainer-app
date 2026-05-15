@@ -1,36 +1,37 @@
 import SwiftUI
 
-/// Root tabbed interface — 5 tabs match the React BottomNav design:
-/// Home / Train / Progress / Bros / PT.
+/// Root tabbed interface — 5 icon-only tabs (Home / Train / Progress /
+/// Bros / PT). First four use custom PNG icons shipped in
+/// Assets.xcassets (HomeIcon / TrainIcon / ProgressIcon / BrosIcon);
+/// PT keeps its SF Symbol because no custom PNG was provided.
 ///
-/// The first four tabs use custom PNG icons shipped in Assets.xcassets
-/// (HomeIcon / TrainIcon / ProgressIcon / BrosIcon — same source artwork
-/// as `public/{home,train,progress,bros}.png` on the React side, so the
-/// two clients look identical). The PT tab keeps its SF Symbol because
-/// no custom icon was provided for it.
-///
-/// Custom-asset tab icons require:
-///   • The image rendered as a template (so `tint(...)` recolours the
-///     stroke instead of the icon shipping with a fixed colour).
-///   • Asking SwiftUI to render the symbolic variant, not the colour
-///     variant — done via `.renderingMode(.template)` on the Image
-///     before it goes into Label. iOS's TabView handles the rest.
+/// No text labels appear under the icons — VoiceOver still announces
+/// each tab via the Label's transparent Text so accessibility isn't
+/// degraded.
 struct MainTabView: View {
     @EnvironmentObject var app: AppState
 
-    init() {
-        // Icon-only tab bar — hide every tab item's title and pull the
-        // icon down into the space where the title would have rendered
-        // so the glyph sits centred in the tab cell instead of floating
-        // above an empty gap. The Text inside each `Label` is preserved
-        // (just rendered transparent) so VoiceOver still announces tab
-        // names correctly.
-        let clear: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.clear]
+    /// Runs ONCE at type-initialisation time (before the first View
+    /// instance is created), so UITabBar appearance is set before
+    /// SwiftUI's TabView captures it. Doing this in an instance `init`
+    /// can be too late on some iOS versions — the tab bar reads
+    /// appearance at layout time and caches it.
+    private static let appearanceConfigured: Void = {
+        let clear: [NSAttributedString.Key: Any] = [
+            // 0-pt font so the title takes zero vertical space even
+            // when iOS pre-15 ignores foregroundColor: .clear.
+            .foregroundColor: UIColor.clear,
+            .font: UIFont.systemFont(ofSize: 0.01)
+        ]
         let itemAppearance = UITabBarItemAppearance()
-        itemAppearance.normal.titleTextAttributes   = clear
-        itemAppearance.selected.titleTextAttributes = clear
-        itemAppearance.focused.titleTextAttributes  = clear
-        itemAppearance.disabled.titleTextAttributes = clear
+        itemAppearance.normal.titleTextAttributes    = clear
+        itemAppearance.selected.titleTextAttributes  = clear
+        itemAppearance.focused.titleTextAttributes   = clear
+        itemAppearance.disabled.titleTextAttributes  = clear
+        // Push the icon down a few points so it sits centred in the
+        // cell once the now-zero-height title slot is gone.
+        itemAppearance.normal.titlePositionAdjustment   = UIOffset(horizontal: 0, vertical: 9999)
+        itemAppearance.selected.titlePositionAdjustment = UIOffset(horizontal: 0, vertical: 9999)
 
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()
@@ -42,15 +43,17 @@ struct MainTabView: View {
         if #available(iOS 15.0, *) {
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }
-        // Nudge the icon downwards to fill the title slot.
+        // Vertically centre the icon within the tab cell now that
+        // there is no visible title taking up space below it.
         UITabBarItem.appearance().imageInsets =
             UIEdgeInsets(top: 6, left: 0, bottom: -6, right: 0)
+    }()
+
+    init() {
+        _ = Self.appearanceConfigured
     }
 
     var body: some View {
-        // Bind directly to the AppState tab so any view (e.g. HomeView's
-        // "Today's session" card) can switch tabs by writing to
-        // `app.activeTab` instead of having to drill a binding down.
         TabView(selection: $app.activeTab) {
             NavigationStack { HomeView() }
                 .tabItem {
@@ -101,11 +104,10 @@ struct MainTabView: View {
         }
     }
 
-    /// Build a `Label` whose icon comes from an Asset-catalog PNG
-    /// rendered as a tintable template. Source PNGs are 512×512 (or
-    /// 2000×2000 for train.png) which would render at 170-667pt if
-    /// passed straight to the tab bar — we explicitly redraw them at
-    /// 25pt × 25pt before display so they look like normal tab icons.
+    /// Build a Label whose icon is the asset-catalog PNG scaled down to
+    /// 32pt × 32pt. The Label still carries the localised title Text
+    /// so VoiceOver announces tab names — the appearance config above
+    /// hides the text visually + collapses the slot's height.
     @ViewBuilder
     private func customTabLabel(title: String, imageName: String) -> some View {
         if let ui = Self.tabBarIcon(named: imageName) {
@@ -115,27 +117,19 @@ struct MainTabView: View {
                 Image(uiImage: ui)
             }
         } else {
-            // Fallback if the asset is missing — keeps the tab usable
-            // instead of rendering an empty icon slot.
             Label(title, systemImage: "circle")
         }
     }
 
-    /// Load an Asset-catalog image, downscale it to a tab-bar-appropriate
-    /// 25pt × 25pt UIImage at the device's @3x scale, and return it as a
-    /// template image so the tab bar tints the silhouette with the
-    /// active / inactive colour automatically.
-    ///
-    /// Done eagerly via `UIGraphicsImageRenderer` rather than relying on
-    /// SwiftUI's `.resizable()` because SwiftUI's TabView ignores frame
-    /// modifiers on the tab-item icon — the icon's natural UIImage size
-    /// is what the tab bar lays out against.
-    private static func tabBarIcon(named: String) -> UIImage? {
-        guard let raw = UIImage(named: named) else { return nil }
-        let pointSize: CGFloat = 25
+    /// Load an Asset-catalog image and downscale it to a tab-bar-
+    /// appropriate point size. Source PNGs are 512x512 or 2000x2000
+    /// (the train one) at @1x, which would render unreasonably large
+    /// — we explicitly redraw into 32x32pt @ device scale so the tab
+    /// bar lays them out as normal icons.
+    private static func tabBarIcon(named imageName: String) -> UIImage? {
+        guard let raw = UIImage(named: imageName) else { return nil }
+        let pointSize: CGFloat = 32
         let format = UIGraphicsImageRendererFormat.default()
-        // Lock the scale to the screen's so the resulting image's
-        // `scale` is correct and the tab bar renders it at 25pt.
         format.scale = UIScreen.main.scale
         let renderer = UIGraphicsImageRenderer(
             size: CGSize(width: pointSize, height: pointSize),
