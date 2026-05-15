@@ -73,16 +73,13 @@ struct MainTabView: View {
     }
 
     /// Build a `Label` whose icon comes from an Asset-catalog PNG
-    /// rendered as a tintable template. Using a UIImage with
-    /// `withRenderingMode(.alwaysTemplate)` is the cleanest way to
-    /// guarantee the tab tint propagates through — wrapping a
-    /// SwiftUI `Image(...).renderingMode(.template)` inside a Label
-    /// works for selection states but iOS pre-17 sometimes shows the
-    /// raw PNG colours on unselected tabs.
+    /// rendered as a tintable template. Source PNGs are 512×512 (or
+    /// 2000×2000 for train.png) which would render at 170-667pt if
+    /// passed straight to the tab bar — we explicitly redraw them at
+    /// 25pt × 25pt before display so they look like normal tab icons.
     @ViewBuilder
     private func customTabLabel(title: String, imageName: String) -> some View {
-        if let ui = UIImage(named: imageName)?
-            .withRenderingMode(.alwaysTemplate) {
+        if let ui = Self.tabBarIcon(named: imageName) {
             Label {
                 Text(title)
             } icon: {
@@ -93,5 +90,33 @@ struct MainTabView: View {
             // instead of rendering an empty icon slot.
             Label(title, systemImage: "circle")
         }
+    }
+
+    /// Load an Asset-catalog image, downscale it to a tab-bar-appropriate
+    /// 25pt × 25pt UIImage at the device's @3x scale, and return it as a
+    /// template image so the tab bar tints the silhouette with the
+    /// active / inactive colour automatically.
+    ///
+    /// Done eagerly via `UIGraphicsImageRenderer` rather than relying on
+    /// SwiftUI's `.resizable()` because SwiftUI's TabView ignores frame
+    /// modifiers on the tab-item icon — the icon's natural UIImage size
+    /// is what the tab bar lays out against.
+    private static func tabBarIcon(named: String) -> UIImage? {
+        guard let raw = UIImage(named: named) else { return nil }
+        let pointSize: CGFloat = 25
+        let format = UIGraphicsImageRendererFormat.default()
+        // Lock the scale to the screen's so the resulting image's
+        // `scale` is correct and the tab bar renders it at 25pt.
+        format.scale = UIScreen.main.scale
+        let renderer = UIGraphicsImageRenderer(
+            size: CGSize(width: pointSize, height: pointSize),
+            format: format
+        )
+        let scaled = renderer.image { _ in
+            raw.draw(in: CGRect(
+                x: 0, y: 0, width: pointSize, height: pointSize
+            ))
+        }
+        return scaled.withRenderingMode(.alwaysTemplate)
     }
 }

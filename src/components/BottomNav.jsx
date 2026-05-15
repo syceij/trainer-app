@@ -8,12 +8,18 @@ import { hapticLight } from '../lib/haptics.js';
 // artwork as iOS's `Assets.xcassets/{Home,Train,Progress,Bros}Icon.imageset`
 // so the two clients render identical chrome. Profile keeps its Lucide
 // `User` glyph because no custom PNG was provided for it.
+//
+// Paths are prefixed with `import.meta.env.BASE_URL` so they resolve
+// correctly regardless of where the app is deployed — root, subpath,
+// or inside Capacitor's webview (where root-anchored paths like
+// "/home.png" fail because the page is loaded via capacitor://).
+const ICON_BASE = import.meta.env.BASE_URL || '/';
 const TABS = [
-  { key: 'home',     label: 'Home',     iconSrc: '/home.png'     },
-  { key: 'today',    label: 'Train',    iconSrc: '/train.png'    },
-  { key: 'progress', label: 'Progress', iconSrc: '/progress.png' },
-  { key: 'gymbros',  label: 'Bros',     iconSrc: '/bros.png'     },
-  { key: 'profile',  label: 'Profile',  Icon: User               },
+  { key: 'home',     label: 'Home',     iconSrc: `${ICON_BASE}home.png`     },
+  { key: 'today',    label: 'Train',    iconSrc: `${ICON_BASE}train.png`    },
+  { key: 'progress', label: 'Progress', iconSrc: `${ICON_BASE}progress.png` },
+  { key: 'gymbros',  label: 'Bros',     iconSrc: `${ICON_BASE}bros.png`     },
+  { key: 'profile',  label: 'Profile',  Icon: User                          },
 ];
 
 // Single icon renderer that handles both the PNG and Lucide cases —
