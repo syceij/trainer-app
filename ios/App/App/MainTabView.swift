@@ -17,19 +17,19 @@ struct MainTabView: View {
     /// can be too late on some iOS versions — the tab bar reads
     /// appearance at layout time and caches it.
     private static let appearanceConfigured: Void = {
+        // Zero-out the title slot completely: 0.01pt font so the title
+        // takes zero vertical space, clear colour so even if the system
+        // ignores the tiny font it renders invisibly, and a huge
+        // off-screen position offset as a third layer of defence.
         let clear: [NSAttributedString.Key: Any] = [
-            // 0-pt font so the title takes zero vertical space even
-            // when iOS pre-15 ignores foregroundColor: .clear.
             .foregroundColor: UIColor.clear,
             .font: UIFont.systemFont(ofSize: 0.01)
         ]
         let itemAppearance = UITabBarItemAppearance()
-        itemAppearance.normal.titleTextAttributes    = clear
-        itemAppearance.selected.titleTextAttributes  = clear
-        itemAppearance.focused.titleTextAttributes   = clear
-        itemAppearance.disabled.titleTextAttributes  = clear
-        // Push the icon down a few points so it sits centred in the
-        // cell once the now-zero-height title slot is gone.
+        itemAppearance.normal.titleTextAttributes      = clear
+        itemAppearance.selected.titleTextAttributes    = clear
+        itemAppearance.focused.titleTextAttributes     = clear
+        itemAppearance.disabled.titleTextAttributes    = clear
         itemAppearance.normal.titlePositionAdjustment   = UIOffset(horizontal: 0, vertical: 9999)
         itemAppearance.selected.titlePositionAdjustment = UIOffset(horizontal: 0, vertical: 9999)
 
@@ -43,10 +43,11 @@ struct MainTabView: View {
         if #available(iOS 15.0, *) {
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }
-        // Vertically centre the icon within the tab cell now that
-        // there is no visible title taking up space below it.
+        // Push the icon down by ~half the typical title slot height so
+        // it ends up visually centred in the tab cell instead of
+        // floating at the top.
         UITabBarItem.appearance().imageInsets =
-            UIEdgeInsets(top: 6, left: 0, bottom: -6, right: 0)
+            UIEdgeInsets(top: 10, left: 0, bottom: -10, right: 0)
     }()
 
     init() {
@@ -93,8 +94,7 @@ struct MainTabView: View {
 
             NavigationStack { PTChatView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "المدرب" : "PT",
-                          systemImage: "bubble.left")
+                    Label("", systemImage: "bubble.left")
                 }
                 .tag(AppState.Tab.pt)
         }
@@ -104,31 +104,35 @@ struct MainTabView: View {
         }
     }
 
-    /// Build a Label whose icon is the asset-catalog PNG scaled down to
-    /// 32pt × 32pt. The Label still carries the localised title Text
-    /// so VoiceOver announces tab names — the appearance config above
-    /// hides the text visually + collapses the slot's height.
+    /// Build a Label with an empty title Text — combined with the
+    /// appearance-level title hiding above, this guarantees no text
+    /// renders below the icon AND that the layout doesn't reserve
+    /// any visible character box for it. Accessibility falls back
+    /// to "Tab N of 5" announcement (acceptable trade-off for a
+    /// cleanly empty visual).
     @ViewBuilder
     private func customTabLabel(title: String, imageName: String) -> some View {
         if let ui = Self.tabBarIcon(named: imageName) {
             Label {
-                Text(title)
+                Text("")
             } icon: {
                 Image(uiImage: ui)
             }
         } else {
-            Label(title, systemImage: "circle")
+            Label("", systemImage: "circle")
         }
     }
 
     /// Load an Asset-catalog image and downscale it to a tab-bar-
     /// appropriate point size. Source PNGs are 512x512 or 2000x2000
     /// (the train one) at @1x, which would render unreasonably large
-    /// — we explicitly redraw into 32x32pt @ device scale so the tab
-    /// bar lays them out as normal icons.
+    /// — we explicitly redraw at the requested point size at the
+    /// device's @3x scale.
     private static func tabBarIcon(named imageName: String) -> UIImage? {
         guard let raw = UIImage(named: imageName) else { return nil }
-        let pointSize: CGFloat = 32
+        // 26pt — slightly smaller than the prior 32pt, per user
+        // feedback that the icons were a touch oversized.
+        let pointSize: CGFloat = 26
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = UIScreen.main.scale
         let renderer = UIGraphicsImageRenderer(
