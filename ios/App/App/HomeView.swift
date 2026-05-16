@@ -290,18 +290,21 @@ struct HomeView: View {
     /// `DAY_ORDER` in importHelpers.js.
     private let dayOrder: [String] = ["mon","tue","wed","thu","fri","sat","sun"]
 
-    /// Short uppercase 3-letter weekday label, e.g. "Mon" / "Tue". Arabic
-    /// uses the localised abbreviations.
+    /// English: short 3-letter abbreviation ("Mon" / "Tue"). Arabic:
+    /// full localised day name with the definite article prefix
+    /// (الإثنين / الثلاثاء / …) matching the React HomeTab.jsx version.
+    /// Returned by `dayLabel(_:)` and rendered in the accent colour
+    /// alongside each row of the weekly schedule.
     private func dayLabel(_ key: String) -> String {
         if ar {
             switch key {
-            case "mon": return "اثن"
-            case "tue": return "ثلا"
-            case "wed": return "أرب"
-            case "thu": return "خمي"
-            case "fri": return "جمع"
-            case "sat": return "سبت"
-            case "sun": return "أحد"
+            case "mon": return "الإثنين"
+            case "tue": return "الثلاثاء"
+            case "wed": return "الأربعاء"
+            case "thu": return "الخميس"
+            case "fri": return "الجمعة"
+            case "sat": return "السبت"
+            case "sun": return "الأحد"
             default:    return key
             }
         }
@@ -411,9 +414,12 @@ struct HomeView: View {
 
         let rowContent = HStack(alignment: .center, spacing: 12) {
             Text(dayLabel(dayKey))
-                .font(.system(size: 12, weight: .heavy))
+                .font(HexTheme.font(size: ar ? 14 : 12, weight: .heavy, ar: ar))
                 .foregroundColor(dayColor)
-                .frame(width: 36, alignment: ar ? .trailing : .leading)
+                // Arabic needs more room — "الأربعاء" is wider than "Wed".
+                .frame(width: ar ? 68 : 36,
+                       alignment: ar ? .trailing : .leading)
+                .lineLimit(1)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 0) {

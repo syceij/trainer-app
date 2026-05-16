@@ -261,6 +261,32 @@ enum HexTheme {
     /// Error red (#E24B4A).
     static let danger      = Color(red: 0.886, green: 0.294, blue: 0.290)
 
+    // MARK: - Fonts
+
+    /// PostScript name of the custom Arabic typeface (ThmanyahSans-Bold)
+    /// shipped in `ios/App/App/Fonts/`. Registered via the `UIAppFonts`
+    /// array in Info.plist so it's available globally without per-launch
+    /// CTFontManager registration.
+    static let thmanyahBold = "ThmanyahSans-Bold"
+
+    /// Resolve the right text font for the given language. Arabic uses
+    /// `ThmanyahSans-Bold` at the requested size (only Bold ships, so
+    /// every Arabic weight collapses to Bold — matches the React app's
+    /// behaviour where the woff2 is single-weight). English keeps SF
+    /// Pro at the caller's requested weight.
+    ///
+    /// Call sites can either:
+    ///   • Explicitly pass `ar:` from the view's `app.language` flag.
+    ///   • Inherit from an environment override applied at the root
+    ///     (see `.environment(\.font, ...)` in ContentView).
+    static func font(size: CGFloat, weight: Font.Weight, ar: Bool) -> Font {
+        if ar {
+            return .custom(thmanyahBold, size: size)
+        }
+        return .system(size: size, weight: weight)
+    }
+}
+
     // MARK: - Aliases (legacy names used elsewhere in the codebase)
 
     static let card        = surface

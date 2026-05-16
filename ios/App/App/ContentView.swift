@@ -26,6 +26,15 @@ struct ContentView: View {
                     MainTabView()
                 }
             }
+            // Global Arabic font override — applies to every Text view
+            // that DOESN'T set its own `.font(...)`. View-level explicit
+            // fonts win, but as a baseline default this routes uncustomised
+            // text through ThmanyahSans-Bold instead of SF Pro. SwiftUI
+            // ignores the env override entirely when language is English.
+            .environment(\.font,
+                         app.language == "ar"
+                            ? .custom(HexTheme.thmanyahBold, size: 15)
+                            : .system(size: 15))
             .animation(.easeInOut(duration: 0.25), value: app.authPhase)
 
             // Confetti overlay — fires when AppState.confettiTrigger changes

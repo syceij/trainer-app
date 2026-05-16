@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
+		AABB0060CCDD0060EEFF0060 /* ThmanyahSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */; };
 		AABB0051CCDD0051EEFF0051 /* ToggleSetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0050CCDD0050EEFF0050 /* ToggleSetIntent.swift */; };
@@ -76,6 +77,7 @@
 /* Begin PBXFileReference section */
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fonts/ThmanyahSans-Bold.ttf"; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
@@ -207,6 +209,7 @@
 				B1A2C3D400000000003B0002 /* LenientDate.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				AABB0050CCDD0050EEFF0050 /* ToggleSetIntent.swift */,
+				AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
@@ -316,6 +319,7 @@
 			files = (
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
+				AABB0060CCDD0060EEFF0060 /* ThmanyahSans-Bold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

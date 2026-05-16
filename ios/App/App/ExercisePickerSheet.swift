@@ -36,6 +36,13 @@ struct ExercisePickerSheet: View {
     @State private var creatingForName: String? = nil
     @State private var newExerciseCategory: String? = nil
     @State private var savingCustom = false
+    // Always-visible "Add new exercise" flow at the bottom of the
+    // categories list. When the user taps the button it expands into
+    // an inline form (name field + category grid) that mirrors the
+    // search-driven "Create '<name>'" flow but without requiring a
+    // failed search first. `inlineAddOpen` drives the expand/collapse.
+    @State private var inlineAddOpen = false
+    @State private var inlineAddName = ""
 
     private var ar: Bool { app.language == "ar" }
 
@@ -113,6 +120,10 @@ struct ExercisePickerSheet: View {
                         searchResultsList
                     } else {
                         categoriesList
+                        // Always-visible button below all categories so
+                        // the "create a custom exercise" path doesn't
+                        // require the user to search-and-fail first.
+                        addNewExerciseRow
                     }
                     Spacer(minLength: 24)
                 }
@@ -448,6 +459,184 @@ struct ExercisePickerSheet: View {
                 }
             }
         }
+    }
+
+    // MARK: - Always-visible "Add new exercise" row
+
+    /// Bottom-of-list button + inline form for creating a brand-new
+    /// custom exercise. Collapsed by default — tapping the button
+    /// reveals a name field and the category grid. Save reuses
+    /// `saveCustom` (which writes to `profiles.custom_exercises` and
+    /// auto-picks the new exercise via `onSelect` + dismiss).
+    @ViewBuilder
+    private var addNewExerciseRow: some View {
+        if inlineAddOpen {
+            inlineAddForm
+        } else {
+            Button {
+                inlineAddOpen = true
+                inlineAddName = ""
+                newExerciseCategory = nil
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(HexTheme.accent)
+                    Text(ar ? "إضافة تمرين جديد" : "Add new exercise")
+                        .font(HexTheme.font(size: 14, weight: .heavy, ar: ar))
+                        .foregroundColor(HexTheme.accent)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity)
+                .background(HexTheme.accent.opacity(0.06))
+                .overlay(
+                    Rectangle().fill(HexTheme.accent.opacity(0.30)).frame(height: 1),
+                    alignment: .top
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// Inline name field + category grid + Save/Cancel — same shape as
+    /// the search-driven `createCustomRow` but with an editable name
+    /// instead of a pre-filled search term.
+    private var inlineAddForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(ar ? "تمرين جديد" : "New exercise")
+                .font(HexTheme.font(size: 13, weight: .heavy, ar: ar))
+                .foregroundColor(HexTheme.accent)
+
+            TextField("",
+                      text: $inlineAddName,
+                      prompt: Text(ar ? "اسم التمرين" : "Exercise name")
+                        .foregroundColor(HexTheme.mute))
+                .font(HexTheme.font(size: 15, weight: .regular, ar: ar))
+                .foregroundColor(HexTheme.text)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.words)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(HexTheme.surface2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(HexTheme.border, lineWidth: 1.5)
+                )
+
+            Text(ar ? "اختر العضلة المستهدفة:" : "Pick the target muscle:")
+                .font(HexTheme.font(size: 12, weight: .regular, ar: ar))
+                .foregroundColor(HexTheme.dim)
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 6),
+                          GridItem(.flexible(), spacing: 6)],
+                spacing: 6
+            ) {
+                ForEach(Self.categories, id: \.label) { cat in
+                    Button {
+                        newExerciseCategory = cat.label
+                    } label: {
+                        Text(localizedCategory(cat.label))
+                            .font(HexTheme.font(size: 12, weight: .heavy, ar: ar))
+                            .foregroundColor(newExerciseCategory == cat.label
+                                             ? .black : HexTheme.text)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(newExerciseCategory == cat.label
+                                          ? HexTheme.accent
+                                          : HexTheme.surface2)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(HexTheme.border, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    inlineAddOpen = false
+                    inlineAddName = ""
+                    newExerciseCategory = nil
+                } label: {
+                    Text(ar ? "إلغاء" : "Cancel")
+                        .font(HexTheme.font(size: 13, weight: .heavy, ar: ar))
+                        .foregroundColor(HexTheme.mute)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(HexTheme.surface2)
+                        )
+                }
+                .buttonStyle(.plain)
+                Button {
+                    Task { await saveInlineCustom() }
+                } label: {
+                    HStack {
+                        if savingCustom {
+                            ProgressView().tint(.black).scaleEffect(0.75)
+                        } else {
+                            Text(ar ? "حفظ" : "Save")
+                                .font(HexTheme.font(size: 13, weight: .heavy, ar: ar))
+                                .foregroundColor(canSaveInline ? .black : HexTheme.mute)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(canSaveInline ? HexTheme.accent : HexTheme.surface2)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSaveInline)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(HexTheme.accent.opacity(0.04))
+        .overlay(
+            Rectangle().fill(HexTheme.accent.opacity(0.30)).frame(height: 1),
+            alignment: .top
+        )
+    }
+
+    /// Name must be non-empty AND a category must be picked.
+    private var canSaveInline: Bool {
+        !inlineAddName.trimmingCharacters(in: .whitespaces).isEmpty
+            && newExerciseCategory != nil
+            && !savingCustom
+    }
+
+    @MainActor
+    private func saveInlineCustom() async {
+        let name = inlineAddName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty,
+              let categoryLabel = newExerciseCategory,
+              let cat = Self.categories.first(where: { $0.label == categoryLabel })
+        else { return }
+        savingCustom = true
+        let new = CustomExercise(name: name, muscle: cat.muscle, category: categoryLabel)
+        await app.addCustomExercise(new)
+        savingCustom = false
+        inlineAddOpen = false
+        inlineAddName = ""
+        newExerciseCategory = nil
+        let bridged = ProgrammeBuilder.LibraryExercise(
+            new.key, new.name, new.muscle, new.equipment,
+            isMain: false, bodyweight: false
+        )
+        onSelect(bridged)
+        dismiss()
     }
 
     // MARK: - Exercise row

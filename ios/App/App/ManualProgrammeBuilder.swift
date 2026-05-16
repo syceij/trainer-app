@@ -625,7 +625,7 @@ private struct Step3: View {
                         }
                     }
                     if !allNamed {
-                        Text("Give each session a name to continue.")
+                        Text(ar ? "أعطِ كل جلسة اسماً للمتابعة." : "Give each session a name to continue.")
                             .font(.system(size: 12))
                             .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.42))
                             .padding(.top, 8)
@@ -639,6 +639,7 @@ private struct Step3: View {
 // MARK: - Step 4 — Per-day exercises (uses ExercisePickerSheet)
 
 private struct Step4: View {
+    @EnvironmentObject var app: AppState
     let selectedDays: [String]
     let sessionNames: [String: String]
     @Binding var sessionExercises: [String: [ManualProgrammeBuilder.DraftExercise]]
@@ -650,9 +651,13 @@ private struct Step4: View {
     /// While editing an existing row, `editingIndex` is set per-day.
     @State private var editingIndex: (day: String, idx: Int)? = nil
 
+    private var ar: Bool { app.language == "ar" }
+
     var body: some View {
         VStack(spacing: 16) {
-            Text("Add exercises to each session. You can skip any session and add them later.")
+            Text(ar
+                 ? "أضف التمارين لكل جلسة. يمكنك تخطّي أي جلسة وإضافتها لاحقاً."
+                 : "Add exercises to each session. You can skip any session and add them later.")
                 .font(.system(size: 13))
                 .foregroundColor(HexTheme.dim)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -804,7 +809,7 @@ private struct Step4: View {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .heavy))
                             .foregroundColor(HexTheme.accent)
-                        Text("Add exercise")
+                        Text(ar ? "إضافة تمرين" : "Add exercise")
                             .font(.system(size: 14, weight: .heavy))
                             .foregroundColor(HexTheme.accent)
                         Spacer()
@@ -1018,9 +1023,12 @@ private struct ExerciseFormRow: View {
 // MARK: - Step 5 — Duration + blocks
 
 private struct Step5: View {
+    @EnvironmentObject var app: AppState
     @Binding var duration: Int
     @Binding var useBlocks: Bool
     @Binding var blockLabels: [String]
+
+    private var ar: Bool { app.language == "ar" }
 
     private func handleDurationChange(_ value: Int) {
         duration = value
@@ -1053,10 +1061,10 @@ private struct Step5: View {
                 VStack(spacing: 10) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Block periodisation")
+                            Text(ar ? "تقسيم البرنامج لمراحل" : "Block periodisation")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(HexTheme.text)
-                            Text("Name each 4-week training phase")
+                            Text(ar ? "سمِّ كل مرحلة تدريبية مدتها 4 أسابيع" : "Name each 4-week training phase")
                                 .font(.system(size: 12))
                                 .foregroundColor(HexTheme.dim)
                         }
@@ -1080,7 +1088,7 @@ private struct Step5: View {
                         VStack(spacing: 8) {
                             ForEach(Array(blockLabels.enumerated()), id: \.offset) { i, _ in
                                 HStack(spacing: 10) {
-                                    Text("Wk \(i * 4 + 1)–\(min((i + 1) * 4, duration))")
+                                    Text((ar ? "أس " : "Wk ") + "\(i * 4 + 1)–\(min((i + 1) * 4, duration))")
                                         .font(.system(size: 11, weight: .heavy))
                                         .foregroundColor(HexTheme.dim)
                                         .frame(width: 56, alignment: .trailing)
@@ -1109,6 +1117,7 @@ private struct Step5: View {
 // MARK: - Step 6 — Review
 
 private struct Step6: View {
+    @EnvironmentObject var app: AppState
     let progName: String
     let goal: String
     let selectedDays: [String]
@@ -1118,6 +1127,8 @@ private struct Step6: View {
     let useBlocks: Bool
     let blockLabels: [String]
     let onEditStep: (Int) -> Void
+
+    private var ar: Bool { app.language == "ar" }
 
     private var goalLabel: String {
         ManualProgrammeBuilder.GOALS.first(where: { $0.key == goal })?.label ?? goal
@@ -1175,7 +1186,7 @@ private struct Step6: View {
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 180, alignment: .trailing)
                         Button { onEditStep(row.step) } label: {
-                            Text("Edit")
+                            Text(ar ? "تعديل" : "Edit")
                                 .font(.system(size: 12, weight: .heavy))
                                 .foregroundColor(HexTheme.accent)
                                 .padding(.leading, 6)
@@ -1209,13 +1220,14 @@ private struct Step6: View {
                             Text(sesName)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(HexTheme.text)
-                            Text("\(dayInfo?.full ?? dayKey) · \(exCount) exercise\(exCount == 1 ? "" : "s")")
+                            Text("\(dayInfo?.full ?? dayKey) · "
+                                 + (ar ? "\(exCount) تمرين" : "\(exCount) exercise\(exCount == 1 ? "" : "s")"))
                                 .font(.system(size: 12))
                                 .foregroundColor(HexTheme.dim)
                         }
                         Spacer()
                         Button { onEditStep(3) } label: {
-                            Text("Edit")
+                            Text(ar ? "تعديل" : "Edit")
                                 .font(.system(size: 12, weight: .heavy))
                                 .foregroundColor(HexTheme.accent)
                                 .padding(.horizontal, 4)

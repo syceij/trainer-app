@@ -17,21 +17,21 @@ struct MainTabView: View {
     /// can be too late on some iOS versions — the tab bar reads
     /// appearance at layout time and caches it.
     private static let appearanceConfigured: Void = {
-        // Zero-out the title slot completely: 0.01pt font so the title
-        // takes zero vertical space, clear colour so even if the system
-        // ignores the tiny font it renders invisibly, and a huge
-        // off-screen position offset as a third layer of defence.
-        let clear: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor.clear,
-            .font: UIFont.systemFont(ofSize: 0.01)
+        // Title slot is VISIBLE now (per user request — "add name of the
+        // page under each icon"). 9pt heavy keeps it compact under the
+        // 22pt icons without forcing a taller bar. Colours: the system
+        // tints automatically — the "selected" attribute is intentionally
+        // left at default so SwiftUI's `.tint(HexTheme.accent)` on the
+        // TabView picks both the icon and the label colour for free.
+        let normalAttrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: UIColor(white: 0.55, alpha: 1.0),
+            .font: UIFont.systemFont(ofSize: 9, weight: .heavy)
         ]
         let itemAppearance = UITabBarItemAppearance()
-        itemAppearance.normal.titleTextAttributes      = clear
-        itemAppearance.selected.titleTextAttributes    = clear
-        itemAppearance.focused.titleTextAttributes     = clear
-        itemAppearance.disabled.titleTextAttributes    = clear
-        itemAppearance.normal.titlePositionAdjustment   = UIOffset(horizontal: 0, vertical: 9999)
-        itemAppearance.selected.titlePositionAdjustment = UIOffset(horizontal: 0, vertical: 9999)
+        itemAppearance.normal.titleTextAttributes   = normalAttrs
+        itemAppearance.selected.titleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 9, weight: .heavy)
+        ]
 
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()
@@ -43,13 +43,10 @@ struct MainTabView: View {
         if #available(iOS 15.0, *) {
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }
-        // Push the icon down so it sits visually centred in the tab
-        // cell. `top: 6` (down from 10) lifts the whole icon row a
-        // touch higher, which combined with the smaller 22pt icons
-        // makes the bar feel more compact without changing the
-        // system-controlled overall tab-bar height.
-        UITabBarItem.appearance().imageInsets =
-            UIEdgeInsets(top: 6, left: 0, bottom: -6, right: 0)
+        // Reset image insets back to the system default — we want the
+        // icon to leave room for the title below it. Empty UIEdgeInsets
+        // gives the standard iOS spacing between icon top + label bottom.
+        UITabBarItem.appearance().imageInsets = .zero
     }()
 
     init() {
@@ -96,7 +93,8 @@ struct MainTabView: View {
 
             NavigationStack { PTChatView() }
                 .tabItem {
-                    Label("", systemImage: "bubble.left")
+                    Label(app.language == "ar" ? "المدرب" : "PT",
+                          systemImage: "bubble.left")
                 }
                 .tag(AppState.Tab.pt)
         }
@@ -106,22 +104,21 @@ struct MainTabView: View {
         }
     }
 
-    /// Build a Label with an empty title Text — combined with the
-    /// appearance-level title hiding above, this guarantees no text
-    /// renders below the icon AND that the layout doesn't reserve
-    /// any visible character box for it. Accessibility falls back
-    /// to "Tab N of 5" announcement (acceptable trade-off for a
-    /// cleanly empty visual).
+    /// Build a `Label` that renders the supplied title text underneath
+    /// the custom PNG icon. Titles are bilingual — passed in from the
+    /// tab declaration site using `app.language` — and styled by the
+    /// `UITabBarItemAppearance` configured above (9pt heavy, dim grey
+    /// when unselected, accent tint when selected).
     @ViewBuilder
     private func customTabLabel(title: String, imageName: String) -> some View {
         if let ui = Self.tabBarIcon(named: imageName) {
             Label {
-                Text("")
+                Text(title)
             } icon: {
                 Image(uiImage: ui)
             }
         } else {
-            Label("", systemImage: "circle")
+            Label(title, systemImage: "circle")
         }
     }
 
