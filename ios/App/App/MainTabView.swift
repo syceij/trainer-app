@@ -93,10 +93,26 @@ struct MainTabView: View {
 
             NavigationStack { PTChatView() }
                 .tabItem {
-                    Label(app.language == "ar" ? "المدرب" : "PT",
-                          systemImage: "bubble.left")
+                    customTabLabel(
+                        title: app.language == "ar" ? "المدرب" : "PT",
+                        imageName: "PTIcon"
+                    )
                 }
                 .tag(AppState.Tab.pt)
+
+            // Profile tab — surfaces AccountView directly in the
+            // navbar instead of forcing the user to drill into PT
+            // chat and tap "Account" mid-conversation. Matches the
+            // React BottomNav structure where Profile is the fifth
+            // (rightmost) tab.
+            NavigationStack { AccountView() }
+                .tabItem {
+                    customTabLabel(
+                        title: app.language == "ar" ? "الحساب" : "Profile",
+                        imageName: "ProfileIcon"
+                    )
+                }
+                .tag(AppState.Tab.profile)
         }
         .tint(HexTheme.accent)
         .onChange(of: app.activeTab) { _ in

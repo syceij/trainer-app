@@ -22,7 +22,7 @@ final class AppState: ObservableObject {
     /// raw value matches React's `activeTab` strings to keep the parity
     /// model legible.
     enum Tab: String, Hashable {
-        case home, train, progress, bros, pt
+        case home, train, progress, bros, pt, profile
     }
 
     @Published var authPhase: AuthPhase = .checking
