@@ -637,7 +637,7 @@ private struct LineChart: View {
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundColor(HexTheme.accent)
             Circle()
-                .fill(HexTheme.accent)
+                .fill(HexTheme.accentFill)
                 .frame(width: 12, height: 12)
             Text(formatShortDate(point.date))
                 .font(.system(size: 10))

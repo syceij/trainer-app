@@ -42,6 +42,80 @@ private var hexAccent: Color {
     }
 }
 
+/// Material applied on top of the accent (matte / glossy / metal /
+/// neon). Read from the same App Group key the main app writes via
+/// `AppState.setAccentMaterial`. Implemented as a private helper in
+/// this file rather than importing Theme.swift's `AccentMaterial`
+/// because the widget target compiles independently — keeping the
+/// dependency surface as small as possible avoids a target-membership
+/// problem the next time we touch the project file.
+private var hexAccentMaterial: String {
+    UserDefaults(suiteName: "group.com.hexapp.training")?
+        .string(forKey: "accent_material_v1") ?? "matte"
+}
+
+/// Build a fill style for shapes that should reflect the chosen
+/// material. Mirrors `HexTheme.accentFill` in Theme.swift — kept in
+/// sync by hand because the widget target doesn't link the main app's
+/// Theme.swift (only the small set of types in WorkoutActivityAttributes
+/// + ToggleSetIntent are shared).
+private var hexAccentFill: AnyShapeStyle {
+    let base = hexAccent
+    switch hexAccentMaterial {
+    case "glossy":
+        return AnyShapeStyle(LinearGradient(
+            colors: [base.blendWhite(0.40), base, base.blendBlack(0.15)],
+            startPoint: .top, endPoint: .bottom
+        ))
+    case "metal":
+        return AnyShapeStyle(LinearGradient(
+            colors: [
+                base.blendBlack(0.18), base.blendWhite(0.30),
+                base.blendBlack(0.25), base.blendWhite(0.15),
+                base.blendBlack(0.10)
+            ],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        ))
+    case "neon":
+        return AnyShapeStyle(RadialGradient(
+            colors: [base.blendWhite(0.45), base, base.blendBlack(0.10)],
+            center: .center, startRadius: 0, endRadius: 30
+        ))
+    default:
+        return AnyShapeStyle(base)
+    }
+}
+
+// MARK: - Color blending helpers (widget-local copy)
+// Same algorithm as `Color.blendWhite` / `blendBlack` in the main
+// app's Theme.swift. Duplicated here so the widget target doesn't
+// have to import Theme.swift (kept out of WorkoutWidget Sources for
+// the same target-membership reason cited above).
+private extension Color {
+    func blendWhite(_ amount: Double) -> Color {
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let t = CGFloat(min(max(amount, 0), 1))
+        return Color(
+            red:   Double(r + (1 - r) * t),
+            green: Double(g + (1 - g) * t),
+            blue:  Double(b + (1 - b) * t)
+        )
+    }
+    func blendBlack(_ amount: Double) -> Color {
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let t = CGFloat(1 - min(max(amount, 0), 1))
+        return Color(
+            red:   Double(r * t),
+            green: Double(g * t),
+            blue:  Double(b * t)
+        )
+    }
+}
+
 // ── Lock Screen / Notification Banner view ────────────────────────────────────
 //
 // Layout intentionally minimal — user spec is "exercise name + weight +
@@ -107,7 +181,7 @@ struct WorkoutLockScreenView: View {
                         .fill(Color.white.opacity(0.10))
                         .frame(height: 4)
                     Capsule()
-                        .fill(hexAccent)
+                        .fill(hexAccentFill)
                         .frame(width: geo.size.width * s.sessionProgress, height: 4)
                         .animation(.spring(response: 0.4, dampingFraction: 0.85),
                                    value: s.sessionProgress)
@@ -193,7 +267,7 @@ struct WorkoutLockScreenView: View {
     private func setLabel(i: Int, done: Bool) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(done ? hexAccent : hexMutedBg)
+                .fill(done ? hexAccentFill : AnyShapeStyle(hexMutedBg))
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(done ? Color.clear : hexBorder, lineWidth: 1)
             if done {
@@ -318,7 +392,7 @@ struct WorkoutLiveActivity: Widget {
     private func islandSetFace(done: Bool, index i: Int) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(done ? hexAccent : hexMutedBg)
+                .fill(done ? hexAccentFill : AnyShapeStyle(hexMutedBg))
             if done {
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .heavy))

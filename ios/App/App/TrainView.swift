@@ -249,7 +249,7 @@ struct TrainView: View {
                 Spacer()
                 if liveActivityActive {
                     Circle()
-                        .fill(HexTheme.accent)
+                        .fill(HexTheme.accentFill)
                         .frame(width: 6, height: 6)
                 }
             }
@@ -277,7 +277,7 @@ struct TrainView: View {
                         .fill(HexTheme.surface2)
                         .frame(height: 4)
                     Capsule()
-                        .fill(HexTheme.accent)
+                        .fill(HexTheme.accentFill)
                         .frame(width: geo.size.width * progress, height: 4)
                         .animation(.spring(response: 0.4, dampingFraction: 0.85),
                                    value: progress)
@@ -673,7 +673,7 @@ struct TrainView: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(HexTheme.accent)
+                    .fill(HexTheme.accentFill)
             )
             .shadow(color: HexTheme.accent.opacity(0.35), radius: 24, x: 0, y: 4)
         }
@@ -950,7 +950,7 @@ struct SessionCompleteView: View {
                         .padding(.vertical, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(HexTheme.accent)
+                                .fill(HexTheme.accentFill)
                         )
                         .shadow(color: HexTheme.accent.opacity(0.35),
                                 radius: 18, x: 0, y: 4)

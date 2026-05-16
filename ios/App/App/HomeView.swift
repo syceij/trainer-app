@@ -205,7 +205,7 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(HexTheme.accent)
+                .fill(HexTheme.accentFill)
         )
     }
 
@@ -233,7 +233,7 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(HexTheme.accent)
+                .fill(HexTheme.accentFill)
         )
     }
 

@@ -70,6 +70,72 @@ extension Color {
         let b = Double( int        & 0xFF) / 255.0
         self = Color(red: r, green: g, blue: b)
     }
+
+    /// Linearly blend this colour toward white. `amount` is 0…1 where
+    /// 0 returns the original colour and 1 returns pure white. Used to
+    /// build the bright highlight stops in glossy / metal / neon
+    /// material gradients without needing a hardcoded HSB pipeline.
+    func blendWhite(_ amount: Double) -> Color {
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let t = CGFloat(min(max(amount, 0), 1))
+        return Color(
+            red:   Double(r + (1 - r) * t),
+            green: Double(g + (1 - g) * t),
+            blue:  Double(b + (1 - b) * t)
+        )
+    }
+    /// Linearly blend this colour toward black. Same shape as
+    /// `blendWhite` — `0` keeps the original, `1` returns pure black.
+    func blendBlack(_ amount: Double) -> Color {
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let t = CGFloat(1 - min(max(amount, 0), 1))
+        return Color(
+            red:   Double(r * t),
+            green: Double(g * t),
+            blue:  Double(b * t)
+        )
+    }
+}
+
+/// Surface finish applied on top of the accent colour. Lets the user
+/// pick how the lime/cream/etc. should LOOK in addition to which hue
+/// it is. Stored as `rawValue` in App Group UserDefaults under
+/// `accent_material_v1`.
+///
+/// All four options reuse the active `AccentChoice` as the base colour
+/// — material only changes the gradient stops, not the hue. That keeps
+/// the colour-swatch picker decoupled from the material picker.
+enum AccentMaterial: String, CaseIterable, Identifiable {
+    /// Flat solid colour. The historical look — every accent surface
+    /// was a single uniform fill until this picker shipped.
+    case matte
+    /// Vertical highlight → base → soft shadow gradient. Reads like
+    /// wet plastic or a lacquered button face.
+    case glossy
+    /// Multi-stop diagonal gradient with alternating light/dark bands.
+    /// Reads like brushed metal — small angle keeps the streaks
+    /// visible without making the colour identity disappear.
+    case metal
+    /// Radial gradient with a bright "hot spot" at the centre. Reads
+    /// like a glowing light source (matches the HEX gym/energy
+    /// aesthetic — was the natural "you decide" pick).
+    case neon
+
+    var id: String { rawValue }
+
+    /// Human-readable label rendered under the picker swatch.
+    var label: String {
+        switch self {
+        case .matte:  return "Matte"
+        case .glossy: return "Glossy"
+        case .metal:  return "Metal"
+        case .neon:   return "Neon"
+        }
+    }
 }
 
 /// HEX design tokens — mirrors src/tokens.js exactly.
@@ -96,6 +162,8 @@ enum HexTheme {
     private static let appGroup = "group.com.hexapp.training"
     /// UserDefaults key for the user's chosen `AccentChoice.rawValue`.
     static let accentChoiceKey = "accent_choice_v1"
+    /// UserDefaults key for the user's chosen `AccentMaterial.rawValue`.
+    static let accentMaterialKey = "accent_material_v1"
 
     /// Resolve the currently-active `AccentChoice` from App Group
     /// UserDefaults (falls back to standard UserDefaults if the App
@@ -108,6 +176,17 @@ enum HexTheme {
         return AccentChoice(rawValue: raw) ?? .lime
     }
 
+    /// Resolve the currently-active `AccentMaterial` from App Group
+    /// UserDefaults. Defaults to `.matte` (the historical flat look)
+    /// when nothing's been picked yet.
+    static var currentAccentMaterial: AccentMaterial {
+        let raw =
+            UserDefaults(suiteName: appGroup)?.string(forKey: accentMaterialKey)
+            ?? UserDefaults.standard.string(forKey: accentMaterialKey)
+            ?? AccentMaterial.matte.rawValue
+        return AccentMaterial(rawValue: raw) ?? .matte
+    }
+
     /// Current accent color — the brand surface seen on set-button
     /// fills, progress bars, weight pills, etc. Computed on every read
     /// from App Group UserDefaults so flipping the user's choice
@@ -116,6 +195,66 @@ enum HexTheme {
     static var accent: Color { Color(hexString: currentAccentChoice.hex) }
     /// Pressed-state darker variant — same source as `accent`.
     static var accentDark: Color { Color(hexString: currentAccentChoice.hexDark) }
+
+    /// ShapeStyle for FILLING shapes with the accent. Apply at
+    /// `.fill(HexTheme.accentFill)` instead of `.fill(HexTheme.accent)`
+    /// for surfaces that should show the user's material choice
+    /// (glossy / metal / neon). Plain `HexTheme.accent` (the Color)
+    /// remains for foreground/icon/text use where material doesn't
+    /// apply, and for `.opacity()` chains that need a flat hue.
+    ///
+    /// Returns `AnyShapeStyle` so the call site can substitute either
+    /// a `Color` (matte) or a `Gradient` (glossy/metal/neon) without
+    /// the SwiftUI type system caring which.
+    static var accentFill: AnyShapeStyle {
+        let base = accent
+        switch currentAccentMaterial {
+        case .matte:
+            return AnyShapeStyle(base)
+        case .glossy:
+            // Bright highlight at the top, base in the middle, soft
+            // shadow at the bottom — reads like a glossy lacquered
+            // button face.
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendWhite(0.40),
+                    base,
+                    base.blendBlack(0.15),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            ))
+        case .metal:
+            // Alternating light/dark bands along a slight diagonal —
+            // brushed-metal look. The angle keeps the streaks visible
+            // without overwhelming the base hue identity.
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendBlack(0.18),
+                    base.blendWhite(0.30),
+                    base.blendBlack(0.25),
+                    base.blendWhite(0.15),
+                    base.blendBlack(0.10),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ))
+        case .neon:
+            // Radial hot-spot in the middle fading out to a slightly
+            // darker rim — simulates an internal light source without
+            // needing an outer shadow (which `.fill` can't emit).
+            return AnyShapeStyle(RadialGradient(
+                colors: [
+                    base.blendWhite(0.45),
+                    base,
+                    base.blendBlack(0.10),
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: 50
+            ))
+        }
+    }
 
     /// Success green (#ADFF2F).
     static let success     = Color(red: 0.678, green: 1.0, blue: 0.184)

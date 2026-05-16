@@ -237,7 +237,7 @@ struct MusclePage: View {
                             .padding(.vertical, 2)
                             .background(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(HexTheme.accent)
+                                    .fill(HexTheme.accentFill)
                             )
                             .padding(.bottom, 4)
                         Text(mover.name)
@@ -665,7 +665,7 @@ private struct MiniSparkline: View {
                 EmptyView()
             } else if values.count == 1 {
                 Circle()
-                    .fill(HexTheme.accent)
+                    .fill(HexTheme.accentFill)
                     .frame(width: 6, height: 6)
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
             } else {
@@ -690,7 +690,7 @@ private struct MiniSparkline: View {
                                                lineJoin: .round))
                     if let last = pts.last {
                         Circle()
-                            .fill(HexTheme.accent)
+                            .fill(HexTheme.accentFill)
                             .frame(width: 5, height: 5)
                             .position(last)
                     }

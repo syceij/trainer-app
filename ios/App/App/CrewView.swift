@@ -163,7 +163,7 @@ struct CrewView: View {
                     .font(.system(size: 15, weight: .heavy))
                     .foregroundColor(.black)
                     .frame(width: 32, height: 32)
-                    .background(Circle().fill(HexTheme.accent))
+                    .background(Circle().fill(HexTheme.accentFill))
             }
             .buttonStyle(.plain)
         }
@@ -472,7 +472,7 @@ struct CrewView: View {
                 .padding(.vertical, 13)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(HexTheme.accent)
+                        .fill(HexTheme.accentFill)
                 )
             }
             .buttonStyle(.plain)
@@ -769,7 +769,7 @@ private struct AddBroSheet: View {
                         .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(HexTheme.accent)
+                                .fill(HexTheme.accentFill)
                         )
                     }
                 }
@@ -1090,7 +1090,7 @@ private struct PointsInfoSheet: View {
                         .font(.system(size: 13, weight: .heavy))
                         .foregroundColor(HexTheme.text)
                     HStack(spacing: 2) {
-                        Rectangle().fill(HexTheme.accent).frame(height: 4)
+                        Rectangle().fill(HexTheme.accentFill).frame(height: 4)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Rectangle().fill(HexTheme.accent.opacity(0.5)).frame(height: 4)
                             .frame(maxWidth: .infinity, alignment: .leading)

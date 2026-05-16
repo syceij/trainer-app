@@ -119,6 +119,14 @@ final class AppState: ObservableObject {
     /// SwiftUI views observing AppState re-render and pick up the new
     /// `HexTheme.accent` value on the next body evaluation.
     @Published var accentChoice: String = AccentChoice.lime.rawValue
+
+    /// User-selected accent MATERIAL — matte (flat), glossy (wet-look
+    /// vertical gradient), metal (brushed diagonal sheen), or neon
+    /// (radial hot-spot glow). Same persistence and re-render story as
+    /// `accentChoice`: written to App Group UserDefaults so the widget
+    /// reads it, @Published here so SwiftUI views re-evaluate their
+    /// body and pick up the new `HexTheme.accentFill` on next render.
+    @Published var accentMaterial: String = AccentMaterial.matte.rawValue
     /// Invite code captured from a `hex://invite/...` deep link while signed
     /// out. Replayed automatically once `loadUserData` finishes.
     var pendingInviteCode: String?
@@ -148,6 +156,15 @@ final class AppState: ObservableObject {
             ?? AccentChoice.lime.rawValue
         if AccentChoice(rawValue: raw) != nil {
             self.accentChoice = raw
+        }
+        // Same restore for the accent material (matte / glossy / metal / neon).
+        let rawMat =
+            UserDefaults(suiteName: "group.com.hexapp.training")?
+                .string(forKey: HexTheme.accentMaterialKey)
+            ?? UserDefaults.standard.string(forKey: HexTheme.accentMaterialKey)
+            ?? AccentMaterial.matte.rawValue
+        if AccentMaterial(rawValue: rawMat) != nil {
+            self.accentMaterial = rawMat
         }
 
         // Re-stage today's session whenever the active programme arrives or
@@ -206,6 +223,28 @@ final class AppState: ObservableObject {
         // recolours immediately instead of waiting for the next set
         // toggle. Wrapped in `if #available` because the widget API
         // requires iOS 16.2+.
+        if #available(iOS 16.2, *) {
+            Task {
+                for activity in Activity<WorkoutActivityAttributes>.activities {
+                    await activity.update(.init(state: activity.content.state, staleDate: nil))
+                }
+            }
+        }
+    }
+
+    /// Persist the user's accent-material choice (matte / glossy /
+    /// metal / neon). Same triple-write + LA-refresh pattern as
+    /// `setAccentChoice`: App Group + standard defaults so both
+    /// processes see it, then a no-op Activity.update so the Lock
+    /// Screen card repaints with the new material gradient.
+    func setAccentMaterial(_ material: AccentMaterial) {
+        guard accentMaterial != material.rawValue else { return }
+        accentMaterial = material.rawValue
+
+        let groupDefaults = UserDefaults(suiteName: "group.com.hexapp.training")
+        groupDefaults?.set(material.rawValue, forKey: HexTheme.accentMaterialKey)
+        UserDefaults.standard.set(material.rawValue, forKey: HexTheme.accentMaterialKey)
+
         if #available(iOS 16.2, *) {
             Task {
                 for activity in Activity<WorkoutActivityAttributes>.activities {

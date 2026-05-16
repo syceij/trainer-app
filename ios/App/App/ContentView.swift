@@ -41,7 +41,7 @@ struct ContentView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
-                            Capsule().fill(HexTheme.accent)
+                            Capsule().fill(HexTheme.accentFill)
                         )
                         .shadow(color: HexTheme.accent.opacity(0.35), radius: 12)
                         .padding(.top, 8)

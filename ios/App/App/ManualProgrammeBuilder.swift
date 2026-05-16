@@ -221,7 +221,7 @@ struct ManualProgrammeBuilder: View {
                     let pct = CGFloat(step + 1) / CGFloat(Self.STEP_COUNT)
                     ZStack(alignment: .leading) {
                         Capsule().fill(HexTheme.surface2)
-                        Capsule().fill(HexTheme.accent)
+                        Capsule().fill(HexTheme.accentFill)
                             .frame(width: geo.size.width * pct)
                     }
                 }
@@ -957,7 +957,7 @@ private struct ExerciseFormRow: View {
                         .padding(.vertical, 9)
                         .background(
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .fill(HexTheme.accent)
+                                .fill(HexTheme.accentFill)
                         )
                 }
                 .buttonStyle(.plain)

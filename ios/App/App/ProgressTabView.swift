@@ -307,7 +307,7 @@ struct ProgressTabView: View {
 
                     if let last = pts.last {
                         Circle()
-                            .fill(HexTheme.accent)
+                            .fill(HexTheme.accentFill)
                             .frame(width: 5, height: 5)
                             .position(x: last.x, y: last.y)
                     }
@@ -1004,7 +1004,7 @@ struct LiftActionSheet: View {
                     .padding(.vertical, 15)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(HexTheme.accent)
+                            .fill(HexTheme.accentFill)
                     )
                 }
                 .buttonStyle(.plain)

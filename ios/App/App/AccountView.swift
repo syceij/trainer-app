@@ -114,7 +114,7 @@ struct AccountView: View {
                         .font(.system(size: 11, weight: .heavy))
                         .foregroundColor(.black)
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(HexTheme.accent))
+                        .background(Circle().fill(HexTheme.accentFill))
                         .overlay(
                             Circle().stroke(HexTheme.bg, lineWidth: 2)
                         )
@@ -233,6 +233,11 @@ struct AccountView: View {
 
             divider
 
+            // Accent material picker (matte / glossy / metal / neon)
+            accentMaterialRow
+
+            divider
+
             // Live activities toggle
             Toggle(isOn: $liveActivitiesEnabled) {
                 HStack(spacing: 14) {
@@ -328,6 +333,87 @@ struct AccountView: View {
         switch choice {
         case .lime, .cream, .electric: return .black
         case .magenta, .orange:        return .white
+        }
+    }
+
+    /// Four-option material picker — matte / glossy / metal / neon —
+    /// each rendered as a small rounded tile previewing the same
+    /// material the user would see applied to set buttons, the
+    /// primary CTA, weight pills, etc. The tile uses the CURRENT
+    /// `HexTheme.accent` colour so flipping the colour swatch above
+    /// automatically updates the material previews too.
+    private var accentMaterialRow: some View {
+        HStack(spacing: 14) {
+            iconBox(name: "sparkles", accent: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(ar ? "ملمس اللون" : "Accent Material")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(HexTheme.text)
+                HStack(spacing: 8) {
+                    ForEach(AccentMaterial.allCases) { material in
+                        materialTile(material)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
+    @ViewBuilder
+    private func materialTile(_ material: AccentMaterial) -> some View {
+        let selected = app.accentMaterial == material.rawValue
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            app.setAccentMaterial(material)
+        } label: {
+            VStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(previewFill(for: material))
+                    .frame(width: 44, height: 28)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selected ? HexTheme.text : HexTheme.border,
+                                    lineWidth: selected ? 2 : 1)
+                    )
+                Text(material.label)
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundColor(selected ? HexTheme.text : HexTheme.dim)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(material.label))
+    }
+
+    /// Build the same gradient the chosen material renders elsewhere,
+    /// scoped to the small preview tile so the user can see at a
+    /// glance what each material looks like before committing.
+    private func previewFill(for material: AccentMaterial) -> AnyShapeStyle {
+        let base = HexTheme.accent
+        switch material {
+        case .matte:
+            return AnyShapeStyle(base)
+        case .glossy:
+            return AnyShapeStyle(LinearGradient(
+                colors: [base.blendWhite(0.40), base, base.blendBlack(0.15)],
+                startPoint: .top, endPoint: .bottom
+            ))
+        case .metal:
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendBlack(0.18), base.blendWhite(0.30),
+                    base.blendBlack(0.25), base.blendWhite(0.15),
+                    base.blendBlack(0.10)
+                ],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            ))
+        case .neon:
+            return AnyShapeStyle(RadialGradient(
+                colors: [base.blendWhite(0.45), base, base.blendBlack(0.10)],
+                center: .center, startRadius: 0, endRadius: 30
+            ))
         }
     }
 

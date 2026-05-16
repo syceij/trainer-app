@@ -154,7 +154,7 @@ struct ImportView: View {
                         .padding(.vertical, 9)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(HexTheme.accent)
+                                .fill(HexTheme.accentFill)
                         )
                     }
                     .buttonStyle(.plain)

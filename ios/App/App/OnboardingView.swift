@@ -595,7 +595,7 @@ struct OnboardingView: View {
                         .frame(width: 20, height: 20)
                     if selected {
                         Circle()
-                            .fill(HexTheme.accent)
+                            .fill(HexTheme.accentFill)
                             .frame(width: 10, height: 10)
                     }
                 }

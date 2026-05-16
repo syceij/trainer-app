@@ -92,7 +92,7 @@ struct EditableField: View {
                     }
                     if isEdited {
                         Circle()
-                            .fill(HexTheme.accent)
+                            .fill(HexTheme.accentFill)
                             .frame(width: 5, height: 5)
                     }
                 }

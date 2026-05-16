@@ -772,7 +772,7 @@ struct ProgrammePage: View {
                             .foregroundColor(.black)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Capsule().fill(HexTheme.accent))
+                            .background(Capsule().fill(HexTheme.accentFill))
                     }
                     .buttonStyle(.plain)
                     .disabled(Int(customRestDraft.trimmingCharacters(in: .whitespaces)) == nil)
