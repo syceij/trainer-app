@@ -504,6 +504,15 @@ final class AppState: ObservableObject {
 
     /// Load friends + pending + activity feed in two stages — the feed
     /// depends on the friend list. Never throws; logs and recovers.
+    ///
+    /// On transient errors (network blip, server hiccup) we KEEP the
+    /// previously-loaded data instead of wiping it. The old behaviour —
+    /// `self.activityFeed = []` inside the catch block — caused a
+    /// visible regression where pull-to-refresh on the Bros tab would
+    /// erase the "recent activity" list every time the request failed,
+    /// even though we already had perfectly valid stale data in memory.
+    /// Pull-to-refresh should be a best-effort sync, not a destructive
+    /// reset.
     func loadSocial() async {
         do {
             async let friendsT = SupabaseManager.shared.fetchFriends()
@@ -512,17 +521,21 @@ final class AppState: ObservableObject {
             self.friends         = fr
             self.pendingRequests = pend
         } catch {
-            print("[AppState] loadSocial (friends/pending) failed:", error)
-            self.friends = []; self.pendingRequests = []
+            // Keep stale `friends` / `pendingRequests` rather than wiping.
+            // First-launch users start at [] which is a fine initial
+            // state; the only way data becomes non-empty is a successful
+            // fetch, so there's nothing to "go back to" after a failure.
+            print("[AppState] loadSocial (friends/pending) failed — keeping stale:", error)
         }
-        // Activity feed — fetched after friends so we can scope by IDs
+        // Activity feed — fetched after friends so we can scope by IDs.
         do {
             let friendIds = friends.map(\.id)
             self.activityFeed = try await SupabaseManager.shared
                 .fetchActivityFeed(friendIds: friendIds)
         } catch {
-            print("[AppState] loadSocial (feed) failed:", error)
-            self.activityFeed = []
+            // Keep stale `activityFeed` rather than wiping. This is the
+            // user-visible "recent activity disappears on refresh" bug.
+            print("[AppState] loadSocial (feed) failed — keeping stale:", error)
         }
         recomputeTrainedToday()
     }
