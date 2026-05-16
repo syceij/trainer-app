@@ -14,12 +14,33 @@ import AppIntents
 // MARK: - Live Activity widget UI
 
 // ── Design tokens matching the HEX app ───────────────────────────────────────
-private let hexAccent     = Color(red: 0.722, green: 1.0,   blue: 0.0)    // #B8FF00
+// The accent is computed on every read from the App Group UserDefaults
+// key written by the main app's `setAccentChoice`. Doing it as a
+// computed property (rather than a `let` constant captured at widget
+// load) means switching colour in the in-app picker repaints the Lock
+// Screen card on the next render — and the main app re-pushes a
+// no-op `Activity.update` so that next render happens immediately.
 private let hexBg         = Color(red: 0.039, green: 0.039, blue: 0.039)  // #0A0A0A
 private let hexDim        = Color.white.opacity(0.50)
 private let hexMute       = Color.white.opacity(0.32)
 private let hexMutedBg    = Color.white.opacity(0.07)
 private let hexBorder     = Color.white.opacity(0.10)
+
+/// User-chosen accent surface (lime / cream / electric / magenta /
+/// orange). Falls back to the historical neon lime when the App Group
+/// key is absent — covers fresh installs before the user opens the
+/// app picker for the first time.
+private var hexAccent: Color {
+    let raw = UserDefaults(suiteName: "group.com.hexapp.training")?
+        .string(forKey: "accent_choice_v1") ?? "lime"
+    switch raw {
+    case "cream":    return Color(red: 0.906, green: 0.898, blue: 0.878) // #E7E5E0
+    case "electric": return Color(red: 0.0,   green: 0.898, blue: 1.0)   // #00E5FF
+    case "magenta":  return Color(red: 1.0,   green: 0.176, blue: 0.612) // #FF2D9C
+    case "orange":   return Color(red: 1.0,   green: 0.549, blue: 0.0)   // #FF8C00
+    default:         return Color(red: 0.722, green: 1.0,   blue: 0.0)   // #B8FF00
+    }
+}
 
 // ── Lock Screen / Notification Banner view ────────────────────────────────────
 //

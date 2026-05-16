@@ -1,4 +1,76 @@
 import SwiftUI
+import Foundation
+
+/// User-selectable accent colour. Stored as a raw `String` (the case
+/// name) in shared App Group UserDefaults so both the main app AND the
+/// WorkoutWidget extension read the same source of truth.
+///
+/// Adding a new choice = add a case + entry in `palette` below. Both
+/// `HexTheme.accent` and `HexTheme.accentDark` derive from this enum,
+/// so picking a new option in Settings recolours every accent surface
+/// (set-button fills, weight pills, progress bars, "Start LA" button,
+/// confetti highlight, primary-button background, tab-bar tint, etc.)
+/// without touching individual call sites.
+enum AccentChoice: String, CaseIterable, Identifiable {
+    case lime
+    case cream
+    case electric
+    case magenta
+    case orange
+
+    var id: String { rawValue }
+
+    /// Hex code for the "main" (full-saturation) accent surface.
+    /// Lime is the historical HEX brand colour and remains the default.
+    var hex: String {
+        switch self {
+        case .lime:     return "#B8FF00"
+        case .cream:    return "#E7E5E0"
+        case .electric: return "#00E5FF"
+        case .magenta:  return "#FF2D9C"
+        case .orange:   return "#FF8C00"
+        }
+    }
+    /// Hex code for the darker pressed-state variant used by
+    /// `HexPrimaryButton` and `accentDark` consumers.
+    var hexDark: String {
+        switch self {
+        case .lime:     return "#8ACC00"
+        case .cream:    return "#BDB9B0"
+        case .electric: return "#00B8CC"
+        case .magenta:  return "#CC247D"
+        case .orange:   return "#CC7000"
+        }
+    }
+    /// Human-readable label (English) for the picker swatch tooltip.
+    var label: String {
+        switch self {
+        case .lime:     return "Lime"
+        case .cream:    return "Cream"
+        case .electric: return "Electric"
+        case .magenta:  return "Magenta"
+        case .orange:   return "Orange"
+        }
+    }
+}
+
+extension Color {
+    /// Decode a `#RRGGBB` (or `RRGGBB`) hex string into a SwiftUI Color.
+    /// Falls back to the lime accent if parsing fails so we never end
+    /// up with a transparent or invisible surface.
+    init(hexString: String) {
+        var s = hexString.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let int = UInt32(s, radix: 16) else {
+            self = Color(red: 0.722, green: 1.0, blue: 0.0)
+            return
+        }
+        let r = Double((int >> 16) & 0xFF) / 255.0
+        let g = Double((int >>  8) & 0xFF) / 255.0
+        let b = Double( int        & 0xFF) / 255.0
+        self = Color(red: r, green: g, blue: b)
+    }
+}
 
 /// HEX design tokens — mirrors src/tokens.js exactly.
 enum HexTheme {
@@ -19,10 +91,31 @@ enum HexTheme {
     static let dim         = Color(red: 0.533, green: 0.533, blue: 0.533)
     /// #555555 — muted text.
     static let mute        = Color(red: 0.333, green: 0.333, blue: 0.333)
-    /// #B8FF00 — neon-lime accent.
-    static let accent      = Color(red: 0.722, green: 1.0, blue: 0.0)
-    /// #8ACC00 — accent dark (pressed).
-    static let accentDark  = Color(red: 0.541, green: 0.8, blue: 0.0)
+
+    /// Shared App Group suite the widget extension also reads.
+    private static let appGroup = "group.com.hexapp.training"
+    /// UserDefaults key for the user's chosen `AccentChoice.rawValue`.
+    static let accentChoiceKey = "accent_choice_v1"
+
+    /// Resolve the currently-active `AccentChoice` from App Group
+    /// UserDefaults (falls back to standard UserDefaults if the App
+    /// Group isn't reachable, e.g. simulator without the entitlement).
+    static var currentAccentChoice: AccentChoice {
+        let raw =
+            UserDefaults(suiteName: appGroup)?.string(forKey: accentChoiceKey)
+            ?? UserDefaults.standard.string(forKey: accentChoiceKey)
+            ?? AccentChoice.lime.rawValue
+        return AccentChoice(rawValue: raw) ?? .lime
+    }
+
+    /// Current accent color — the brand surface seen on set-button
+    /// fills, progress bars, weight pills, etc. Computed on every read
+    /// from App Group UserDefaults so flipping the user's choice
+    /// immediately recolours every consumer once the surrounding view
+    /// re-renders (AppState's `accentChoice` @Published drives that).
+    static var accent: Color { Color(hexString: currentAccentChoice.hex) }
+    /// Pressed-state darker variant — same source as `accent`.
+    static var accentDark: Color { Color(hexString: currentAccentChoice.hexDark) }
 
     /// Success green (#ADFF2F).
     static let success     = Color(red: 0.678, green: 1.0, blue: 0.184)

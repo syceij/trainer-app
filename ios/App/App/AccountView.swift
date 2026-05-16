@@ -228,6 +228,11 @@ struct AccountView: View {
 
             divider
 
+            // Accent colour swatches
+            accentColorRow
+
+            divider
+
             // Live activities toggle
             Toggle(isOn: $liveActivitiesEnabled) {
                 HStack(spacing: 14) {
@@ -256,6 +261,74 @@ struct AccountView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(HexTheme.border, lineWidth: 1)
         )
+    }
+
+    /// Five-swatch picker for the app's signature accent colour. Tapping
+    /// a circle updates `AppState.accentChoice` which:
+    ///   • persists the raw value to App Group UserDefaults (so the
+    ///     WorkoutWidget extension picks it up on the next LA render);
+    ///   • re-publishes, forcing every view observing AppState to
+    ///     re-evaluate its body and pull the new `HexTheme.accent`;
+    ///   • pushes a no-op `Activity.update` so the Lock Screen card
+    ///     recolours immediately rather than waiting for a set toggle.
+    private var accentColorRow: some View {
+        HStack(spacing: 14) {
+            iconBox(name: "paintpalette.fill", accent: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(ar ? "اللون المميز" : "Accent Color")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(HexTheme.text)
+                HStack(spacing: 10) {
+                    ForEach(AccentChoice.allCases) { choice in
+                        accentSwatch(choice)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
+    @ViewBuilder
+    private func accentSwatch(_ choice: AccentChoice) -> some View {
+        let selected = app.accentChoice == choice.rawValue
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            app.setAccentChoice(choice)
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color(hexString: choice.hex))
+                    .frame(width: 28, height: 28)
+                Circle()
+                    .stroke(HexTheme.text, lineWidth: selected ? 2.5 : 0)
+                    .frame(width: 28, height: 28)
+                // Subtle white ring for the lighter shades that would
+                // otherwise vanish against the surface.
+                Circle()
+                    .stroke(HexTheme.border, lineWidth: selected ? 0 : 1)
+                    .frame(width: 28, height: 28)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundColor(swatchCheckmarkColor(choice))
+                }
+            }
+            .frame(width: 36, height: 36)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(choice.label))
+    }
+
+    /// Pick black on light swatches (cream) and black on the vibrant
+    /// colours so the selected-state checkmark is always readable.
+    private func swatchCheckmarkColor(_ choice: AccentChoice) -> Color {
+        switch choice {
+        case .lime, .cream, .electric: return .black
+        case .magenta, .orange:        return .white
+        }
     }
 
     // MARK: - PT shortcut

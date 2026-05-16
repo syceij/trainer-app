@@ -43,11 +43,13 @@ struct MainTabView: View {
         if #available(iOS 15.0, *) {
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }
-        // Push the icon down by ~half the typical title slot height so
-        // it ends up visually centred in the tab cell instead of
-        // floating at the top.
+        // Push the icon down so it sits visually centred in the tab
+        // cell. `top: 6` (down from 10) lifts the whole icon row a
+        // touch higher, which combined with the smaller 22pt icons
+        // makes the bar feel more compact without changing the
+        // system-controlled overall tab-bar height.
         UITabBarItem.appearance().imageInsets =
-            UIEdgeInsets(top: 10, left: 0, bottom: -10, right: 0)
+            UIEdgeInsets(top: 6, left: 0, bottom: -6, right: 0)
     }()
 
     init() {
@@ -130,9 +132,11 @@ struct MainTabView: View {
     /// device's @3x scale.
     private static func tabBarIcon(named imageName: String) -> UIImage? {
         guard let raw = UIImage(named: imageName) else { return nil }
-        // 26pt — slightly smaller than the prior 32pt, per user
-        // feedback that the icons were a touch oversized.
-        let pointSize: CGFloat = 26
+        // 22pt — smaller still after a second pass of user feedback
+        // ("make the whole navbar a bit smaller"). iOS doesn't expose
+        // the system tab-bar height as settable, so the bar appears
+        // smaller by virtue of the icon row taking less vertical space.
+        let pointSize: CGFloat = 22
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = UIScreen.main.scale
         let renderer = UIGraphicsImageRenderer(

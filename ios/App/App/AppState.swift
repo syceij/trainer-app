@@ -106,6 +106,19 @@ final class AppState: ObservableObject {
     /// the queue because the map is held here in-memory until the
     /// session resets.
     @Published var liveActivityCompletions: [String: Set<Int>] = [:]
+
+    /// User-selected accent colour (the signature green/cream/etc. used
+    /// across the app). Driven by the swatch picker in AccountView's
+    /// Preferences section. Persisted to App Group UserDefaults so the
+    /// WorkoutWidget extension reads the same value when rendering the
+    /// Live Activity card.
+    ///
+    /// The actual `Color` value is computed live by
+    /// `HexTheme.accent` / `HexTheme.accentDark` which read the same
+    /// UserDefaults key — but we publish the raw string here so
+    /// SwiftUI views observing AppState re-render and pick up the new
+    /// `HexTheme.accent` value on the next body evaluation.
+    @Published var accentChoice: String = AccentChoice.lime.rawValue
     /// Invite code captured from a `hex://invite/...` deep link while signed
     /// out. Replayed automatically once `loadUserData` finishes.
     var pendingInviteCode: String?
@@ -123,6 +136,20 @@ final class AppState: ObservableObject {
     // MARK: - Init / session restore
 
     init() {
+        // Restore the user's accent-colour choice from App Group
+        // UserDefaults (falls back to standard suite, then to lime).
+        // Done before the rest of init so the very first body
+        // evaluation already sees the user's chosen colour rather
+        // than briefly flashing the default.
+        let raw =
+            UserDefaults(suiteName: "group.com.hexapp.training")?
+                .string(forKey: HexTheme.accentChoiceKey)
+            ?? UserDefaults.standard.string(forKey: HexTheme.accentChoiceKey)
+            ?? AccentChoice.lime.rawValue
+        if AccentChoice(rawValue: raw) != nil {
+            self.accentChoice = raw
+        }
+
         // Re-stage today's session whenever the active programme arrives or
         // changes (matches React's HomeTab effect on `programme/importedProgramme`
         // changes). Without this, if `loadActiveProgramme` finishes AFTER the
@@ -152,6 +179,40 @@ final class AppState: ObservableObject {
             .store(in: &bag)
 
         Task { await restoreSession() }
+    }
+
+    // MARK: - Accent colour
+
+    /// Persist the user's accent choice. Writes to App Group UserDefaults
+    /// (so the WorkoutWidget extension picks up the new colour on the
+    /// next Live Activity render), updates the @Published value (which
+    /// re-renders every view observing AppState), and nudges any running
+    /// Live Activity by re-pushing its current state — same `ContentState`,
+    /// but the update call forces the widget to re-evaluate its body and
+    /// read the new accent from UserDefaults.
+    func setAccentChoice(_ choice: AccentChoice) {
+        // No-op if the user tapped the already-selected swatch — avoids
+        // a pointless Activity.update + UserDefaults write.
+        guard accentChoice != choice.rawValue else { return }
+        accentChoice = choice.rawValue
+
+        // Write through to both App Group + standard suite so the
+        // widget extension and any sandboxed read paths find it.
+        let groupDefaults = UserDefaults(suiteName: "group.com.hexapp.training")
+        groupDefaults?.set(choice.rawValue, forKey: HexTheme.accentChoiceKey)
+        UserDefaults.standard.set(choice.rawValue, forKey: HexTheme.accentChoiceKey)
+
+        // Re-push the running Live Activity so the Lock Screen card
+        // recolours immediately instead of waiting for the next set
+        // toggle. Wrapped in `if #available` because the widget API
+        // requires iOS 16.2+.
+        if #available(iOS 16.2, *) {
+            Task {
+                for activity in Activity<WorkoutActivityAttributes>.activities {
+                    await activity.update(.init(state: activity.content.state, staleDate: nil))
+                }
+            }
+        }
     }
 
     // MARK: - Live Activity pending-set drain
