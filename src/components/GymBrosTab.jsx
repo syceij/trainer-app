@@ -765,21 +765,21 @@ function PointsInfoCard({ show, onClose, ar }) {
               </div>
               <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
                 {ar
-                  ? 'عدد المجموعات التي أتممتها هذا الشهر مقسوماً على المجموعات المبرمجة في برنامجك.'
-                  : 'Sets you completed this month divided by the sets programmed in your programme.'}
+                  ? 'عدد المجموعات التي أتممتها هذا الشهر مقسوماً على إجمالي المجموعات المبرمجة في شهر كامل من برنامجك (الأسبوع × ٤). حجم البرنامج لا يهم — كل واحد يقارن بهدفه الشهري.'
+                  : 'Sets you completed this month divided by your programme’s monthly target (weekly sets × 4). Programme size doesn’t matter — everyone is judged against THEIR own monthly target.'}
               </div>
             </div>
             {/* Example rows */}
             {[
               ar
-                ? { label: 'أتممت ٢٠ من أصل ٢٠ مجموعة', value: '١٠٠', highlight: true }
-                : { label: 'Complete 20 of 20 programmed sets', value: '100', highlight: true },
+                ? { label: 'أتممت ٦٠ من أصل ٦٠ مجموعة شهرياً', value: '١٠٠', highlight: true }
+                : { label: 'Complete 60 of 60 monthly sets', value: '100', highlight: true },
               ar
-                ? { label: 'أتممت ١٤ من أصل ٢٠ مجموعة', value: '٧٠', highlight: false }
-                : { label: 'Complete 14 of 20 programmed sets', value: '70', highlight: false },
+                ? { label: 'أتممت ٣٠ من أصل ٦٠ مجموعة شهرياً', value: '٥٠', highlight: false }
+                : { label: 'Complete 30 of 60 monthly sets', value: '50', highlight: false },
               ar
-                ? { label: 'تجاوزت البرنامج (أكثر من ١٠٠٪)', value: '١٠٠+', highlight: true }
-                : { label: 'Exceed your programme (over 100%)', value: '100+', highlight: true },
+                ? { label: 'تجاوزت هدفك الشهري (٧٠ من ٦٠)', value: '١١٧', highlight: true }
+                : { label: 'Exceed monthly target (70 / 60)', value: '117', highlight: true },
             ].map((row, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',

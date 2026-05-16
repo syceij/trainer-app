@@ -499,26 +499,53 @@ export async function calculateLeaderboardScore(userId) {
   // ── Consistency ──────────────────────────────────────────────────────────────
   const setsCompleted = completedSets?.length || 0;
 
-  // Derive setsProgrammed from the active programme if available
-  let setsProgrammed;
+  // Monthly-fixed consistency target. The denominator is the user's
+  // programmed sets PER MONTH (weeklySets × 4), not scaled to weeks
+  // elapsed. Hitting your monthly quota by day 20 = 100%, hitting it
+  // on day 30 = 100% — same bar.
+  //
+  // Two wins over the previous time-scaled formula:
+  //   1. Eliminates the no-programme exploit. The old fallback
+  //      `setsCompleted × 1.25` gave no-programme users a coasting
+  //      ~80% consistency. Now there's no fallback at all: no
+  //      programme = 0% consistency.
+  //   2. Programme size becomes irrelevant — a small programme
+  //      and a large programme both top out at 100% when the user
+  //      hits THEIR target. Previously a small programme was
+  //      easier to "max out" earlier in the month.
+  //
+  // iOS reads from `data.weeks[0].sessions[].exercises.sets`; the
+  // web programme builder writes a different shape, so we accept
+  // either: top-level `days/sessions/trainingDays`, OR the iOS-style
+  // `weeks[0].sessions`. Whichever yields a non-zero sets-per-week
+  // wins.
+  let setsProgrammed = 0;
   const progData = programme?.[0]?.data;
   if (progData) {
-    // Handle various programme data shapes
-    const days = progData.days || progData.sessions || progData.trainingDays || [];
     let setsPerWeek = 0;
-    for (const day of days) {
-      const exercises = day.exercises || day.workout || day.lifts || [];
-      for (const ex of exercises) {
-        setsPerWeek += typeof ex.sets === 'number' ? ex.sets : 3;
+    // Web shape — flat list of days at the top level.
+    const flatDays = progData.days || progData.sessions || progData.trainingDays;
+    if (Array.isArray(flatDays) && flatDays.length > 0) {
+      for (const day of flatDays) {
+        const exercises = day.exercises || day.workout || day.lifts || [];
+        for (const ex of exercises) {
+          setsPerWeek += typeof ex.sets === 'number' ? ex.sets : 3;
+        }
       }
     }
-    const weeksElapsed = Math.max(Math.ceil(dayOfMonth / 7), 1);
-    setsProgrammed = setsPerWeek > 0
-      ? setsPerWeek * weeksElapsed
-      : (setsCompleted > 0 ? Math.round(setsCompleted * 1.25) : 20);
-  } else {
-    setsProgrammed = setsCompleted > 0 ? Math.round(setsCompleted * 1.25) : 20;
+    // iOS shape — `weeks[0].sessions[].exercises`.
+    if (setsPerWeek === 0 && Array.isArray(progData.weeks) && progData.weeks[0]) {
+      for (const session of (progData.weeks[0].sessions || [])) {
+        for (const ex of (session.exercises || [])) {
+          setsPerWeek += typeof ex.sets === 'number' ? Math.max(ex.sets, 1) : 3;
+        }
+      }
+    }
+    setsProgrammed = setsPerWeek * 4; // monthly target
   }
+  // No active programme → 0% consistency. The app gates sessions on
+  // having a programme so this also reflects the user not being able
+  // to log anything in the first place.
 
   const consistencyScore = setsProgrammed > 0
     ? (setsCompleted / setsProgrammed) * 100

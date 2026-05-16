@@ -91,21 +91,20 @@ struct MainTabView: View {
                 }
                 .tag(AppState.Tab.bros)
 
-            NavigationStack { PTChatView() }
-                .tabItem {
-                    customTabLabel(
-                        title: app.language == "ar" ? "المدرب" : "PT",
-                        imageName: "PTIcon"
-                    )
-                }
-                .tag(AppState.Tab.pt)
+            // PT tab is currently hidden — the chat experience is
+            // being reworked. The tab item still exists (so deep
+            // links / pre-existing state with `activeTab = .pt`
+            // don't crash) but it's not in the visible TabView.
+            // Re-enable by uncommenting when PT chat ships.
 
-            // Profile tab — surfaces AccountView directly in the
-            // navbar instead of forcing the user to drill into PT
-            // chat and tap "Account" mid-conversation. Matches the
-            // React BottomNav structure where Profile is the fifth
-            // (rightmost) tab.
-            NavigationStack { AccountView() }
+            // Profile tab — the new home for the user's score,
+            // friends count, programme info, top exercises +
+            // muscles. Settings (Account stuff: language, sign out,
+            // programme actions, etc.) lives behind a gear button
+            // in the corner of the profile page, not as its own
+            // tab. Profile is the 5th and last tab — final slot
+            // per the navbar reorganization.
+            NavigationStack { ProfileView() }
                 .tabItem {
                     customTabLabel(
                         title: app.language == "ar" ? "الحساب" : "Profile",
@@ -115,6 +114,12 @@ struct MainTabView: View {
                 .tag(AppState.Tab.profile)
         }
         .tint(HexTheme.accent)
+        // If someone was sitting on the (now hidden) PT tab from a
+        // previous session, gently bounce them to the new Profile tab
+        // so the TabView doesn't render in a no-selection state.
+        .onAppear {
+            if app.activeTab == .pt { app.activeTab = .profile }
+        }
         .onChange(of: app.activeTab) { _ in
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }

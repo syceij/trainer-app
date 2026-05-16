@@ -606,9 +606,13 @@ final class AppState: ObservableObject {
         self.leaderboard = ranked
     }
 
-    /// In-memory mirror of the user's cached leaderboard score — populated
-    /// after `loadOwnProfile()` and updated by `updateLeaderboardScore`.
-    private var currentProfileLeaderboard: LeaderboardData?
+    /// In-memory mirror of the user's cached leaderboard score —
+    /// populated after `loadOwnProfile()` and updated by
+    /// `updateLeaderboardScore` (post-session save). Exposed and made
+    /// @Published so the new ProfileView can subscribe to changes
+    /// and re-render the score hero card the moment a recalculation
+    /// lands.
+    @Published var currentProfileLeaderboard: LeaderboardData?
 
     // MARK: - Social mutations
 

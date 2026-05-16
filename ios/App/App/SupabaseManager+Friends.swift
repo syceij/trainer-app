@@ -450,7 +450,6 @@ extension SupabaseManager {
         guard let year = comps.year, let monthN = comps.month else { return nil }
         let monthKey = String(format: "%04d-%02d", year, monthN)
         let firstOfMonth = cal.date(from: DateComponents(year: year, month: monthN, day: 1)) ?? now
-        let dayOfMonth = cal.component(.day, from: now)
 
         // ── Pull all required tables in parallel ──
         struct EmptyId: Decodable { let id: UUID }
@@ -509,25 +508,47 @@ extension SupabaseManager {
 
         let setsCompleted = completedSets.count
 
-        // Programmed sets per week derived from active programme data
-        let setsProgrammed: Int = {
-            if let progData = programmeArr.first?.data {
-                var perWeek = 0
-                if let week = progData.weeks.first {
-                    for s in week.sessions {
-                        for ex in s.exercises {
-                            perWeek += max(ex.sets, 1)
-                        }
-                    }
+        // Monthly-fixed consistency target — user's idea: the
+        // denominator is the user's programmed sets PER MONTH, not
+        // scaled to weeks elapsed. So hitting your monthly quota
+        // by day 20 = 100%, hitting it on day 30 = 100% — same
+        // bar. Two big benefits over the prior time-scaled formula:
+        //   1. Eliminates the "Sultan-with-no-programme beats
+        //      Ahmed-with-big-programme" exploit: small programme
+        //      cannot beat large programme just by completing
+        //      a higher % of a smaller quota — the % is what's
+        //      tracked, and both top out at 100%.
+        //   2. The bar is stable through the month — users see
+        //      a fixed target instead of one that moves daily.
+        //
+        // A "monthly programme" is treated as `weeklySets × 4`,
+        // regardless of how many calendar weeks happen to fall in
+        // the current month. This keeps the math simple, matches
+        // the user's intuition ("a month of training"), and avoids
+        // edge cases like 5-week months making the bar artificially
+        // higher than 4-week months.
+        let monthlySetsPlanned: Int = {
+            guard let progData = programmeArr.first?.data,
+                  let week = progData.weeks.first
+            else { return 0 }
+            var perWeek = 0
+            for s in week.sessions {
+                for ex in s.exercises {
+                    perWeek += max(ex.sets, 1)
                 }
-                let weeksElapsed = max(1, Int(ceil(Double(dayOfMonth) / 7.0)))
-                if perWeek > 0 { return perWeek * weeksElapsed }
             }
-            return setsCompleted > 0
-                ? Int((Double(setsCompleted) * 1.25).rounded())
-                : 20
+            return perWeek * 4
         }()
 
+        let setsProgrammed = monthlySetsPlanned
+
+        // No active programme → user can't open a session in the
+        // app, so they shouldn't score anything either. The prior
+        // formula's "setsCompleted × 1.25" fallback let no-programme
+        // users coast at an inflated ~80% consistency — explicitly
+        // gone now. 0% consistency for no-programme is fair: the
+        // app makes building a programme a prerequisite for training,
+        // so the points system should mirror that.
         let consistency: Double = setsProgrammed > 0
             ? (Double(setsCompleted) / Double(setsProgrammed)) * 100.0
             : 0.0

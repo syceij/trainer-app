@@ -1228,18 +1228,18 @@ private struct PointsInfoSheet: View {
             titleColor: HexTheme.accent,
             title: ar ? "الالتزام — ٧٠ نقطة" : "Consistency — 70 pts",
             description: ar
-                ? "عدد المجموعات التي أتممتها هذا الشهر مقسوماً على المجموعات المبرمجة في برنامجك."
-                : "Sets you completed this month divided by the sets programmed in your programme.",
+                ? "عدد المجموعات التي أتممتها هذا الشهر مقسوماً على إجمالي المجموعات المبرمجة في شهر كامل من برنامجك (الأسبوع × ٤). حجم البرنامج لا يهم — كل واحد يقارن بهدفه الشهري."
+                : "Sets you completed this month divided by your programme's monthly target (weekly sets × 4). Programme size doesn't matter — everyone is judged against THEIR own monthly target.",
             rows: ar
                 ? [
-                    (label: "أتممت ٢٠ من أصل ٢٠ مجموعة", value: "١٠٠ نقطة", highlight: true),
-                    (label: "أتممت ١٤ من أصل ٢٠ مجموعة", value: "٧٠ نقطة", highlight: false),
-                    (label: "تجاوزت البرنامج (أكثر من ١٠٠٪)", value: "+١٠٠ نقطة", highlight: true),
+                    (label: "أتممت ٦٠ من أصل ٦٠ مجموعة شهرياً", value: "١٠٠ نقطة", highlight: true),
+                    (label: "أتممت ٣٠ من أصل ٦٠ مجموعة شهرياً", value: "٥٠ نقطة", highlight: false),
+                    (label: "تجاوزت هدفك الشهري (٧٠ من ٦٠)", value: "١١٧ نقطة", highlight: true),
                 ]
                 : [
-                    (label: "Complete 20 of 20 programmed sets", value: "100 pts", highlight: true),
-                    (label: "Complete 14 of 20 programmed sets", value: "70 pts", highlight: false),
-                    (label: "Exceed your programme (over 100%)", value: "100+ pts", highlight: true),
+                    (label: "Complete 60 of 60 monthly sets", value: "100 pts", highlight: true),
+                    (label: "Complete 30 of 60 monthly sets", value: "50 pts", highlight: false),
+                    (label: "Exceed your monthly target (70 / 60)", value: "117 pts", highlight: true),
                 ]
         )
     }
