@@ -285,7 +285,6 @@ enum HexTheme {
         }
         return .system(size: size, weight: weight)
     }
-}
 
     // MARK: - Aliases (legacy names used elsewhere in the codebase)
 
