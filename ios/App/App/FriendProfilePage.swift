@@ -125,7 +125,13 @@ struct FriendProfilePage: View {
             ScrollView {
                 VStack(spacing: 16) {
                     avatarBlock.padding(.top, 16)
-                    statsRow
+                    // Friend's "This Month" points card. Replaces the
+                    // prior 3-stat row (Sessions / Top muscle / Lifts
+                    // tracked) — same lime-bordered surface the user's
+                    // own ProfileView shows, just without the "See
+                    // older months" affordance since other people's
+                    // history isn't theirs to browse.
+                    pointsCard
 
                     if canSeeProgress, !muscleImprovements.isEmpty {
                         muscleProgressCard
@@ -212,46 +218,106 @@ struct FriendProfilePage: View {
         }
     }
 
-    private var statsRow: some View {
-        HStack(spacing: 8) {
-            statCard(label: ar ? "جلسات" : "Sessions",
-                     value: "\(sessions.count)",
-                     sub: sessions.isEmpty ? nil : (ar ? "مسجلة" : "logged"))
-            statCard(label: ar ? "أفضل عضلة" : "Top muscle",
-                     value: topMuscle?.label ?? "—",
-                     sub: topMuscle.map { "+\($0.pct)%" })
-            statCard(label: ar ? "رفعات متتبعة" : "Lifts tracked",
-                     value: "\(weights.count)",
-                     sub: nil)
-        }
+    // MARK: - Points hero card
+
+    /// Friend's leaderboard data for the CURRENT calendar month. We
+    /// drop stale data (different month key) so the card reads zeros
+    /// instead of showing March's score in May. Matches how
+    /// `rebuildLeaderboard()` in AppState treats stale rows.
+    private var currentMonthData: LeaderboardData? {
+        let key = Self.currentMonthKey()
+        guard let ld = friend.leaderboardData, ld.month == key else { return nil }
+        return ld
     }
 
-    private func statCard(label: String, value: String, sub: String?) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(size: 20, weight: .heavy))
-                .foregroundColor(HexTheme.text)
-            if let sub = sub {
-                Text(sub)
-                    .font(.system(size: 11, weight: .heavy))
+    private var pointsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(ar ? "هذا الشهر" : "THIS MONTH")
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(ar ? 0 : 0.8)
                     .foregroundColor(HexTheme.accent)
+                Spacer()
+                Text(Self.formattedMonthYear(for: Date(), ar: ar))
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundColor(HexTheme.mute)
             }
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundColor(HexTheme.mute)
-                .multilineTextAlignment(.center)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(currentMonthData?.score ?? 0)")
+                    .font(.system(size: 56, weight: .heavy))
+                    .foregroundColor(HexTheme.accent)
+                    .monospacedDigit()
+                Text(ar ? "نقطة" : "pts")
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundColor(HexTheme.dim)
+                Spacer()
+            }
+
+            HStack(spacing: 0) {
+                breakdownPill(
+                    label: ar ? "الالتزام" : "Consistency",
+                    value: consistencyText,
+                    accent: HexTheme.accent
+                )
+                Rectangle()
+                    .fill(HexTheme.border)
+                    .frame(width: 1, height: 28)
+                breakdownPill(
+                    label: ar ? "التحسن" : "Improvement",
+                    value: improvementText,
+                    accent: HexTheme.accent.opacity(0.55)
+                )
+            }
+            .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(HexTheme.surface2)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(HexTheme.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(HexTheme.border, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(HexTheme.accent.opacity(0.20), lineWidth: 1.5)
         )
+    }
+
+    private var consistencyText: String {
+        guard let ld = currentMonthData, ld.setsProgrammed > 0 else { return "—" }
+        let pct = Int((Double(ld.setsCompleted) / Double(ld.setsProgrammed) * 100).rounded())
+        return "\(ld.setsCompleted)/\(ld.setsProgrammed) (\(pct)%)"
+    }
+    private var improvementText: String {
+        guard let ld = currentMonthData else { return "—" }
+        return "+\(ld.improvementPct)%"
+    }
+
+    private func breakdownPill(label: String, value: String, accent: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundColor(HexTheme.dim)
+            Text(value)
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundColor(accent)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private static func currentMonthKey() -> String {
+        let cal = Calendar(identifier: .gregorian)
+        let comps = cal.dateComponents([.year, .month], from: Date())
+        return String(format: "%04d-%02d", comps.year ?? 0, comps.month ?? 0)
+    }
+
+    private static func formattedMonthYear(for date: Date, ar: Bool) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: ar ? "ar" : "en")
+        df.dateFormat = "MMMM yyyy"
+        return df.string(from: date).uppercased()
     }
 
     private var muscleProgressCard: some View {
