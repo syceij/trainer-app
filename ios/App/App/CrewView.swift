@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 /// Bros tab — port of `src/components/GymBrosTab.jsx`. Renders:
 ///   • header with title + add-bro button (sheet)
@@ -395,17 +397,25 @@ struct CrewView: View {
         let body    = activityBody(item, isMe: isMe)
         let time    = relativeTime(item.createdAt)
 
+        // Use the shared AvatarCircle helper so the activity feed shows
+        // the actual user's photo when one is set, instead of always
+        // rendering a generic "S/A/D" initial circle. The avatar URL
+        // is already carried on the ActivityRow (joined from profiles
+        // in fetchActivityFeed) — we just weren't using it.
+        let initialLetter = String(
+            (item.profileName ?? display.replacingOccurrences(of: "@", with: ""))
+                .prefix(1)
+                .uppercased()
+        )
         return HStack(alignment: .top, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(isMe ? HexTheme.accent.opacity(0.12) : HexTheme.surface2)
-                Circle()
-                    .stroke(isMe ? HexTheme.accent.opacity(0.4) : HexTheme.border, lineWidth: 1.5)
-                Text(String(display.replacingOccurrences(of: "@", with: "").prefix(1)))
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundColor(isMe ? HexTheme.accent : HexTheme.dim)
-            }
-            .frame(width: 34, height: 34)
+            AvatarCircle(
+                initial: initialLetter,
+                url: item.avatarURL,
+                size: 34,
+                ring: isMe ? HexTheme.accent.opacity(0.4) : HexTheme.border,
+                bg: isMe ? HexTheme.accent.opacity(0.12) : HexTheme.surface2,
+                textColor: isMe ? HexTheme.accent : HexTheme.dim
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 (Text(display)
@@ -763,6 +773,18 @@ private struct AddBroSheet: View {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(HexTheme.border, lineWidth: 1)
                     )
+
+                // QR code for in-person sharing — encodes the same
+                // `hex://invite/<code>` URL the Share button does, so
+                // a Bro standing next to you can just point their
+                // camera at the screen instead of waiting for a link.
+                // Rendered through `HexTheme.accentFill` so it picks
+                // up the user's accent COLOUR and MATERIAL
+                // (matte / glossy / metal / neon) — switching the
+                // material in Settings repaints the QR on the next
+                // body evaluation.
+                AccentQRCodeBlock(url: "hex://invite/\(link.code)",
+                                  ar: ar)
 
                 HStack(spacing: 10) {
                     Button {
@@ -1357,5 +1379,95 @@ private struct PointsInfoSheet: View {
                     .stroke(HexTheme.accent.opacity(0.13), lineWidth: 1)
             )
             .padding(.top, 4)
+    }
+}
+
+// MARK: - Accent-tinted QR code (CoreImage-backed)
+//
+// Generates a QR code for the invite URL and tints it with the
+// user's chosen accent colour + material. Pipeline:
+//   1. `CIQRCodeGenerator` produces a default black-on-white QR.
+//   2. `CIColorInvert` swaps to white-on-black so the data cells
+//      become the bright pixels.
+//   3. `CIMaskToAlpha` keys out the dark background — data cells
+//      are now opaque white on a transparent canvas.
+//   4. Render through SwiftUI's `.renderingMode(.template)` +
+//      `.foregroundStyle(HexTheme.accentFill)` so the opaque
+//      pixels paint themselves with the active accent ShapeStyle.
+//      Because `accentFill` returns a gradient when the user picks
+//      glossy / metal / neon, the QR cells inherit those effects
+//      naturally — no per-cell drawing needed.
+private struct AccentQRCodeBlock: View {
+    let url: String
+    let ar: Bool
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if let img = Self.qrImage(for: url) {
+                Image(uiImage: img)
+                    .renderingMode(.template)
+                    .interpolation(.none) // sharp pixel edges
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(HexTheme.accentFill)
+                    .frame(width: 180, height: 180)
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(HexTheme.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(HexTheme.border, lineWidth: 1)
+                    )
+            }
+
+            Text(ar
+                 ? "أو امسح الباركود إذا كان صديقك بجانبك"
+                 : "Or scan the code if your Bro is next to you")
+                .font(HexTheme.font(size: 11, weight: .regular, ar: ar))
+                .foregroundColor(HexTheme.mute)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Build the QR data image. Returns nil if CoreImage fails to
+    /// produce a usable bitmap (edge case — should never happen with
+    /// well-formed input). The result is a small transparent-background
+    /// PNG ready for template tinting.
+    private static func qrImage(for text: String) -> UIImage? {
+        guard let data = text.data(using: .utf8),
+              let qr = CIFilter(name: "CIQRCodeGenerator")
+        else { return nil }
+        qr.setValue(data, forKey: "inputMessage")
+        // "H" = highest error correction — gives the most scanner
+        // tolerance for partial obscuring (glare, fingers, etc.) at
+        // the cost of slightly denser cells. Well worth it for a
+        // pass-the-phone scanning UX.
+        qr.setValue("H", forKey: "inputCorrectionLevel")
+        guard let raw = qr.outputImage else { return nil }
+
+        // Invert (black ↔ white), then mask to alpha to make the
+        // original data cells (formerly black, now white-after-invert)
+        // come out opaque, and the background transparent.
+        guard let invert = CIFilter(name: "CIColorInvert") else { return nil }
+        invert.setValue(raw, forKey: kCIInputImageKey)
+        guard let inverted = invert.outputImage else { return nil }
+
+        guard let mask = CIFilter(name: "CIMaskToAlpha") else { return nil }
+        mask.setValue(inverted, forKey: kCIInputImageKey)
+        guard let alpha = mask.outputImage else { return nil }
+
+        // Scale up so the cell edges render crisply even at 180pt.
+        // 12× covers @3x retina with headroom; combined with
+        // `.interpolation(.none)` we get sharp squares, not blur.
+        let scaled = alpha.transformed(by: CGAffineTransform(scaleX: 12, y: 12))
+
+        let context = CIContext()
+        guard let cg = context.createCGImage(scaled, from: scaled.extent)
+        else { return nil }
+        return UIImage(cgImage: cg)
     }
 }

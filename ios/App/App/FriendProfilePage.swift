@@ -157,20 +157,32 @@ struct FriendProfilePage: View {
 
     private var avatarBlock: some View {
         VStack(spacing: 10) {
+            // Render the friend's actual avatar when one is set, with
+            // a gradient/initial fallback to match the previous look
+            // when the URL is missing or the load fails. Avatar URL
+            // can come from either the freshly-loaded FriendProfileRow
+            // (preferred — has the latest from `profiles`) or the
+            // friend list entry we navigated in from.
+            let urlString = profile?.avatarURL ?? friend.avatarURL
             ZStack {
-                Circle()
-                    .fill(LinearGradient(
-                        colors: [HexTheme.accent.opacity(0.20),
-                                 HexTheme.accent.opacity(0.07)],
-                        startPoint: .topLeading,
-                        endPoint:   .bottomTrailing))
+                if let url = urlString.flatMap(URL.init(string:)) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                        default:
+                            avatarFallback
+                        }
+                    }
                     .frame(width: 72, height: 72)
+                    .clipShape(Circle())
+                } else {
+                    avatarFallback
+                        .frame(width: 72, height: 72)
+                }
                 Circle()
                     .stroke(HexTheme.accent.opacity(0.27), lineWidth: 2)
                     .frame(width: 72, height: 72)
-                Text(initial)
-                    .font(.system(size: 28, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
             }
             Text(profile?.name ?? profile?.username ?? friend.name ?? "Gym Bro")
                 .font(.system(size: 18, weight: .heavy))
@@ -180,6 +192,23 @@ struct FriendProfilePage: View {
                     .font(.system(size: 13))
                     .foregroundColor(HexTheme.mute)
             }
+        }
+    }
+
+    /// Lime-tinted gradient + initial — same look the page had before
+    /// when no avatar URL was available. Used as the AsyncImage
+    /// placeholder + the no-URL branch.
+    private var avatarFallback: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: [HexTheme.accent.opacity(0.20),
+                             HexTheme.accent.opacity(0.07)],
+                    startPoint: .topLeading,
+                    endPoint:   .bottomTrailing))
+            Text(initial)
+                .font(.system(size: 28, weight: .heavy))
+                .foregroundColor(HexTheme.text)
         }
     }
 
