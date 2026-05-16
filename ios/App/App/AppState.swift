@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Supabase
 import Combine
+import ActivityKit
 
 /// Top-level observable state shared across the app.
 @MainActor
@@ -91,6 +92,20 @@ final class AppState: ObservableObject {
     /// One-shot confetti trigger — TrainView increments this on session save
     /// and ContentView watches it to play the burst animation.
     @Published var confettiTrigger: Int = 0
+
+    /// Sets completed via the Live Activity Lock Screen / Dynamic Island
+    /// during the current session, keyed by exercise name and storing the
+    /// 0-indexed set positions. TrainView merges this into its local
+    /// `completedSets` map on appear / scenePhase active, so opening the
+    /// app mid-session shows the same green checks the user already saw
+    /// on the Lock Screen card.
+    ///
+    /// Populated by `refreshLiveActivityCompletions()` from the App Group
+    /// pending-set queue PLUS the currently-running activity's
+    /// `ContentState.setsCompleted`. Survives `drainPendingSets` clearing
+    /// the queue because the map is held here in-memory until the
+    /// session resets.
+    @Published var liveActivityCompletions: [String: Set<Int>] = [:]
     /// Invite code captured from a `hex://invite/...` deep link while signed
     /// out. Replayed automatically once `loadUserData` finishes.
     var pendingInviteCode: String?
@@ -141,6 +156,56 @@ final class AppState: ObservableObject {
 
     // MARK: - Live Activity pending-set drain
 
+    /// Read every Lock-Screen-completed set for the current session and
+    /// publish a name→indices map onto `liveActivityCompletions`.
+    /// Sources:
+    ///   • App Group pending queue (sets the widget intent hasn't
+    ///     handed off to the main app yet).
+    ///   • Currently-running Activity's ContentState (the user's most
+    ///     recent taps before the queue is observed, AND the source of
+    ///     truth for the exercise currently visible on the LA card).
+    ///
+    /// Called from TrainView on appear + on scenePhase active so the
+    /// in-app set-button grid mirrors what's checked on the Lock Screen.
+    /// Cheap (synchronous, in-process) so re-running it on every
+    /// foreground is fine. (Class is already @MainActor — no decorator
+    /// needed on the method.)
+    func refreshLiveActivityCompletions() {
+        var map: [String: Set<Int>] = [:]
+
+        // (1) Sets already queued from the Lock Screen (most recent,
+        //     before drain runs).
+        for p in WorkoutGroupStore.loadPendingSets() {
+            // setNumber is 1-indexed in the DTO; store as 0-indexed
+            // because that's what TrainView's exKey_<i> uses.
+            let idx = max(0, p.setNumber - 1)
+            map[p.exerciseName, default: []].insert(idx)
+        }
+
+        // (2) Currently-visible exercise on the LA card — its
+        //     `setsCompleted` is the freshest signal for that one
+        //     exercise (the queue can lag by a hop if the user just
+        //     tapped while the app was already foregrounding).
+        if #available(iOS 16.2, *) {
+            if let activity = Activity<WorkoutActivityAttributes>.activities.first {
+                let state = activity.content.state
+                for (i, done) in state.setsCompleted.enumerated() where done {
+                    map[state.exerciseName, default: []].insert(i)
+                }
+            }
+        }
+
+        // Merge over previous published value rather than replace, so
+        // exercises already advanced past (where the LA card has moved
+        // on but their completions were captured earlier) don't get
+        // dropped.
+        var merged = liveActivityCompletions
+        for (name, indices) in map {
+            merged[name, default: []].formUnion(indices)
+        }
+        liveActivityCompletions = merged
+    }
+
     /// Drain the App Group pending-sets queue written by the Lock Screen
     /// `ToggleSetIntent`. Called from `loadUserData()` and from
     /// ContentView's `.onChange(of: scenePhase)` handler so completed
@@ -160,6 +225,14 @@ final class AppState: ObservableObject {
     func drainPendingSets() async {
         let pending = WorkoutGroupStore.loadPendingSets()
         let finishedIds = WorkoutGroupStore.loadFinishedSessionIds()
+        // Seed the in-memory completions map BEFORE we clear the queue
+        // below. Once the queue is gone, TrainView would otherwise lose
+        // its ability to back-fill set-button checkmarks for prior
+        // exercises (the LA's ContentState only carries the current
+        // exercise). This call also fires when no pending sets exist —
+        // cheap, idempotent, no harm. AppState is @MainActor so a
+        // direct call here is already on the main actor.
+        refreshLiveActivityCompletions()
         guard !pending.isEmpty || !finishedIds.isEmpty else { return }
 
         // Snapshot the staged session BEFORE we clear it — the finish

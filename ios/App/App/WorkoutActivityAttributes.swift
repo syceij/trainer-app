@@ -48,14 +48,35 @@ struct WorkoutActivityAttributes: ActivityAttributes {
         /// When the rest timer expires.
         /// Use `Date.distantPast` (or any past date) when no timer is active.
         var restEndsAt: Date
-        /// User's chosen rest duration in seconds (default 60).
+        /// Per-exercise rest seconds (the user's chip choice for THIS
+        /// exercise). Was previously a session-wide value — moved to
+        /// per-exercise so the Lock Screen timer matches what the user
+        /// picked on each exercise card.
         var restSeconds: Int
+
+        /// Sets completed across all exercises BEFORE the current one.
+        /// Used to drive the session-wide top progress bar in the LA
+        /// card without needing to send the whole prior history.
+        /// Defaulted because old encoded states may not have it.
+        var priorSetsDone: Int = 0
+        /// Total sets across every exercise in the staged session.
+        /// Drives the denominator of the session-wide progress bar.
+        var totalSessionSets: Int = 0
 
         // MARK: - Computed conveniences
 
         var setsTotal: Int { setsCompleted.count }
         var setsDone: Int  { setsCompleted.filter { $0 }.count }
         var allSetsDone: Bool { !setsCompleted.isEmpty && setsCompleted.allSatisfy { $0 } }
+
+        /// Session-wide completion count = sets done on prior exercises
+        /// plus sets completed on the current one.
+        var sessionSetsDone: Int { priorSetsDone + setsDone }
+        /// Session-wide completion fraction 0…1.
+        var sessionProgress: Double {
+            guard totalSessionSets > 0 else { return 0 }
+            return min(1, max(0, Double(sessionSetsDone) / Double(totalSessionSets)))
+        }
 
         // MARK: - Init
 
@@ -71,20 +92,24 @@ struct WorkoutActivityAttributes: ActivityAttributes {
             tag: String? = nil,
             focus: String? = nil,
             restEndsAt: Date = .distantPast,
-            restSeconds: Int = 60
+            restSeconds: Int = 60,
+            priorSetsDone: Int = 0,
+            totalSessionSets: Int = 0
         ) {
-            self.exerciseName    = exerciseName
-            self.exerciseIndex   = exerciseIndex
-            self.totalExercises  = totalExercises
-            self.setsCompleted   = setsCompleted
-            self.targetReps      = targetReps
-            self.weightKg        = weightKg
-            self.weightLabel     = weightLabel
-            self.targetRpe       = targetRpe
-            self.tag             = tag
-            self.focus           = focus
-            self.restEndsAt      = restEndsAt
-            self.restSeconds     = restSeconds
+            self.exerciseName     = exerciseName
+            self.exerciseIndex    = exerciseIndex
+            self.totalExercises   = totalExercises
+            self.setsCompleted    = setsCompleted
+            self.targetReps       = targetReps
+            self.weightKg         = weightKg
+            self.weightLabel      = weightLabel
+            self.targetRpe        = targetRpe
+            self.tag              = tag
+            self.focus            = focus
+            self.restEndsAt       = restEndsAt
+            self.restSeconds      = restSeconds
+            self.priorSetsDone    = priorSetsDone
+            self.totalSessionSets = totalSessionSets
         }
     }
 }
@@ -235,6 +260,10 @@ struct StagedExerciseDTO: Codable, Hashable {
     var tag: String?
     var focus: String?
     var notes: String?
+    /// User's chosen rest seconds for THIS exercise (chip selection on
+    /// the in-app card — `30s / 60s / 90s / 2m / 3m`). Defaulted so old
+    /// staged payloads still decode; new payloads carry the real value.
+    var restSeconds: Int = 90
 }
 
 /// A completed set the widget extension wrote while the user was on the

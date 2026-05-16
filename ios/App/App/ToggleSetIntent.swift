@@ -130,19 +130,26 @@ struct ToggleSetIntent: LiveActivityIntent {
         let nextIdx = state.exerciseIndex + 1
         guard staged.exercises.indices.contains(nextIdx) else { return nil }
         let next = staged.exercises[nextIdx]
+        // Roll session-progress counter forward.
+        let newPriorDone = state.priorSetsDone + state.setsCompleted.count
+        // Per-exercise rest seconds — fall back to previous exercise's
+        // value if the next exercise didn't carry one (old payloads).
+        let nextRest = max(15, next.restSeconds > 0 ? next.restSeconds : state.restSeconds)
         return WorkoutActivityAttributes.ContentState(
-            exerciseName:   next.name,
-            exerciseIndex:  nextIdx,
-            totalExercises: staged.exercises.count,
-            setsCompleted:  Array(repeating: false, count: max(next.sets, 1)),
-            targetReps:     next.reps,
-            weightKg:       next.weightKg,
-            weightLabel:    next.bodyweight ? "BW" : nil,
-            targetRpe:      next.rpe,
-            tag:            next.tag,
-            focus:          next.focus,
-            restEndsAt:     Date().addingTimeInterval(Double(state.restSeconds)),
-            restSeconds:    state.restSeconds
+            exerciseName:     next.name,
+            exerciseIndex:    nextIdx,
+            totalExercises:   staged.exercises.count,
+            setsCompleted:    Array(repeating: false, count: max(next.sets, 1)),
+            targetReps:       next.reps,
+            weightKg:         next.weightKg,
+            weightLabel:      next.bodyweight ? "BW" : nil,
+            targetRpe:        next.rpe,
+            tag:              next.tag,
+            focus:            next.focus,
+            restEndsAt:       Date().addingTimeInterval(Double(nextRest)),
+            restSeconds:      nextRest,
+            priorSetsDone:    newPriorDone,
+            totalSessionSets: state.totalSessionSets
         )
     }
 

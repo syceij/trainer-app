@@ -8,6 +8,7 @@ import SwiftUI
 /// Empty state matches the React version when no session is loaded.
 struct TrainView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.scenePhase) private var scenePhase
 
     // Local UI state (kept in this view for now — real persistence happens
     // when the session is saved via app.finishSession). Mirrors the
@@ -47,6 +48,46 @@ struct TrainView: View {
         .onChange(of: app.currentSession?.id) { _ in
             resetSessionState()
         }
+        // Merge sets the user completed via the Lock Screen Live Activity
+        // into the local `completedSets` map. Runs on first appear and
+        // every time the app foregrounds (in case the user did taps on
+        // the LA while the app was backgrounded) AND whenever the
+        // published completions map updates (drainPendingSets refreshes
+        // it on scenePhase active).
+        .onAppear {
+            app.refreshLiveActivityCompletions()
+            mergeLiveActivityCompletions()
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                app.refreshLiveActivityCompletions()
+                mergeLiveActivityCompletions()
+            }
+        }
+        .onChange(of: app.liveActivityCompletions) { _ in
+            mergeLiveActivityCompletions()
+        }
+    }
+
+    /// Translate `app.liveActivityCompletions` (exerciseName → set indices)
+    /// into TrainView's exKey-shaped map so set buttons render the same
+    /// green checks the user saw on the Lock Screen. Only sets values to
+    /// `true` — never clears, because the user might have un-toggled a
+    /// completion in-app and we don't want a stale LA cache to undo that.
+    private func mergeLiveActivityCompletions() {
+        guard let session = app.currentSession,
+              let exercises = session.data?.exercises else { return }
+        for (idx, ex) in exercises.enumerated() {
+            let indices = app.liveActivityCompletions[ex.name] ?? []
+            guard !indices.isEmpty else { continue }
+            let exKey = "\(idx)_\(ex.name)"
+            for si in indices where si < ex.sets {
+                let key = "\(exKey)_\(si)"
+                if completedSets[key] != true {
+                    completedSets[key] = true
+                }
+            }
+        }
     }
 
     /// Wipe every @State variable that's scoped to the current workout.
@@ -60,6 +101,10 @@ struct TrainView: View {
         timerDuration      = 0
         timerPaused        = false
         liveActivityActive = false
+        // Drop the Live-Activity-derived completions tied to the previous
+        // session — exerciseName keys could otherwise collide with new
+        // exercises on the freshly-staged session.
+        app.liveActivityCompletions = [:]
     }
 
     // MARK: - Empty state
@@ -153,23 +198,32 @@ struct TrainView: View {
                     weekNumber:  session.weekNumber,
                     block:       session.block,
                     startedAt:   Date(),
-                    exercises:   exercises.map { ex in
-                        StagedExerciseDTO(
-                            key:        ex.key,
-                            name:       ex.name,
-                            sets:       max(ex.sets, 1),
-                            reps:       ex.reps,
-                            weightKg:   ex.weight ?? 0,
-                            bodyweight: ex.bodyweight,
-                            rpe:        ex.rpe,
-                            tag:        ex.tag,
+                    exercises:   exercises.enumerated().map { (idx, ex) -> StagedExerciseDTO in
+                        let exKey = "\(idx)_\(ex.name)"
+                        // The user's rest-timer chip choice for THIS
+                        // exercise (90s default mirrors the chip presets).
+                        let perExerciseRest = restTimerChoice[exKey] ?? 90
+                        return StagedExerciseDTO(
+                            key:         ex.key,
+                            name:        ex.name,
+                            sets:        max(ex.sets, 1),
+                            reps:        ex.reps,
+                            weightKg:    ex.weight ?? 0,
+                            bodyweight:  ex.bodyweight,
+                            rpe:         ex.rpe,
+                            tag:         ex.tag,
                             // The "Calibrate week 1" italic line in the
                             // training card is the per-exercise note.
-                            focus:      ex.notes,
-                            notes:      ex.notes
+                            focus:       ex.notes,
+                            notes:       ex.notes,
+                            restSeconds: perExerciseRest
                         )
                     },
-                    restSeconds: 60   // 1-minute default per user spec
+                    restSeconds: 90   // Session-level fallback (no longer
+                                      // used now that each exercise carries
+                                      // its own value, but kept for
+                                      // backward compatibility with old
+                                      // staged payloads still in storage).
                 )
                 if #available(iOS 16.2, *) {
                     Task {

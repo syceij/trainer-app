@@ -22,96 +22,51 @@ private let hexMutedBg    = Color.white.opacity(0.07)
 private let hexBorder     = Color.white.opacity(0.10)
 
 // ── Lock Screen / Notification Banner view ────────────────────────────────────
+//
+// Layout intentionally minimal — user spec is "exercise name + weight +
+// set buttons + timer (right side) + the session-progress line that's
+// at the top of the Train page". Stripped out:
+//   • Session-name header (`PULL B + ARMS`)
+//   • Metadata line (`3 × 12 · RPE 7`)
+//   • Tag chip (`accessory`)
+//   • Focus / notes italic line
+//   • "rest 1 / 5" exercise counter
+// All of that info still lives in the staged ContentState in case we
+// want it back later, just not rendered.
 struct WorkoutLockScreenView: View {
     let context: ActivityViewContext<WorkoutActivityAttributes>
 
     private var s: WorkoutActivityAttributes.ContentState { context.state }
-    private var a: WorkoutActivityAttributes { context.attributes }
     private var hasTimer: Bool { s.restEndsAt > Date() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
 
+            // ── Top: session-wide progress bar ─────────────────────────
+            // Mirrors the line at the top of TrainView. Drives off
+            // sessionProgress = (priorSetsDone + setsDone) / totalSessionSets.
+            sessionProgressBar
+
             // ── Header row: exercise name + weight pill ────────────────
             HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    // Tiny uppercase session header — "PUSH B — SHOULDER FOCUS"
-                    Text(a.sessionName.uppercased())
-                        .font(.system(size: 9, weight: .bold))
-                        .kerning(0.8)
-                        .foregroundStyle(hexDim)
-                        .lineLimit(1)
-
-                    Text(s.exerciseName)
-                        .font(.system(size: 20, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                Spacer(minLength: 8)
+                Text(s.exerciseName)
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 weightPill
             }
 
-            // ── Metadata row: "4 × 8-10 · RPE 7-8" + compound tag ─────
-            HStack(spacing: 6) {
-                Text(metadataLine)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(hexDim)
-                if let tag = s.tag, !tag.isEmpty {
-                    Text(tag)
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule().fill(Color.white.opacity(0.08))
-                        )
-                }
-                Spacer(minLength: 0)
-            }
-
-            // ── Focus / notes line (italic, dim) ──────────────────────
-            if let focus = s.focus, !focus.isEmpty {
-                Text(focus)
-                    .font(.system(size: 11, weight: .regular).italic())
-                    .foregroundStyle(hexMute)
-                    .lineLimit(1)
-            }
-
-            // ── Set buttons row ───────────────────────────────────────
-            setButtonsRow
-                .padding(.top, 2)
-
-            // ── Rest timer (when active) ─────────────────────────────
-            if hasTimer {
-                HStack(spacing: 5) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(hexAccent)
-                    Text(s.restEndsAt, style: .timer)
-                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(hexAccent)
-                        .contentTransition(.numericText(countsDown: true))
-                    Text("rest")
-                        .font(.system(size: 11))
-                        .foregroundStyle(hexDim)
-                    Spacer()
-                    // Tiny exercise progress indicator "1 / 5"
-                    Text("\(s.exerciseIndex + 1) / \(s.totalExercises)")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(hexMute)
-                }
-                .padding(.top, 2)
-            } else {
-                // Even without a timer, show the exercise-progress hint
-                // so the user knows where they are in the session.
-                HStack {
-                    Spacer()
-                    Text("\(s.exerciseIndex + 1) / \(s.totalExercises)")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(hexMute)
+            // ── Set buttons row (with timer on the right, like TrainView) ─
+            HStack(alignment: .center, spacing: 10) {
+                setButtonsRow
+                if hasTimer {
+                    Spacer(minLength: 4)
+                    restTimerLabel
                 }
             }
+            .padding(.top, 2)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -119,6 +74,31 @@ struct WorkoutLockScreenView: View {
     }
 
     // MARK: - Sub-views
+
+    /// Thin lime-fill progress line, with a "DONE / TOTAL sets complete"
+    /// caption beneath. Matches the TrainView top progress bar visually
+    /// (4pt height, spring animation, dim caption).
+    private var sessionProgressBar: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(hexAccent)
+                        .frame(width: geo.size.width * s.sessionProgress, height: 4)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.85),
+                                   value: s.sessionProgress)
+                }
+            }
+            .frame(height: 4)
+
+            Text("\(s.sessionSetsDone) / \(s.totalSessionSets) sets complete")
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(hexDim)
+        }
+    }
 
     /// Lime-outlined weight pill in the top-right corner.
     private var weightPill: some View {
@@ -145,25 +125,28 @@ struct WorkoutLockScreenView: View {
             )
     }
 
-    /// "4 × 8-10 · RPE 7-8" line.
-    private var metadataLine: String {
-        var parts: [String] = []
-        parts.append("\(s.setsTotal) × \(s.targetReps)")
-        if let rpe = s.targetRpe, !rpe.isEmpty {
-            parts.append("RPE \(rpe)")
+    /// Compact countdown shown to the right of the set buttons after a
+    /// set is checked. Matches TrainView's `timerRing` placement (right
+    /// of the buttons, not below them).
+    private var restTimerLabel: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "timer")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(hexAccent)
+            Text(s.restEndsAt, style: .timer)
+                .font(.system(size: 13, weight: .heavy).monospacedDigit())
+                .foregroundStyle(hexAccent)
+                .contentTransition(.numericText(countsDown: true))
         }
-        return parts.joined(separator: " · ")
     }
 
     /// Row of numbered set buttons. Buttons are interactive on iOS 17+
-    /// via the `Button(intent:)` initialiser; older systems fall back
-    /// to plain coloured squares (still readable as a progress display).
+    /// via the `Button(intent:)` initialiser.
     private var setButtonsRow: some View {
         HStack(spacing: 8) {
             ForEach(0..<s.setsTotal, id: \.self) { i in
                 setButton(index: i)
             }
-            Spacer(minLength: 0)
         }
     }
 

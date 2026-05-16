@@ -58,20 +58,28 @@ final class LiveActivityService {
         // Clear any stale pending sets from a previous session.
         WorkoutGroupStore.clearPendingSets()
 
+        // Total session sets = sum across every exercise — drives the
+        // top progress bar on the Live Activity card.
+        let totalSessionSets = staged.exercises.reduce(0) { $0 + max($1.sets, 1) }
+
         let attrs = WorkoutActivityAttributes(sessionName: staged.name)
         let state = WorkoutActivityAttributes.ContentState(
-            exerciseName:   firstExercise.name,
-            exerciseIndex:  0,
-            totalExercises: staged.exercises.count,
-            setsCompleted:  Array(repeating: false, count: max(firstExercise.sets, 1)),
-            targetReps:     firstExercise.reps,
-            weightKg:       firstExercise.weightKg,
-            weightLabel:    firstExercise.bodyweight ? "BW" : nil,
-            targetRpe:      firstExercise.rpe,
-            tag:            firstExercise.tag,
-            focus:          firstExercise.focus,
-            restEndsAt:     .distantPast,
-            restSeconds:    max(15, staged.restSeconds)
+            exerciseName:     firstExercise.name,
+            exerciseIndex:    0,
+            totalExercises:   staged.exercises.count,
+            setsCompleted:    Array(repeating: false, count: max(firstExercise.sets, 1)),
+            targetReps:       firstExercise.reps,
+            weightKg:         firstExercise.weightKg,
+            weightLabel:      firstExercise.bodyweight ? "BW" : nil,
+            targetRpe:        firstExercise.rpe,
+            tag:              firstExercise.tag,
+            focus:            firstExercise.focus,
+            restEndsAt:       .distantPast,
+            // Per-exercise rest seconds. Fallback to session-level value
+            // only if the per-exercise field wasn't populated.
+            restSeconds:      max(15, firstExercise.restSeconds > 0 ? firstExercise.restSeconds : staged.restSeconds),
+            priorSetsDone:    0,
+            totalSessionSets: totalSessionSets
         )
 
         let activity = try Activity<WorkoutActivityAttributes>.request(
@@ -143,19 +151,26 @@ final class LiveActivityService {
                 let nextIdx = state.exerciseIndex + 1
                 if staged.exercises.indices.contains(nextIdx) {
                     let next = staged.exercises[nextIdx]
+                    // Roll the session-progress counter forward: the
+                    // current exercise's sets just moved from "current"
+                    // to "prior".
+                    let newPriorDone = state.priorSetsDone + state.setsCompleted.count
+                    let nextRest = max(15, next.restSeconds > 0 ? next.restSeconds : state.restSeconds)
                     state = WorkoutActivityAttributes.ContentState(
-                        exerciseName:   next.name,
-                        exerciseIndex:  nextIdx,
-                        totalExercises: staged.exercises.count,
-                        setsCompleted:  Array(repeating: false, count: max(next.sets, 1)),
-                        targetReps:     next.reps,
-                        weightKg:       next.weightKg,
-                        weightLabel:    next.bodyweight ? "BW" : nil,
-                        targetRpe:      next.rpe,
-                        tag:            next.tag,
-                        focus:          next.focus,
-                        restEndsAt:     Date().addingTimeInterval(Double(state.restSeconds)),
-                        restSeconds:    state.restSeconds
+                        exerciseName:     next.name,
+                        exerciseIndex:    nextIdx,
+                        totalExercises:   staged.exercises.count,
+                        setsCompleted:    Array(repeating: false, count: max(next.sets, 1)),
+                        targetReps:       next.reps,
+                        weightKg:         next.weightKg,
+                        weightLabel:      next.bodyweight ? "BW" : nil,
+                        targetRpe:        next.rpe,
+                        tag:              next.tag,
+                        focus:            next.focus,
+                        restEndsAt:       Date().addingTimeInterval(Double(nextRest)),
+                        restSeconds:      nextRest,
+                        priorSetsDone:    newPriorDone,
+                        totalSessionSets: state.totalSessionSets
                     )
                 }
             }
