@@ -29,21 +29,23 @@ import AppIntents
 ///   4. Call `Activity.update(...)` so the Lock Screen reflects the
 ///      new state without round-tripping through the main app.
 ///
-/// Available on iOS 17+ because interactive Live Activity buttons
-/// require the new `LiveActivityIntent` protocol with `Button(intent:)`.
-/// iOS 16 users see the same card but with non-tappable buttons
-/// (handled in the `setLabel(i:done:)` builder below).
+/// LiveActivityIntent that the Lock Screen / Dynamic Island set buttons
+/// fire on tap. Runs in-process inside the widget extension (no app
+/// launch). The widget target's deployment minimum is iOS 17, so the
+/// previous `@available(iOS 17.0, *)` gate on the type is redundant
+/// and was actively hurting us — the AppIntents metadata extractor
+/// runs at build time and tends to skip availability-gated symbols
+/// from its index, which means the OS at tap time had no record of
+/// the intent existing and silently dropped every tap. Drop the gate.
 ///
-/// LiveActivityIntent is preferred over plain AppIntent here: it
-/// tells the system to run the intent in-process on a tap from the
-/// Lock Screen / Dynamic Island without trying to launch the host
-/// app. Using vanilla `AppIntent` with `openAppWhenRun = false`
-/// silently no-ops on some iOS versions — the button renders but
-/// taps don't fire. `LiveActivityIntent` makes the binding explicit
-/// and reliable.
-@available(iOS 17.0, *)
+/// Explicit `description` + no-arg `init()` + parameterised init
+/// follow Apple's WWDC23 sample for `LiveActivityIntent` — the
+/// processor's discovery is sensitive to these being present.
 struct ToggleSetIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Toggle Workout Set"
+    static var description = IntentDescription(
+        "Marks the next set of the current workout exercise as complete."
+    )
 
     @Parameter(title: "Set Index")
     var setIndex: Int
@@ -329,25 +331,17 @@ struct WorkoutLockScreenView: View {
 
     @ViewBuilder
     private func setButton(index i: Int) -> some View {
-        if #available(iOS 17.0, *) {
-            // iOS 17 — interactive button wired to the LiveActivityIntent.
-            // `.buttonStyle(.plain)` is required to suppress iOS's default
-            // system-blue tint — without it the lime fill + black
-            // checkmark + dim number all render with a blue overlay
-            // because the system treats the whole Button content as
-            // tintable accent colour content. Plain style keeps the
-            // colours I set inside `setLabel` exactly as written.
-            //
-            // Inline label so `setsCompleted[i]` is re-read on every
-            // body re-evaluation — capturing it via `let isDone` above
-            // the closure occasionally snapshot-froze the rendered face.
-            Button(intent: ToggleSetIntent(setIndex: i)) {
-                setLabel(i: i, done: s.setsCompleted[i])
-            }
-            .buttonStyle(.plain)
-        } else {
+        // Widget target's deployment minimum is iOS 17 — no runtime
+        // availability check needed. `.buttonStyle(.plain)` suppresses
+        // iOS's default system-blue accent tint so the lime fill / black
+        // checkmark / dim number render with the colours from
+        // `setLabel` exactly as written. Inlining `s.setsCompleted[i]`
+        // inside the Button closure forces a fresh read on every body
+        // re-evaluation.
+        Button(intent: ToggleSetIntent(setIndex: i)) {
             setLabel(i: i, done: s.setsCompleted[i])
         }
+        .buttonStyle(.plain)
     }
 
     /// One set-button face. Filled lime when done, neutral when pending.
@@ -466,23 +460,16 @@ struct WorkoutLiveActivity: Widget {
     }
 
     /// Smaller set-button variant for the Dynamic Island expanded bottom row.
-    /// Inlines the `setsCompleted[i]` read inside each render path so the
-    /// closure captures the freshest value — the previous `let isDone`
-    /// + face-as-let pattern occasionally snapshot-captured stale state.
-    /// `.buttonStyle(.plain)` keeps the colours from `islandSetFace`
-    /// (lime / dim-grey) intact instead of letting iOS apply its
-    /// default system-blue accent over them.
+    /// Same plumbing rationale as `setButton` — widget deployment target
+    /// is iOS 17, the runtime gate is redundant, and `.buttonStyle(.plain)`
+    /// keeps the lime / dim-grey colours from `islandSetFace` intact.
     @ViewBuilder
     private func islandSetButton(state s: WorkoutActivityAttributes.ContentState,
                                  index i: Int) -> some View {
-        if #available(iOS 17.0, *) {
-            Button(intent: ToggleSetIntent(setIndex: i)) {
-                islandSetFace(done: s.setsCompleted[i], index: i)
-            }
-            .buttonStyle(.plain)
-        } else {
+        Button(intent: ToggleSetIntent(setIndex: i)) {
             islandSetFace(done: s.setsCompleted[i], index: i)
         }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
