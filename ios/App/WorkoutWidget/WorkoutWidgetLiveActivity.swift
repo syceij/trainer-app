@@ -331,16 +331,21 @@ struct WorkoutLockScreenView: View {
     private func setButton(index i: Int) -> some View {
         if #available(iOS 17.0, *) {
             // iOS 17 — interactive button wired to the LiveActivityIntent.
-            // Inline the label-building inside the Button closure so the
-            // setsCompleted bit is re-read on every render; the previous
-            // `let isDone = ...; let label = ...` pattern occasionally
-            // snapshot-captured a stale value in the closure, masking the
-            // state update visually even after the intent had run.
+            // `.buttonStyle(.plain)` is required to suppress iOS's default
+            // system-blue tint — without it the lime fill + black
+            // checkmark + dim number all render with a blue overlay
+            // because the system treats the whole Button content as
+            // tintable accent colour content. Plain style keeps the
+            // colours I set inside `setLabel` exactly as written.
+            //
+            // Inline label so `setsCompleted[i]` is re-read on every
+            // body re-evaluation — capturing it via `let isDone` above
+            // the closure occasionally snapshot-froze the rendered face.
             Button(intent: ToggleSetIntent(setIndex: i)) {
                 setLabel(i: i, done: s.setsCompleted[i])
             }
+            .buttonStyle(.plain)
         } else {
-            // iOS 16 — non-interactive display, still legible.
             setLabel(i: i, done: s.setsCompleted[i])
         }
     }
@@ -464,6 +469,9 @@ struct WorkoutLiveActivity: Widget {
     /// Inlines the `setsCompleted[i]` read inside each render path so the
     /// closure captures the freshest value — the previous `let isDone`
     /// + face-as-let pattern occasionally snapshot-captured stale state.
+    /// `.buttonStyle(.plain)` keeps the colours from `islandSetFace`
+    /// (lime / dim-grey) intact instead of letting iOS apply its
+    /// default system-blue accent over them.
     @ViewBuilder
     private func islandSetButton(state s: WorkoutActivityAttributes.ContentState,
                                  index i: Int) -> some View {
@@ -471,6 +479,7 @@ struct WorkoutLiveActivity: Widget {
             Button(intent: ToggleSetIntent(setIndex: i)) {
                 islandSetFace(done: s.setsCompleted[i], index: i)
             }
+            .buttonStyle(.plain)
         } else {
             islandSetFace(done: s.setsCompleted[i], index: i)
         }
