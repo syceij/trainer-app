@@ -24,6 +24,14 @@ struct ProfileView: View {
     /// future badges/trophies system).
     @State private var showHistory = false
 
+    /// Drives the Settings (AccountView) sheet. Opens as a modal
+    /// rather than a navigation push so it doesn't persist on the
+    /// tab's NavigationStack — previously, tapping the gear once
+    /// then switching tabs left the user "stuck" on AccountView
+    /// when they returned to the Profile tab (NavigationStack
+    /// remembers its path across tab switches).
+    @State private var showSettings = false
+
     private var ar: Bool { app.language == "ar" }
 
     var body: some View {
@@ -44,6 +52,15 @@ struct ProfileView: View {
         .navigationBarHidden(true)
         .sheet(isPresented: $showHistory) {
             historySheet
+        }
+        .sheet(isPresented: $showSettings) {
+            // Wrap AccountView in its own NavigationStack so its
+            // sub-pages (Build Programme, Manual Builder, Calendar
+            // etc.) push correctly inside the sheet without
+            // polluting the tab's stack. Dismissing the sheet
+            // returns the user cleanly to the Profile tab.
+            NavigationStack { AccountView() }
+                .environmentObject(app)
         }
         .environment(\.layoutDirection, ar ? .rightToLeft : .leftToRight)
     }
@@ -66,8 +83,8 @@ struct ProfileView: View {
                 }
             }
             Spacer(minLength: 8)
-            NavigationLink {
-                AccountView()
+            Button {
+                showSettings = true
             } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 16, weight: .heavy))
@@ -80,6 +97,7 @@ struct ProfileView: View {
                         Circle().stroke(HexTheme.border, lineWidth: 1)
                     )
             }
+            .buttonStyle(.plain)
         }
     }
 
