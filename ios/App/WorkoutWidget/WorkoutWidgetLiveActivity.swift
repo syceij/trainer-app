@@ -46,9 +46,24 @@ struct ToggleSetIntent: LiveActivityIntent {
     static var description = IntentDescription(
         "Marks the next set of the current workout exercise as complete."
     )
+    /// Hide from the Shortcuts app — this intent only makes sense
+    /// inside the Live Activity card, not as a standalone shortcut.
+    /// Setting this explicitly also helps the AppIntents metadata
+    /// extractor index the intent reliably (the processor's been
+    /// observed to skip intents missing `isDiscoverable`).
+    static var isDiscoverable: Bool = false
 
     @Parameter(title: "Set Index")
     var setIndex: Int
+
+    /// Required by `AppIntent` even though Live Activity intents are
+    /// always invoked via the `Button(intent:)` initialiser that
+    /// passes parameters explicitly. Providing a `Summary` is also
+    /// one of the patterns the metadata extractor uses as a "this
+    /// type is a real intent" signal.
+    static var parameterSummary: some ParameterSummary {
+        Summary("Toggle set \(\.$setIndex)")
+    }
 
     init() {}
 
