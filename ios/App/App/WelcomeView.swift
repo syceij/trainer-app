@@ -17,8 +17,10 @@ struct WelcomeView: View {
                 HStack {
                     Spacer()
                     Image("HexLogo")
+                        .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
+                        .foregroundStyle(HexTheme.accent)
                         .frame(height: 120)
                     Spacer()
                 }

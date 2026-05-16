@@ -72,15 +72,36 @@ struct ContentView: View {
     }
 
     private var splash: some View {
-        VStack(spacing: 24) {
-            Image("HexLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 120)
-            ProgressView()
-                .tint(HexTheme.accent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .hexBackground()
+        // 1:1 port of React's `LoadingScreen` in src/App.jsx:62-77.
+        // Centred lime-tinted dumbbell that "breathes" — scale loops
+        // 0.95 -> 1.05 -> 0.95 on a 1.2s ease-in-out cycle, forever.
+        // No spinner (the React version has none either — the gentle
+        // pulse is the only motion cue).
+        LoadingPulseView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .hexBackground()
+    }
+}
+
+/// The actual pulsing dumbbell. Lives in its own view so the @State
+/// `pulse` flag survives splash dismissals and the animation kicks
+/// off automatically via `.onAppear`. Template-rendered so the
+/// dumbbell shape inherits the user's chosen accent colour.
+private struct LoadingPulseView: View {
+    @State private var pulse = false
+
+    var body: some View {
+        Image("LoadingLogo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(HexTheme.accent)
+            .frame(width: 140, height: 140)
+            .scaleEffect(pulse ? 1.05 : 0.95)
+            .animation(
+                .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                value: pulse
+            )
+            .onAppear { pulse = true }
     }
 }

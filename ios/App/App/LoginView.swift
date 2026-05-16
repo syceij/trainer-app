@@ -23,8 +23,10 @@ struct LoginView: View {
                     HStack {
                         Spacer()
                         Image("LoginLogo")
+                            .renderingMode(.template)
                             .resizable()
                             .scaledToFit()
+                            .foregroundStyle(HexTheme.accent)
                             .frame(height: 160)
                         Spacer()
                     }
