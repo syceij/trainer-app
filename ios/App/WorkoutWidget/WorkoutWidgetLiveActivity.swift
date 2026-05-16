@@ -65,9 +65,12 @@ struct ToggleSetIntent: LiveActivityIntent {
         guard state.setsCompleted.indices.contains(setIndex)
         else { return .result() }
 
-        // Toggle the per-set completion bit.
+        // Toggle the per-set completion bit. Uses explicit assignment
+        // rather than `.toggle()` so the mutation is unambiguous to the
+        // compiler — `.toggle()` on a Bool inside an array subscript
+        // has occasionally shown up as a no-op in App Intent contexts.
         let wasCompleted = state.setsCompleted[setIndex]
-        state.setsCompleted[setIndex].toggle()
+        state.setsCompleted[setIndex] = !wasCompleted
         let isNowCompleted = state.setsCompleted[setIndex]
 
         // Queue the set for Supabase ONLY on the false→true transition.
@@ -83,11 +86,17 @@ struct ToggleSetIntent: LiveActivityIntent {
             state.restEndsAt = .distantPast
         }
 
+        // Near-future staleDate so the system commits the update right
+        // away instead of batching it with later activity churn —
+        // without this, rapid taps coalesce and the in-between bit
+        // flips never reach the Lock Screen renderer.
+        let staleDate = Date().addingTimeInterval(60)
+
         // If every set is done, try to advance to the next exercise.
         if state.allSetsDone {
             if let advanced = advance(from: state) {
                 state = advanced
-                await activity.update(.init(state: state, staleDate: nil))
+                await activity.update(.init(state: state, staleDate: staleDate))
             } else {
                 // Final exercise complete → record a finish marker so the
                 // main app runs the full finishWorkout flow next launch,
@@ -102,7 +111,7 @@ struct ToggleSetIntent: LiveActivityIntent {
                 WorkoutGroupStore.clearStagedSession()
             }
         } else {
-            await activity.update(.init(state: state, staleDate: nil))
+            await activity.update(.init(state: state, staleDate: staleDate))
         }
 
         return .result()
@@ -320,24 +329,25 @@ struct WorkoutLockScreenView: View {
 
     @ViewBuilder
     private func setButton(index i: Int) -> some View {
-        let isDone = s.setsCompleted[i]
-        let label = setLabel(i: i, done: isDone)
         if #available(iOS 17.0, *) {
-            // iOS 17 — interactive button wired to the App Intent.
+            // iOS 17 — interactive button wired to the LiveActivityIntent.
+            // Inline the label-building inside the Button closure so the
+            // setsCompleted bit is re-read on every render; the previous
+            // `let isDone = ...; let label = ...` pattern occasionally
+            // snapshot-captured a stale value in the closure, masking the
+            // state update visually even after the intent had run.
             Button(intent: ToggleSetIntent(setIndex: i)) {
-                label
+                setLabel(i: i, done: s.setsCompleted[i])
             }
-            .buttonStyle(.plain)
         } else {
             // iOS 16 — non-interactive display, still legible.
-            label
+            setLabel(i: i, done: s.setsCompleted[i])
         }
     }
 
     /// One set-button face. Filled lime when done, neutral when pending.
-    /// Sized 36×36 (down from 42) to keep the full card under Apple's
-    /// ~220pt Lock Screen Live Activity cap even when the focus / notes
-    /// line wraps to two lines.
+    /// Sized 36×36 to keep the full card under Apple's ~220pt Lock
+    /// Screen Live Activity cap.
     @ViewBuilder
     private func setLabel(i: Int, done: Bool) -> some View {
         ZStack {
@@ -349,13 +359,20 @@ struct WorkoutLockScreenView: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(.black)
+                    .transition(.scale.combined(with: .opacity))
             } else {
                 Text("\(i + 1)")
                     .font(.system(size: 13, weight: .heavy))
                     .foregroundStyle(hexDim)
+                    .transition(.opacity)
             }
         }
         .frame(width: 36, height: 36)
+        // Explicit animation on the `done` change — gives SwiftUI a
+        // hint that this view's content depends on the bit and should
+        // re-render when it flips. Also makes the state change visible
+        // to the user as a quick fill animation.
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: done)
     }
 }
 
@@ -444,32 +461,39 @@ struct WorkoutLiveActivity: Widget {
     }
 
     /// Smaller set-button variant for the Dynamic Island expanded bottom row.
+    /// Inlines the `setsCompleted[i]` read inside each render path so the
+    /// closure captures the freshest value — the previous `let isDone`
+    /// + face-as-let pattern occasionally snapshot-captured stale state.
     @ViewBuilder
     private func islandSetButton(state s: WorkoutActivityAttributes.ContentState,
                                  index i: Int) -> some View {
-        let isDone = s.setsCompleted[i]
-        let face = ZStack {
+        if #available(iOS 17.0, *) {
+            Button(intent: ToggleSetIntent(setIndex: i)) {
+                islandSetFace(done: s.setsCompleted[i], index: i)
+            }
+        } else {
+            islandSetFace(done: s.setsCompleted[i], index: i)
+        }
+    }
+
+    @ViewBuilder
+    private func islandSetFace(done: Bool, index i: Int) -> some View {
+        ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isDone ? hexAccent : hexMutedBg)
-            if isDone {
+                .fill(done ? hexAccent : hexMutedBg)
+            if done {
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .heavy))
                     .foregroundStyle(.black)
+                    .transition(.scale.combined(with: .opacity))
             } else {
                 Text("\(i + 1)")
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(hexDim)
+                    .transition(.opacity)
             }
         }
         .frame(width: 32, height: 32)
-
-        if #available(iOS 17.0, *) {
-            Button(intent: ToggleSetIntent(setIndex: i)) {
-                face
-            }
-            .buttonStyle(.plain)
-        } else {
-            face
-        }
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: done)
     }
 }
