@@ -561,9 +561,12 @@ private struct Step2: View {
 // MARK: - Step 3 — Split + Session names
 
 private struct Step3: View {
+    @EnvironmentObject var app: AppState
     @Binding var split: String?
     let selectedDays: [String]
     @Binding var sessionNames: [String: String]
+
+    private var ar: Bool { app.language == "ar" }
 
     private func applySplit(_ key: String) {
         split = key
