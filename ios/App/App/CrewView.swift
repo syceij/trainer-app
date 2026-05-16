@@ -113,7 +113,7 @@ struct CrewView: View {
             AddBroSheet().environmentObject(app)
         }
         .sheet(isPresented: $pointsInfoShown) {
-            PointsInfoSheet().environmentObject(app)
+            pointsInfoSheetView
         }
         .navigationDestination(isPresented: Binding(
             get: { friendDestination != nil },
@@ -143,6 +143,41 @@ struct CrewView: View {
                 await app.loadSocial()
                 app.rebuildLeaderboard()
             }
+        }
+    }
+
+    // MARK: - Points-info sheet presentation
+    //
+    // Split out so we can apply iOS 16.4+ modifiers
+    // (`.presentationCornerRadius`) conditionally without polluting
+    // the main `.sheet` closure. Deployment target is iOS 16.2 — the
+    // sheet itself works on 16.2; the corner radius is the only
+    // 16.4-gated detail (16.2/16.3 fall back to the system default,
+    // which still looks fine).
+    @ViewBuilder
+    private var pointsInfoSheetView: some View {
+        if #available(iOS 16.4, *) {
+            PointsInfoSheet()
+                .environmentObject(app)
+                // `.large` matches React's `maxHeight: 88vh` feel —
+                // the sheet covers most of the screen. The system's
+                // swipe-to-dismiss gesture is contained inside the
+                // sheet surface and does NOT bleed onto the CrewView
+                // underneath, so it can't accidentally trigger the
+                // `.refreshable` pull-to-refresh below.
+                .presentationDetents([.large])
+                // Hide the system drag handle since our header has a
+                // close X button. Users can still swipe down anywhere
+                // on the sheet to dismiss.
+                .presentationDragIndicator(.hidden)
+                // Match React `borderRadius: '20px 20px 0 0'`.
+                .presentationCornerRadius(20)
+        } else {
+            // iOS 16.2 / 16.3 fallback — no `.presentationCornerRadius`.
+            PointsInfoSheet()
+                .environmentObject(app)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
         }
     }
 
@@ -1052,116 +1087,275 @@ private struct AllFriendsPage: View {
 }
 
 // MARK: - Points info sheet
-
+//
+// 1:1 port of `PointsInfoCard` from src/components/GymBrosTab.jsx:679–852.
+// Two-pane vertical layout inside a sheet:
+//   1. Sticky header: title + subtitle on the leading side, close-X
+//      button on the trailing side.
+//   2. Scrollable body: formula pill (with visual 70/30 split bar +
+//      labels) -> Consistency block (description + 3 example rows)
+//      -> Improvement block (same shape) -> trophy footer.
+//
+// Presentation is controlled at the call site (`.sheet(...)` in
+// CrewView) — we use `.presentationDetents([.large])` and
+// `.presentationDragIndicator(.hidden)` there so the system's
+// built-in swipe-to-dismiss works naturally without our handle
+// fighting it. The drag-down gesture is contained to the sheet
+// surface and does NOT reach the page behind it, so CrewView's
+// scroll position and data don't reset on dismiss.
 private struct PointsInfoSheet: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
+
     private var ar: Bool { app.language == "ar" }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Capsule()
-                    .fill(HexTheme.surface2)
-                    .frame(width: 36, height: 4)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.bottom, 8)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(ar ? "كيف تُحسب النقاط؟" : "How points are calculated")
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(HexTheme.accent)
-                    Text(ar
-                         ? "النقاط غير محدودة — تُعاد شهرياً"
-                         : "Unlimited score · resets every month")
-                        .font(.system(size: 12))
-                        .foregroundColor(HexTheme.mute)
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    formulaPill
+                    consistencyBlock
+                    improvementBlock
+                    footer
                 }
-                .padding(.bottom, 12)
-
-                // Formula
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(ar ? "المعادلة" : "THE FORMULA")
-                        .font(.system(size: 10, weight: .heavy))
-                        .kerning(0.8)
-                        .foregroundColor(HexTheme.accent)
-                    Text(ar
-                         ? "النقاط = (الالتزام × ٧٠٪) + (التحسن × ٣٠٪)"
-                         : "Score = (Consistency × 70%) + (Improvement × 30%)")
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundColor(HexTheme.text)
-                    HStack(spacing: 2) {
-                        Rectangle().fill(HexTheme.accentFill).frame(height: 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Rectangle().fill(HexTheme.accent.opacity(0.5)).frame(height: 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .clipShape(Capsule())
-                    .padding(.top, 2)
-                }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(HexTheme.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(HexTheme.accent.opacity(0.20), lineWidth: 1.5)
-                )
-
-                infoBlock(
-                    title: ar ? "الالتزام — ٧٠ نقطة" : "Consistency — 70 pts",
-                    description: ar
-                        ? "عدد المجموعات التي أتممتها هذا الشهر مقسوماً على المجموعات المبرمجة في برنامجك."
-                        : "Sets you completed this month divided by the sets programmed in your programme."
-                )
-
-                infoBlock(
-                    title: ar ? "التحسن — ٣٠ نقطة" : "Improvement — 30 pts",
-                    description: ar
-                        ? "متوسط نسبة تحسن الحجم لكل تمرين مقارنةً بأول تسجيل لك."
-                        : "Average volume gain per exercise (weight × reps) vs. your very first logged set."
-                )
-
-                Text(ar
-                     ? "🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر"
-                     : "🏆 The player with the most points by end of month wins")
-                    .font(.system(size: 12))
-                    .foregroundColor(HexTheme.mute)
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(HexTheme.accent.opacity(0.05))
-                    )
-                    .padding(.top, 4)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 28)
         }
         .background(HexTheme.bg.ignoresSafeArea())
+        .environment(\.layoutDirection, ar ? .rightToLeft : .leftToRight)
     }
 
-    private func infoBlock(title: String, description: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 14, weight: .heavy))
-                .foregroundColor(HexTheme.accent)
-            Text(description)
-                .font(.system(size: 12))
-                .foregroundColor(HexTheme.dim)
-                .lineSpacing(3)
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(ar ? "كيف تُحسب النقاط؟" : "How points are calculated")
+                    .font(HexTheme.font(size: 18, weight: .heavy, ar: ar))
+                    .foregroundColor(HexTheme.accent)
+                Text(ar
+                     ? "النقاط غير محدودة — تُعاد شهرياً"
+                     : "Unlimited score · resets every month")
+                    .font(HexTheme.font(size: 12, weight: .regular, ar: ar))
+                    .foregroundColor(HexTheme.mute)
+            }
+            Spacer(minLength: 8)
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.mute)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(HexTheme.surface2)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(HexTheme.border, lineWidth: 1.5)
+                    )
+            }
+            .buttonStyle(.plain)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 20)
+    }
+
+    // MARK: - Formula pill (title + equation + visual 70/30 split)
+
+    private var formulaPill: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(ar ? "المعادلة" : "THE FORMULA")
+                .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                .kerning(ar ? 0 : 0.8)
+                .foregroundColor(HexTheme.accent)
+
+            Text(ar
+                 ? "النقاط = (الالتزام × ٧٠٪) + (التحسن × ٣٠٪)"
+                 : "Score = (Consistency × 70%) + (Improvement × 30%)")
+                .font(HexTheme.font(size: 13, weight: .heavy, ar: ar))
+                .foregroundColor(Color.white.opacity(0.80))
+                .padding(.bottom, 2)
+
+            // 70/30 split bar — 70% solid accent, 30% accent at 0.5 alpha.
+            // Matches React's `LIME` (full) + `#ADFF2F88` (~0.53 alpha)
+            // pairing. Uses GeometryReader so the widths track the
+            // available width regardless of sheet sizing.
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(HexTheme.accentFill)
+                        .frame(width: max(0, geo.size.width * 0.70 - 1), height: 4)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(HexTheme.accent.opacity(0.50))
+                        .frame(width: max(0, geo.size.width * 0.30 - 1), height: 4)
+                }
+            }
+            .frame(height: 4)
+
+            HStack {
+                Text(ar ? "الالتزام ٧٠٪" : "Consistency 70%")
+                    .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                    .foregroundColor(HexTheme.accent)
+                Spacer()
+                Text(ar ? "التحسن ٣٠٪" : "Improvement 30%")
+                    .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                    .foregroundColor(HexTheme.accent.opacity(0.50))
+            }
+            .padding(.top, 3)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(HexTheme.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(HexTheme.accent.opacity(0.20), lineWidth: 1.5)
+        )
+    }
+
+    // MARK: - Consistency block
+
+    private var consistencyBlock: some View {
+        scoreBlock(
+            emoji: "✅",
+            titleColor: HexTheme.accent,
+            title: ar ? "الالتزام — ٧٠ نقطة" : "Consistency — 70 pts",
+            description: ar
+                ? "عدد المجموعات التي أتممتها هذا الشهر مقسوماً على المجموعات المبرمجة في برنامجك."
+                : "Sets you completed this month divided by the sets programmed in your programme.",
+            rows: ar
+                ? [
+                    (label: "أتممت ٢٠ من أصل ٢٠ مجموعة", value: "١٠٠ نقطة", highlight: true),
+                    (label: "أتممت ١٤ من أصل ٢٠ مجموعة", value: "٧٠ نقطة", highlight: false),
+                    (label: "تجاوزت البرنامج (أكثر من ١٠٠٪)", value: "+١٠٠ نقطة", highlight: true),
+                ]
+                : [
+                    (label: "Complete 20 of 20 programmed sets", value: "100 pts", highlight: true),
+                    (label: "Complete 14 of 20 programmed sets", value: "70 pts", highlight: false),
+                    (label: "Exceed your programme (over 100%)", value: "100+ pts", highlight: true),
+                ]
+        )
+    }
+
+    // MARK: - Improvement block
+
+    private var improvementBlock: some View {
+        scoreBlock(
+            emoji: "📈",
+            titleColor: HexTheme.accent.opacity(0.50),
+            title: ar ? "التحسن — ٣٠ نقطة" : "Improvement — 30 pts",
+            description: ar
+                ? "متوسط نسبة تحسن الحجم لكل تمرين (الوزن × التكرارات) مقارنةً بأول تسجيل لك."
+                : "Average volume gain per exercise (weight × reps) vs. your very first logged set — averaged across all your exercises.",
+            rows: ar
+                ? [
+                    (label: "بدأت بـ ٥٠ كجم، والآن ٦٥ كجم (+٣٠٪)", value: "٩ / ٣٠", highlight: false),
+                    (label: "حسّنت كل تمارينك بأكثر من ١٠٠٪", value: "٣٠ / ٣٠", highlight: true),
+                    (label: "لا يوجد حد أقصى للتحسن", value: "∞", highlight: true),
+                ]
+                : [
+                    (label: "Started 50 kg → now 65 kg (+30% vol.)", value: "9 / 30", highlight: false),
+                    (label: "Improved every exercise by 100%+", value: "30 / 30", highlight: true),
+                    (label: "No ceiling on improvement", value: "∞", highlight: true),
+                ]
+        )
+    }
+
+    /// Generic "Consistency / Improvement" card: emoji-header,
+    /// description, then a vertical list of example rows.
+    private func scoreBlock(
+        emoji: String,
+        titleColor: Color,
+        title: String,
+        description: String,
+        rows: [(label: String, value: String, highlight: Bool)]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Heading area
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(emoji)
+                        .font(.system(size: 18))
+                    Text(title)
+                        .font(HexTheme.font(size: 14, weight: .heavy, ar: ar))
+                        .foregroundColor(titleColor)
+                }
+                Text(description)
+                    .font(HexTheme.font(size: 12, weight: .regular, ar: ar))
+                    .foregroundColor(HexTheme.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(3)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .overlay(
+                Rectangle()
+                    .fill(HexTheme.border)
+                    .frame(height: 1),
+                alignment: .bottom
+            )
+
+            // Example rows
+            ForEach(0..<rows.count, id: \.self) { i in
+                let row = rows[i]
+                HStack {
+                    Text(row.label)
+                        .font(HexTheme.font(size: 12, weight: .regular, ar: ar))
+                        .foregroundColor(HexTheme.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Text(row.value)
+                        .font(HexTheme.font(size: 13, weight: .heavy, ar: ar))
+                        .foregroundColor(row.highlight ? HexTheme.accent : Color.white.opacity(0.60))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .overlay(
+                    Rectangle()
+                        .fill(HexTheme.border.opacity(0.6))
+                        .frame(height: 1),
+                    alignment: .top
+                )
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(HexTheme.border, lineWidth: 1)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        Text(ar
+             ? "🏆 المتصدر هو من يملك أعلى نقاط بحلول نهاية الشهر"
+             : "🏆 The player with the most points by end of month wins")
+            .font(HexTheme.font(size: 12, weight: .regular, ar: ar))
+            .foregroundColor(HexTheme.dim)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(HexTheme.accent.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(HexTheme.accent.opacity(0.13), lineWidth: 1)
+            )
+            .padding(.top, 4)
     }
 }
