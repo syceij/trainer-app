@@ -31,8 +31,10 @@ private let hexBorder     = Color.white.opacity(0.10)
 /// key is absent — covers fresh installs before the user opens the
 /// app picker for the first time.
 private var hexAccent: Color {
+    // Default is "cream" (#E7E5E0) — the app's main signature
+    // colour per user choice. Existing users keep their pick.
     let raw = UserDefaults(suiteName: "group.com.hexapp.training")?
-        .string(forKey: "accent_choice_v1") ?? "lime"
+        .string(forKey: "accent_choice_v1") ?? "cream"
     switch raw {
     case "cream":    return Color(red: 0.906, green: 0.898, blue: 0.878) // #E7E5E0
     case "electric": return Color(red: 0.0,   green: 0.898, blue: 1.0)   // #00E5FF

@@ -359,6 +359,38 @@ extension SupabaseManager {
         return Dictionary(uniqueKeysWithValues: rows.map { ($0.exerciseName, $0.weight) })
     }
 
+    /// Fetch a friend's currently active programme (id, name, data).
+    /// Returns nil if they have no active programme. Caller is
+    /// expected to gate this on the friend's privacy_settings — the
+    /// query itself is unconditional because RLS on the `programmes`
+    /// table is the authoritative check.
+    func fetchFriendActiveProgramme(friendId: UUID) async throws -> Programme? {
+        struct Row: Decodable {
+            let id: UUID
+            let name: String
+            let data: ProgrammeData?
+            let active: Bool?
+        }
+        let rows: [Row] = try await client
+            .from("programmes")
+            .select("id, name, data, active")
+            .eq("user_id", value: friendId)
+            .eq("active", value: true)
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+        guard let first = rows.first else { return nil }
+        return Programme(
+            id: first.id,
+            userId: friendId,
+            name: first.name,
+            active: first.active ?? true,
+            data: first.data,
+            createdAt: nil
+        )
+    }
+
     /// Fetch the user's custom exercises (stored as a JSON array on
     /// `profiles.custom_exercises`).
     func fetchOwnCustomExercises() async throws -> [CustomExercise] {

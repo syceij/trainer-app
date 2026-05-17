@@ -118,7 +118,11 @@ final class AppState: ObservableObject {
     /// UserDefaults key — but we publish the raw string here so
     /// SwiftUI views observing AppState re-render and pick up the new
     /// `HexTheme.accent` value on the next body evaluation.
-    @Published var accentChoice: String = AccentChoice.lime.rawValue
+    /// Default is `cream` (#E7E5E0) per the user's choice of the
+    /// app's main signature colour. Stored UserDefaults override
+    /// this in `init()` if the user has previously picked something
+    /// else.
+    @Published var accentChoice: String = AccentChoice.cream.rawValue
 
     /// User-selected accent MATERIAL — matte (flat), glossy (wet-look
     /// vertical gradient), metal (brushed diagonal sheen), or neon
@@ -145,15 +149,15 @@ final class AppState: ObservableObject {
 
     init() {
         // Restore the user's accent-colour choice from App Group
-        // UserDefaults (falls back to standard suite, then to lime).
-        // Done before the rest of init so the very first body
-        // evaluation already sees the user's chosen colour rather
-        // than briefly flashing the default.
+        // UserDefaults (falls back to standard suite, then to cream
+        // for fresh installs). Done before the rest of init so the
+        // very first body evaluation already sees the user's chosen
+        // colour rather than briefly flashing the default.
         let raw =
             UserDefaults(suiteName: "group.com.hexapp.training")?
                 .string(forKey: HexTheme.accentChoiceKey)
             ?? UserDefaults.standard.string(forKey: HexTheme.accentChoiceKey)
-            ?? AccentChoice.lime.rawValue
+            ?? AccentChoice.cream.rawValue
         if AccentChoice(rawValue: raw) != nil {
             self.accentChoice = raw
         }

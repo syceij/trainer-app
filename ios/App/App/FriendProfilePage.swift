@@ -19,6 +19,16 @@ struct FriendProfilePage: View {
     @State private var confirmingRemove = false
     @State private var removing = false
 
+    /// Friend's active programme (read-only). Fetched alongside the
+    /// rest of the profile data; nil while loading or if the friend
+    /// has no active programme. Powers the "Programme" card + the
+    /// weekly-slider sheet.
+    @State private var friendProgramme: Programme?
+    /// Drives the weekly slider sheet — tapping the programme card
+    /// in the profile pops this up. Sheet shows one page per day
+    /// with that day's session + exercises.
+    @State private var showProgrammeSlider = false
+
     private var ar: Bool { app.language == "ar" }
 
     // MARK: - Body
@@ -125,13 +135,28 @@ struct FriendProfilePage: View {
             ScrollView {
                 VStack(spacing: 16) {
                     avatarBlock.padding(.top, 16)
-                    // Friend's "This Month" points card. Replaces the
-                    // prior 3-stat row (Sessions / Top muscle / Lifts
-                    // tracked) — same lime-bordered surface the user's
-                    // own ProfileView shows, just without the "See
-                    // older months" affordance since other people's
-                    // history isn't theirs to browse.
+
+                    // Featured trophy (their pinned badge). Hidden
+                    // when they have no pin set — friends don't get
+                    // the "Pick" CTA because the slot is purely a
+                    // viewing surface for them.
+                    if let pinned = friendFeaturedBadge {
+                        friendFeaturedBadgeCard(pinned)
+                    }
+
+                    // Trophy strip — friend's earned badges, scrollable.
+                    // Hidden when they haven't earned anything.
+                    if !friendEarnedBadges.isEmpty {
+                        friendTrophyStrip
+                    }
+
                     pointsCard
+
+                    // Programme card — friend's active programme name.
+                    // Tap to open a weekly slider showing every session.
+                    if let progName = friendProgrammeName {
+                        friendProgrammeCard(name: progName)
+                    }
 
                     if canSeeProgress, !muscleImprovements.isEmpty {
                         muscleProgressCard
@@ -463,6 +488,360 @@ struct FriendProfilePage: View {
         )
     }
 
+    // MARK: - Friend trophies + featured
+
+    /// Friend's earned badges. Ship 1 uses a hardcoded sample so the
+    /// strip + featured slot are visible for preview; Ship 2 will
+    /// read from the friend's `profiles.badges` column.
+    private var friendEarnedBadges: [EarnedBadge] {
+        Self.sampleFriendBadges
+    }
+
+    /// Friend's pinned featured badge. Ship 1 mocks this as the first
+    /// sample badge; Ship 2 will read `profiles.featured_badge_id`
+    /// from the joined friend row.
+    private var friendFeaturedBadge: EarnedBadge? {
+        friendEarnedBadges.first
+    }
+
+    /// TEMP — Ship 2 replaces with real reads from the friend's row.
+    private static let sampleFriendBadges: [EarnedBadge] = {
+        let now = Date()
+        let cal = Calendar(identifier: .gregorian)
+        func date(daysAgo: Int) -> Date {
+            cal.date(byAdding: .day, value: -daysAgo, to: now) ?? now
+        }
+        return [
+            EarnedBadge(id: "monthly_2026_02", kind: .monthly,
+                        month: "2026-02", exercise: nil, value: nil,
+                        earnedAt: date(daysAgo: 90)),
+            EarnedBadge(id: "monthly_2026_01", kind: .monthly,
+                        month: "2026-01", exercise: nil, value: nil,
+                        earnedAt: date(daysAgo: 120)),
+            EarnedBadge(id: "power_100_squat", kind: .power100,
+                        month: nil, exercise: "Squat", value: 120,
+                        earnedAt: date(daysAgo: 45)),
+        ]
+    }()
+
+    /// Featured trophy card — same shape as ProfileView's featured
+    /// slot but no "Change" button (it's their pin, not yours).
+    private func friendFeaturedBadgeCard(_ badge: EarnedBadge) -> some View {
+        HStack(spacing: 14) {
+            Image(badge.imageName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(ar ? "الشارة المميزة" : "FEATURED TROPHY")
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.accent)
+                Text(badge.kind.label(ar: ar))
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                Text(friendFeaturedSubtitle(for: badge))
+                    .font(.system(size: 11))
+                    .foregroundColor(HexTheme.dim)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(HexTheme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(HexTheme.accent.opacity(0.35), lineWidth: 1.5)
+        )
+    }
+
+    private func friendFeaturedSubtitle(for badge: EarnedBadge) -> String {
+        switch badge.kind {
+        case .monthly:
+            guard let m = badge.month,
+                  let monthN = Int(m.suffix(2)),
+                  let yearN = Int(m.prefix(4))
+            else { return "—" }
+            let name = BadgeKind.monthShortName(for: monthN, ar: ar)
+            return "\(name) \(yearN)"
+        case .power100, .power200, .power500:
+            if let ex = badge.exercise, let v = badge.value {
+                return ar ? "+\(v)٪ في \(ex)" : "+\(v)% on \(ex)"
+            }
+            return badge.kind.criteria(ar: ar)
+        case .hero, .lebron, .invincible:
+            return badge.kind.criteria(ar: ar)
+        }
+    }
+
+    /// Horizontal scroll strip of all earned trophies. Identical
+    /// styling to ProfileView's trophy strip but with a different
+    /// header copy ("Trophies" vs "Trophy Case").
+    private var friendTrophyStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(ar ? "الشارات" : "TROPHIES")
+                .font(.system(size: 10, weight: .heavy))
+                .kerning(ar ? 0 : 0.8)
+                .foregroundColor(HexTheme.dim)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(friendEarnedBadges.sorted(by: { $0.earnedAt > $1.earnedAt })) { badge in
+                        VStack(spacing: 6) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(HexTheme.surface2)
+                                Image(badge.imageName)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .padding(6)
+                            }
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(HexTheme.border, lineWidth: 1)
+                            )
+                            Text(badge.kind.label(ar: ar))
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(HexTheme.text)
+                                .lineLimit(1)
+                                .frame(width: 80)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    // MARK: - Friend programme card + weekly slider
+
+    /// Active programme name shown beneath the trophy section.
+    /// Returns nil while loading or if the friend has no active
+    /// programme (or it's private to them).
+    private var friendProgrammeName: String? {
+        guard let p = friendProgramme, !p.name.isEmpty else { return nil }
+        return p.name
+    }
+
+    /// Tappable card showing the friend's programme name. Tap →
+    /// opens the weekly slider sheet so the user can see every day
+    /// of the programme as a swipeable page.
+    private func friendProgrammeCard(name: String) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showProgrammeSlider = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "list.bullet.rectangle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(HexTheme.accent)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(HexTheme.accent.opacity(0.10))
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ar ? "البرنامج النشط" : "ACTIVE PROGRAMME")
+                        .font(.system(size: 10, weight: .heavy))
+                        .kerning(ar ? 0 : 0.8)
+                        .foregroundColor(HexTheme.dim)
+                    Text(name)
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.mute)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showProgrammeSlider) {
+            programmeSliderSheet
+        }
+    }
+
+    /// Weekly programme slider — TabView page-style so each day is
+    /// one full-width page, swipe to flip. Each page shows the
+    /// session name + every exercise in that day's slot. Rest days
+    /// render an empty-state card.
+    private var programmeSliderSheet: some View {
+        let week = friendProgramme?.data?.weeks.first
+        let dayOrder = ["mon","tue","wed","thu","fri","sat","sun"]
+        let sessionsByDay: [String: ProgrammeSession] = {
+            guard let sessions = week?.sessions else { return [:] }
+            var m: [String: ProgrammeSession] = [:]
+            for s in sessions {
+                let key = s.day.lowercased().prefix(3)
+                if !key.isEmpty { m[String(key)] = s }
+            }
+            return m
+        }()
+
+        return NavigationStack {
+            TabView {
+                ForEach(dayOrder, id: \.self) { dayKey in
+                    programmePage(
+                        dayKey: dayKey,
+                        session: sessionsByDay[dayKey]
+                    )
+                    .tag(dayKey)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            .background(HexTheme.bg.ignoresSafeArea())
+            .navigationTitle(friendProgramme?.name ?? (ar ? "البرنامج" : "Programme"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(ar ? "تم" : "Done") { showProgrammeSlider = false }
+                        .foregroundColor(HexTheme.accent)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    /// One day in the slider — full-bleed page with session info or
+    /// "Rest day" empty state.
+    @ViewBuilder
+    private func programmePage(dayKey: String, session: ProgrammeSession?) -> some View {
+        let dayName = programmeDayName(dayKey)
+        let isRest = session == nil || session?.isRest == true || (session?.name.isEmpty ?? true)
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                // Day pill
+                Text(dayName)
+                    .font(.system(size: 11, weight: .heavy))
+                    .kerning(ar ? 0 : 0.7)
+                    .foregroundColor(HexTheme.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(HexTheme.accent.opacity(0.12)))
+
+                if isRest {
+                    VStack(spacing: 8) {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(HexTheme.accent.opacity(0.45))
+                        Text(ar ? "يوم راحة" : "Rest day")
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundColor(HexTheme.dim)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
+                } else if let s = session {
+                    Text(s.name)
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                    if let focus = s.focus, !focus.isEmpty {
+                        Text(focus)
+                            .font(.system(size: 13))
+                            .foregroundColor(HexTheme.dim)
+                    }
+
+                    Text(ar ? "التمارين" : "EXERCISES")
+                        .font(.system(size: 10, weight: .heavy))
+                        .kerning(ar ? 0 : 0.7)
+                        .foregroundColor(HexTheme.dim)
+                        .padding(.top, 6)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(s.exercises.enumerated()), id: \.offset) { idx, ex in
+                            exerciseRow(ex)
+                            if idx < s.exercises.count - 1 {
+                                Divider().background(HexTheme.border)
+                            }
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(HexTheme.surface2)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(HexTheme.border, lineWidth: 1)
+                    )
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 60)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func exerciseRow(_ ex: Exercise) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ex.name)
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                Text("\(max(ex.sets, 1)) × \(ex.reps)")
+                    .font(.system(size: 12))
+                    .foregroundColor(HexTheme.dim)
+            }
+            Spacer()
+            if let w = ex.weight, w > 0 {
+                Text("\(formatWeight(w)) kg")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.accent)
+            } else if ex.bodyweight {
+                Text(ar ? "وزن الجسم" : "BW")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundColor(HexTheme.dim)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private func formatWeight(_ w: Double) -> String {
+        w == w.rounded() ? "\(Int(w))" : String(format: "%.1f", w)
+    }
+
+    private func programmeDayName(_ key: String) -> String {
+        if ar {
+            switch key {
+            case "mon": return "الإثنين"
+            case "tue": return "الثلاثاء"
+            case "wed": return "الأربعاء"
+            case "thu": return "الخميس"
+            case "fri": return "الجمعة"
+            case "sat": return "السبت"
+            case "sun": return "الأحد"
+            default:    return key
+            }
+        }
+        switch key {
+        case "mon": return "MONDAY"
+        case "tue": return "TUESDAY"
+        case "wed": return "WEDNESDAY"
+        case "thu": return "THURSDAY"
+        case "fri": return "FRIDAY"
+        case "sat": return "SATURDAY"
+        case "sun": return "SUNDAY"
+        default:    return key.uppercased()
+        }
+    }
+
     // MARK: - Data loaders
 
     private func load() async {
@@ -470,6 +849,10 @@ struct FriendProfilePage: View {
         async let prof    = SupabaseManager.shared.fetchFriendProfile(friendId: friend.id)
         async let sess    = SupabaseManager.shared.fetchFriendSessions(friendId: friend.id, limit: 10)
         async let weights = SupabaseManager.shared.fetchFriendWeights(friendId: friend.id)
+        // Friend's active programme — independent fetch so a failure
+        // here doesn't take the whole page down. Use `try?` and let
+        // the programme card just stay hidden if it 404s.
+        async let prog: Programme? = try? await SupabaseManager.shared.fetchFriendActiveProgramme(friendId: friend.id)
         do {
             let (p, s, w) = try await (prof, sess, weights)
             self.profile  = p
@@ -478,6 +861,7 @@ struct FriendProfilePage: View {
         } catch {
             print("[FriendProfilePage] load failed:", error)
         }
+        self.friendProgramme = await prog
         loading = false
     }
 

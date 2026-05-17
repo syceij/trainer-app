@@ -168,12 +168,17 @@ enum HexTheme {
     /// Resolve the currently-active `AccentChoice` from App Group
     /// UserDefaults (falls back to standard UserDefaults if the App
     /// Group isn't reachable, e.g. simulator without the entitlement).
+    ///
+    /// Default is `cream` (#E7E5E0) — the soft white-cream the user
+    /// elected as the app's main signature colour. Existing users
+    /// who've explicitly picked a different colour keep that choice;
+    /// only fresh installs / first launches get cream.
     static var currentAccentChoice: AccentChoice {
         let raw =
             UserDefaults(suiteName: appGroup)?.string(forKey: accentChoiceKey)
             ?? UserDefaults.standard.string(forKey: accentChoiceKey)
-            ?? AccentChoice.lime.rawValue
-        return AccentChoice(rawValue: raw) ?? .lime
+            ?? AccentChoice.cream.rawValue
+        return AccentChoice(rawValue: raw) ?? .cream
     }
 
     /// Resolve the currently-active `AccentMaterial` from App Group
