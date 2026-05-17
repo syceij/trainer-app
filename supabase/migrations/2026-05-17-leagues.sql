@@ -55,17 +55,39 @@ ALTER TABLE league_members   ENABLE ROW LEVEL SECURITY;
 
 -- ── leagues ──────────────────────────────────────────────────────────────
 
+-- SECURITY DEFINER helper used by both leagues and league_members
+-- SELECT policies. Postgres applies RLS recursively when one policy
+-- references its own table inside an EXISTS subquery — wrapping the
+-- check in a SECURITY DEFINER function bypasses RLS for the inner
+-- read and breaks the loop. Without this, "infinite recursion
+-- detected in policy" errors fire on every league_members SELECT.
+CREATE OR REPLACE FUNCTION public.is_league_accepted_member(
+    p_league_id uuid,
+    p_user_id   uuid
+) RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.league_members
+        WHERE league_id = p_league_id
+          AND user_id   = p_user_id
+          AND status    = 'accepted'
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_league_accepted_member(uuid, uuid)
+    TO authenticated;
+
 DROP POLICY IF EXISTS "Members can view their leagues" ON leagues;
 CREATE POLICY "Members can view their leagues"
     ON leagues FOR SELECT
     USING (
         admin_id = auth.uid()
-        OR EXISTS (
-            SELECT 1 FROM league_members lm
-            WHERE lm.league_id = leagues.id
-              AND lm.user_id   = auth.uid()
-              AND lm.status    = 'accepted'
-        )
+        OR public.is_league_accepted_member(leagues.id, auth.uid())
     );
 
 DROP POLICY IF EXISTS "Authenticated users can create leagues" ON leagues;
@@ -92,13 +114,10 @@ CREATE POLICY "Members can view league membership"
     USING (
         -- See your own row (so invitees can see pending invites)
         user_id = auth.uid()
-        -- See all rows for a league you're an accepted member of
-        OR EXISTS (
-            SELECT 1 FROM league_members me
-            WHERE me.league_id = league_members.league_id
-              AND me.user_id   = auth.uid()
-              AND me.status    = 'accepted'
-        )
+        -- See all rows for a league you're an accepted member of —
+        -- uses the SECURITY DEFINER function so the inner query
+        -- doesn't trigger this policy recursively.
+        OR public.is_league_accepted_member(league_id, auth.uid())
         -- Admin sees everything for their league
         OR EXISTS (
             SELECT 1 FROM leagues l
