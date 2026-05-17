@@ -35,14 +35,62 @@ struct ProfileView: View {
     /// Drives the "View all badges" full grid sheet.
     @State private var showAllBadges = false
 
-    /// Earned badges for the signed-in user. Ship 1 reads from
-    /// `app.userBadges` if present; the backend that populates this
-    /// after each session save lands in Ship 2. For now the array
-    /// is empty for everyone and the UI shows locked silhouettes.
+    /// Currently-tapped badge slot in the All Trophies grid — when
+    /// non-nil, presents a detail sheet showing the badge at large
+    /// size with its unlock criteria. Uses `item:`-style sheet
+    /// presentation so the detail dismisses with a single swipe
+    /// and the All Trophies grid stays put underneath.
+    @State private var selectedBadgeSlot: BadgeCatalogue.Slot?
+
+    /// Earned badges for the signed-in user. Ship 1 reads from a
+    /// hardcoded sample set so we can preview the rendered look
+    /// (filled strip, featured slot, earned vs locked in the grid)
+    /// before wiring real evaluation in Ship 2. Replace this body
+    /// with `app.userBadges` once the Supabase column + evaluator
+    /// hook land.
+    ///
+    /// Sample set covers the three families (monthly / power / meta)
+    /// so every visual state is exercised:
+    ///   • Jan 2026, Mar 2026, May 2026 monthlies (most recent
+    ///     wins the featured slot — May here)
+    ///   • 100% Power on Bench Press
+    ///   • 200% Power on Squat
+    ///   • Hero (earned because we have 3+ monthlies)
     private var earnedBadges: [EarnedBadge] {
-        // TODO Ship 2: read from AppState once the field exists.
-        []
+        Self.sampleEarnedBadges
     }
+
+    /// TEMP — Ship 2 will delete this. Stable date math so the
+    /// "most recent" sort is deterministic when the screen renders.
+    private static let sampleEarnedBadges: [EarnedBadge] = {
+        let now = Date()
+        let cal = Calendar(identifier: .gregorian)
+        // Anchored offsets from "now" so all six earnedAt dates
+        // sort consistently — May (most recent) wins featured.
+        func date(daysAgo: Int) -> Date {
+            cal.date(byAdding: .day, value: -daysAgo, to: now) ?? now
+        }
+        return [
+            EarnedBadge(id: "monthly_2026_01", kind: .monthly,
+                        month: "2026-01", exercise: nil, value: nil,
+                        earnedAt: date(daysAgo: 120)),
+            EarnedBadge(id: "monthly_2026_03", kind: .monthly,
+                        month: "2026-03", exercise: nil, value: nil,
+                        earnedAt: date(daysAgo: 60)),
+            EarnedBadge(id: "monthly_2026_05", kind: .monthly,
+                        month: "2026-05", exercise: nil, value: nil,
+                        earnedAt: date(daysAgo: 1)),
+            EarnedBadge(id: "power_100_bench_press", kind: .power100,
+                        month: nil, exercise: "Bench Press", value: 115,
+                        earnedAt: date(daysAgo: 30)),
+            EarnedBadge(id: "power_200_squat", kind: .power200,
+                        month: nil, exercise: "Squat", value: 210,
+                        earnedAt: date(daysAgo: 15)),
+            EarnedBadge(id: "hero", kind: .hero,
+                        month: nil, exercise: nil, value: nil,
+                        earnedAt: date(daysAgo: 2)),
+        ]
+    }()
 
     /// Featured badge — by default the most recently earned. Once
     /// the pin-as-featured interaction lands (Ship 2), this will
@@ -752,11 +800,22 @@ struct ProfileView: View {
                     spacing: 14
                 ) {
                     ForEach(BadgeCatalogue.allSlots) { slot in
-                        badgeTile(
-                            image: slot.imageName,
-                            caption: slot.label(ar),
-                            locked: !hasEarned(slot)
-                        )
+                        // Each tile is a button — tap opens the
+                        // detail sheet explaining what the trophy is
+                        // and how to earn it. Earned trophies show
+                        // the same sheet but with an "Earned" stamp
+                        // instead of a "Locked" one.
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            selectedBadgeSlot = slot
+                        } label: {
+                            badgeTile(
+                                image: slot.imageName,
+                                caption: slot.label(ar),
+                                locked: !hasEarned(slot)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -773,8 +832,114 @@ struct ProfileView: View {
                     .foregroundColor(HexTheme.accent)
                 }
             }
+            // Nested sheet — presented from INSIDE the All Trophies
+            // sheet so the user keeps the grid as context. Sheet
+            // dismisses cleanly back to the grid; the grid stays
+            // mounted underneath.
+            .sheet(item: $selectedBadgeSlot) { slot in
+                badgeDetailSheet(for: slot)
+            }
         }
         .presentationDetents([.large])
+    }
+
+    /// Detail popover for a tapped badge slot — large badge image
+    /// + name + criteria copy + earned/locked status. Foundation
+    /// for the future share-to-friends + featured-pinning flows.
+    private func badgeDetailSheet(for slot: BadgeCatalogue.Slot) -> some View {
+        let earned = hasEarned(slot)
+        return VStack(spacing: 18) {
+            // Drag handle proxy — system provides one but we add
+            // padding so the badge image doesn't start at the very
+            // top edge.
+            Spacer().frame(height: 8)
+
+            // Large badge image. Earned: full colour. Locked:
+            // dimmed to ~28% so the design is still recognisable
+            // but clearly "not yet yours".
+            Image(slot.imageName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 180, height: 180)
+                .opacity(earned ? 1.0 : 0.28)
+                .padding(.vertical, 6)
+
+            // Earned / Locked pill
+            HStack(spacing: 6) {
+                Image(systemName: earned ? "checkmark.seal.fill" : "lock.fill")
+                    .font(.system(size: 11, weight: .heavy))
+                Text(earned
+                     ? (ar ? "تم الربح" : "EARNED")
+                     : (ar ? "مقفل" : "LOCKED"))
+                    .font(HexTheme.font(size: 11, weight: .heavy, ar: ar))
+                    .kerning(ar ? 0 : 0.8)
+            }
+            .foregroundColor(earned ? HexTheme.accent : HexTheme.mute)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule().fill(earned
+                               ? HexTheme.accent.opacity(0.12)
+                               : HexTheme.surface2)
+            )
+            .overlay(
+                Capsule().stroke(earned
+                                 ? HexTheme.accent.opacity(0.45)
+                                 : HexTheme.border,
+                                 lineWidth: 1)
+            )
+
+            // Badge name (large, bold)
+            Text(slotDisplayTitle(for: slot))
+                .font(HexTheme.font(size: 22, weight: .heavy, ar: ar))
+                .foregroundColor(HexTheme.text)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+
+            // How to earn it
+            VStack(spacing: 8) {
+                Text(ar ? "كيف تحصل عليها" : "HOW TO EARN")
+                    .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.dim)
+                Text(slotCriteria(for: slot))
+                    .font(HexTheme.font(size: 15, weight: .regular, ar: ar))
+                    .foregroundColor(HexTheme.text)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.horizontal, 32)
+            }
+            .padding(.vertical, 10)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .background(HexTheme.bg.ignoresSafeArea())
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// Human-readable badge title — for monthlies, includes the
+    /// month name (e.g. "May King"). For other types, the base
+    /// label from `BadgeKind.label(ar:)`.
+    private func slotDisplayTitle(for slot: BadgeCatalogue.Slot) -> String {
+        if slot.kind == .monthly, let n = slot.month {
+            let month = BadgeKind.monthShortName(for: n, ar: ar)
+            return ar ? "ملك \(month)" : "\(month) King"
+        }
+        return slot.kind.label(ar: ar)
+    }
+
+    /// Unlock criteria — month-specific copy for monthlies,
+    /// generic criteria for the others.
+    private func slotCriteria(for slot: BadgeCatalogue.Slot) -> String {
+        if slot.kind == .monthly, let n = slot.month {
+            let month = BadgeKind.monthShortName(for: n, ar: ar)
+            return ar
+                ? "أكمل ١٠٠٪ من برنامج \(month) — كل المجموعات المبرمجة لذلك الشهر"
+                : "Hit 100% of your programme in \(month) — every set you planned for that month"
+        }
+        return slot.kind.criteria(ar: ar)
     }
 
     /// Whether the user has earned at least one instance of the
