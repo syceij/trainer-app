@@ -62,6 +62,12 @@ final class AppState: ObservableObject {
     @Published var friends: [FriendListEntry] = []
     @Published var pendingRequests: [PendingRequest] = []
     @Published var activityFeed: [ActivityRow] = []
+
+    /// All leagues the current user is an accepted member of, each
+    /// pre-bundled with its full leaderboard so CrewView and
+    /// LeagueDetailView can render without a per-card secondary
+    /// fetch. Loaded by `loadLeagues()` alongside friends/activity.
+    @Published var myLeagues: [LeagueWithMembers] = []
     /// Cached "user trained today" set used for friend-bubble ring colour.
     @Published var friendsTrainedToday: Set<UUID> = []
     /// Composed leaderboard rows (me + friends) ranked by score DESC. Recomputed
@@ -541,7 +547,26 @@ final class AppState: ObservableObject {
             // user-visible "recent activity disappears on refresh" bug.
             print("[AppState] loadSocial (feed) failed — keeping stale:", error)
         }
+        // Leagues — independent fetch from friends/activity. If it
+        // fails, keep stale data (same pattern as friends).
+        do {
+            self.myLeagues = try await SupabaseManager.shared.fetchMyLeagues()
+        } catch {
+            print("[AppState] loadSocial (leagues) failed — keeping stale:", error)
+        }
         recomputeTrainedToday()
+    }
+
+    /// Refresh ONLY the leagues list. Called by LeagueDetailView and
+    /// CreateLeagueSheet after a mutation (create / add member /
+    /// kick / leave) so the CrewView leagues section + open detail
+    /// view both re-render with fresh data.
+    func loadLeagues() async {
+        do {
+            self.myLeagues = try await SupabaseManager.shared.fetchMyLeagues()
+        } catch {
+            print("[AppState] loadLeagues failed — keeping stale:", error)
+        }
     }
 
     /// Re-derive `friendsTrainedToday` from the current activity feed.

@@ -242,3 +242,69 @@ struct ActivityRow: Identifiable, Hashable {
         return nil
     }
 }
+
+// MARK: - Leagues
+
+/// A league row from the `leagues` table. Admin-owned, has a free-text
+/// name and a set of members joined via `league_members`.
+struct League: Codable, Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var adminId: UUID
+    var createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case adminId   = "admin_id"
+        case createdAt = "created_at"
+    }
+}
+
+/// Join-row from `league_members` — combines invite + member states
+/// in a single `status` field.
+struct LeagueMember: Codable, Hashable {
+    let leagueId: UUID
+    let userId: UUID
+    var role: String          // "admin" | "member"
+    var status: String        // "pending" | "accepted" | "declined"
+    var invitedBy: UUID?
+    var joinedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case leagueId   = "league_id"
+        case userId     = "user_id"
+        case role
+        case status
+        case invitedBy  = "invited_by"
+        case joinedAt   = "joined_at"
+    }
+}
+
+/// One row rendered in the league leaderboard list — joins the
+/// member row to the user's profile (name + avatar + this month's
+/// cached score).
+struct LeagueLeaderboardEntry: Identifiable, Hashable {
+    let id: UUID              // user id (also row id for SwiftUI lists)
+    var rank: Int
+    var name: String?
+    var username: String?
+    var avatarURL: String?
+    var score: Int
+    var role: String          // "admin" | "member"
+    var status: String        // mostly "accepted" here; included for future invite handling
+    var isMe: Bool
+}
+
+/// What the leagues-list section in CrewView consumes. Wraps the
+/// raw `League` with a precomputed leaderboard so the section can
+/// render without a per-card secondary fetch.
+struct LeagueWithMembers: Identifiable, Hashable {
+    let league: League
+    var leaderboard: [LeagueLeaderboardEntry]
+    /// Last month's MVP — winner of the previous calendar month.
+    /// Ship A leaves this nil (placeholder copy in the UI); Ship B
+    /// will compute it from historical snapshots.
+    var lastMonthMVP: LeagueLeaderboardEntry?
+
+    var id: UUID { league.id }
+}

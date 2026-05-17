@@ -17,6 +17,14 @@ struct CrewView: View {
     @State private var pointsInfoShown = false
     @State private var friendDestination: FriendListEntry? = nil
 
+    /// Drives the "Create league" modal opened from the LEAGUES
+    /// section header. Sheet wraps a single text-field form that
+    /// creates the league + auto-joins the user as admin.
+    @State private var showCreateLeagueSheet = false
+    /// Currently-tapped league card — when non-nil, navigates to
+    /// LeagueDetailView for the full leaderboard + admin actions.
+    @State private var leagueDestination: LeagueWithMembers? = nil
+
     private var ar: Bool { app.language == "ar" }
     private static let lime = HexTheme.accent
 
@@ -106,6 +114,10 @@ struct CrewView: View {
                     }
                     .padding(.bottom, 12)
                 }
+
+                // ── Leagues ─────────────────────────────────────────
+                leaguesSection
+                    .padding(.bottom, 18)
 
                 // ── Empty state ───────────────────────────────────
                 if app.friends.isEmpty && app.pendingRequests.isEmpty {
@@ -549,6 +561,75 @@ struct CrewView: View {
         if let n = name?.first { return String(n).uppercased() }
         if let u = username?.first { return String(u).uppercased() }
         return "?"
+    }
+
+    // MARK: - Leagues section
+
+    /// Section that sits below "Recent Activity" on the Bros tab.
+    /// Header has "LEAGUES" + a "+ New" button to create one. Body
+    /// renders a `LeagueListCard` per league the user belongs to;
+    /// empty-state shows an explanatory line and the same create
+    /// button so a brand-new user has a clear way in.
+    private var leaguesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                sectionLabel(ar ? "الدوريات" : "LEAGUES")
+                Spacer()
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    showCreateLeagueSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .heavy))
+                        Text(ar ? "جديد" : "New")
+                            .font(.system(size: 12, weight: .heavy))
+                    }
+                    .foregroundColor(HexTheme.accent)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if app.myLeagues.isEmpty {
+                Text(ar
+                     ? "أنشئ دوريك الأول وادعُ أصدقاءك للتنافس"
+                     : "Create your first league and invite friends to compete")
+                    .font(.system(size: 12))
+                    .foregroundColor(HexTheme.mute)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(HexTheme.surface2)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(HexTheme.border, lineWidth: 1)
+                    )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(app.myLeagues) { league in
+                        LeagueListCard(league: league, ar: ar) {
+                            leagueDestination = league
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showCreateLeagueSheet) {
+            CreateLeagueSheet().environmentObject(app)
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { leagueDestination != nil },
+                set: { if !$0 { leagueDestination = nil } }
+            )
+        ) {
+            if let dest = leagueDestination {
+                LeagueDetailView(league: dest).environmentObject(app)
+            }
+        }
     }
 }
 
