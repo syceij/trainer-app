@@ -32,6 +32,25 @@ struct ProfileView: View {
     /// remembers its path across tab switches).
     @State private var showSettings = false
 
+    /// Drives the "View all badges" full grid sheet.
+    @State private var showAllBadges = false
+
+    /// Earned badges for the signed-in user. Ship 1 reads from
+    /// `app.userBadges` if present; the backend that populates this
+    /// after each session save lands in Ship 2. For now the array
+    /// is empty for everyone and the UI shows locked silhouettes.
+    private var earnedBadges: [EarnedBadge] {
+        // TODO Ship 2: read from AppState once the field exists.
+        []
+    }
+
+    /// Featured badge — by default the most recently earned. Once
+    /// the pin-as-featured interaction lands (Ship 2), this will
+    /// read from the user's chosen pin.
+    private var featuredBadge: EarnedBadge? {
+        earnedBadges.sorted(by: { $0.earnedAt > $1.earnedAt }).first
+    }
+
     private var ar: Bool { app.language == "ar" }
 
     var body: some View {
@@ -39,7 +58,9 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                     .padding(.top, 4)
+                featuredBadgeSlot
                 scoreCard
+                trophyCaseSection
                 statsGrid
                 topExercisesSection
                 topMusclesSection
@@ -50,6 +71,9 @@ struct ProfileView: View {
         }
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $showAllBadges) {
+            allBadgesSheet
+        }
         .sheet(isPresented: $showHistory) {
             historySheet
         }
@@ -498,6 +522,281 @@ struct ProfileView: View {
     }
 
     // MARK: - Helpers
+
+    // MARK: - Featured badge slot (above the score card)
+
+    /// One large prominent badge tile rendered between the avatar
+    /// header and the score card. Shows the user's pinned trophy
+    /// (defaults to most-recently-earned if none pinned). When the
+    /// user has no badges yet, renders an "Earn your first badge"
+    /// teaser instead of leaving a blank slot — keeps the layout
+    /// shape consistent for everyone and explains the section.
+    @ViewBuilder
+    private var featuredBadgeSlot: some View {
+        if let badge = featuredBadge {
+            featuredBadgeView(badge)
+        } else {
+            featuredEmptyState
+        }
+    }
+
+    private func featuredBadgeView(_ badge: EarnedBadge) -> some View {
+        HStack(spacing: 14) {
+            Image(badge.imageName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(ar ? "الشارة المميزة" : "FEATURED TROPHY")
+                    .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.accent)
+                Text(badge.kind.label(ar: ar))
+                    .font(HexTheme.font(size: 18, weight: .heavy, ar: ar))
+                    .foregroundColor(HexTheme.text)
+                Text(featuredSubtitle(for: badge))
+                    .font(HexTheme.font(size: 11, weight: .regular, ar: ar))
+                    .foregroundColor(HexTheme.dim)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(HexTheme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(HexTheme.accent.opacity(0.35), lineWidth: 1.5)
+        )
+    }
+
+    /// Detail line beneath the featured badge name — "May 2026" for
+    /// monthlies, "+150% on Bench Press" for power, etc.
+    private func featuredSubtitle(for badge: EarnedBadge) -> String {
+        switch badge.kind {
+        case .monthly:
+            guard let m = badge.month,
+                  let monthN = Int(m.suffix(2)),
+                  let yearN = Int(m.prefix(4))
+            else { return "—" }
+            let name = BadgeKind.monthShortName(for: monthN, ar: ar)
+            return "\(name) \(yearN)"
+        case .power100, .power200, .power500:
+            if let ex = badge.exercise, let v = badge.value {
+                return ar ? "+\(v)٪ في \(ex)" : "+\(v)% on \(ex)"
+            }
+            return badge.kind.criteria(ar: ar)
+        case .hero, .lebron, .invincible:
+            return badge.kind.criteria(ar: ar)
+        }
+    }
+
+    private var featuredEmptyState: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "trophy")
+                .font(.system(size: 32))
+                .foregroundColor(HexTheme.accent.opacity(0.55))
+                .frame(width: 80, height: 80)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(ar ? "الشارة المميزة" : "FEATURED TROPHY")
+                    .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.dim)
+                Text(ar ? "اربح أول شارة لك" : "Earn your first badge")
+                    .font(HexTheme.font(size: 16, weight: .heavy, ar: ar))
+                    .foregroundColor(HexTheme.text)
+                Text(ar
+                     ? "أكمل برنامج الشهر أو حقّق ١٠٠٪ تحسن في تمرين"
+                     : "Hit 100% of your monthly programme or improve a lift by 100%")
+                    .font(HexTheme.font(size: 11, weight: .regular, ar: ar))
+                    .foregroundColor(HexTheme.dim)
+                    .lineLimit(3)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(HexTheme.border, lineWidth: 1)
+        )
+    }
+
+    // MARK: - Trophy case section (between score card and stats grid)
+
+    /// Horizontal-scroll strip of earned badges. When empty, shows a
+    /// dim "no badges yet" placeholder with a CTA to view all the
+    /// possible ones. Tapping any badge — or the "View all" link —
+    /// opens the full grid sheet.
+    @ViewBuilder
+    private var trophyCaseSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(ar ? "خزانة الشارات" : "TROPHY CASE")
+                    .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                    .kerning(ar ? 0 : 0.8)
+                    .foregroundColor(HexTheme.dim)
+                Spacer()
+                Button {
+                    showAllBadges = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(ar ? "عرض الكل" : "View all")
+                            .font(HexTheme.font(size: 12, weight: .heavy, ar: ar))
+                        Image(systemName: ar ? "chevron.left" : "chevron.right")
+                            .font(.system(size: 10, weight: .heavy))
+                    }
+                    .foregroundColor(HexTheme.accent)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if earnedBadges.isEmpty {
+                trophyStripEmptyState
+            } else {
+                trophyStrip
+            }
+        }
+    }
+
+    private var trophyStripEmptyState: some View {
+        Text(ar
+             ? "لا توجد شارات بعد — انقر «عرض الكل» لمشاهدة ما يمكنك ربحه"
+             : "No badges yet — tap View all to see what you can earn")
+            .font(HexTheme.font(size: 12, weight: .regular, ar: ar))
+            .foregroundColor(HexTheme.mute)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(HexTheme.surface2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+    }
+
+    private var trophyStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(earnedBadges.sorted(by: { $0.earnedAt > $1.earnedAt })) { badge in
+                    badgeTile(image: badge.imageName,
+                              caption: badge.kind.label(ar: ar),
+                              locked: false)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// Single badge tile — used by both the earned strip and the
+    /// View All grid. Locked tiles render the image at reduced
+    /// opacity with a lock chip overlay so users see what's
+    /// possible without revealing what they've earned.
+    private func badgeTile(image: String, caption: String, locked: Bool) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(HexTheme.surface2)
+                Image(image)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(6)
+                    .opacity(locked ? 0.20 : 1.0)
+                if locked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundColor(HexTheme.mute)
+                        .padding(4)
+                        .background(Circle().fill(HexTheme.surface))
+                }
+            }
+            .frame(width: 80, height: 80)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(HexTheme.border, lineWidth: 1)
+            )
+            Text(caption)
+                .font(HexTheme.font(size: 9, weight: .heavy, ar: ar))
+                .foregroundColor(locked ? HexTheme.mute : HexTheme.text)
+                .lineLimit(1)
+                .frame(width: 80)
+        }
+    }
+
+    // MARK: - View All badges sheet
+
+    /// Full grid of every possible badge. Earned ones render in
+    /// colour with an "earned" check; locked ones render as dim
+    /// silhouettes with their unlock criteria underneath. This is
+    /// the foundation surface for the future badge-detail popovers
+    /// and the planned share-to-friends flow.
+    private var allBadgesSheet: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 10),
+                        GridItem(.flexible(), spacing: 10),
+                        GridItem(.flexible(), spacing: 10)
+                    ],
+                    spacing: 14
+                ) {
+                    ForEach(BadgeCatalogue.allSlots) { slot in
+                        badgeTile(
+                            image: slot.imageName,
+                            caption: slot.label(ar),
+                            locked: !hasEarned(slot)
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
+            }
+            .background(HexTheme.bg.ignoresSafeArea())
+            .navigationTitle(ar ? "كل الشارات" : "All Trophies")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(ar ? "تم" : "Done") {
+                        showAllBadges = false
+                    }
+                    .foregroundColor(HexTheme.accent)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    /// Whether the user has earned at least one instance of the
+    /// given catalogue slot. Matches monthlies on month number and
+    /// power/meta on raw kind.
+    private func hasEarned(_ slot: BadgeCatalogue.Slot) -> Bool {
+        switch slot.kind {
+        case .monthly:
+            // Earned if any of the user's monthly badges has the
+            // same month number (across all years).
+            guard let target = slot.month else { return false }
+            return earnedBadges.contains { b in
+                guard b.kind == .monthly,
+                      let m = b.month?.suffix(2),
+                      let n = Int(m)
+                else { return false }
+                return n == target
+            }
+        case .power100, .power200, .power500, .hero, .lebron, .invincible:
+            return earnedBadges.contains { $0.kind == slot.kind }
+        }
+    }
 
     private static func currentMonthKey() -> String {
         let cal = Calendar(identifier: .gregorian)
