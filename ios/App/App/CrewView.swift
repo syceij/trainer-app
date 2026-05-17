@@ -88,11 +88,19 @@ struct CrewView: View {
                 }
 
                 // ── Activity feed ─────────────────────────────────
-                if !app.activityFeed.isEmpty {
+                // Activity rows older than 7 days drop off — per user
+                // spec, recent activity should feel like a rolling
+                // week, not a permanent log. Each row "expires" 7
+                // days after its `createdAt`, regardless of how many
+                // rows are in the feed.
+                let recentFeed = app.activityFeed.filter { item in
+                    item.createdAt.timeIntervalSinceNow > -7 * 24 * 60 * 60
+                }
+                if !recentFeed.isEmpty {
                     sectionLabel(ar ? "النشاط الأخير" : "RECENT ACTIVITY")
                         .padding(.bottom, 6)
                     VStack(spacing: 0) {
-                        ForEach(app.activityFeed.prefix(20)) { item in
+                        ForEach(recentFeed.prefix(20)) { item in
                             activityRow(item)
                         }
                     }

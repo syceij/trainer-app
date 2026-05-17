@@ -29,6 +29,12 @@ struct FriendProfilePage: View {
     /// with that day's session + exercises.
     @State private var showProgrammeSlider = false
 
+    /// Specific earned-badge instance the user tapped in the friend's
+    /// cabinet. Same UX as the user's own profile: tap a trophy →
+    /// detail sheet showing when + what exercise / month they earned
+    /// it from.
+    @State private var selectedFriendBadge: EarnedBadge?
+
     private var ar: Bool { app.language == "ar" }
 
     // MARK: - Body
@@ -136,16 +142,12 @@ struct FriendProfilePage: View {
                 VStack(spacing: 16) {
                     avatarBlock.padding(.top, 16)
 
-                    // Featured trophy (their pinned badge). Hidden
-                    // when they have no pin set — friends don't get
-                    // the "Pick" CTA because the slot is purely a
-                    // viewing surface for them.
-                    if let pinned = friendFeaturedBadge {
-                        friendFeaturedBadgeCard(pinned)
-                    }
-
-                    // Trophy strip — friend's earned badges, scrollable.
-                    // Hidden when they haven't earned anything.
+                    // Trophy cabinet — friend's earned badges in a
+                    // horizontal scroll. Featured slot was removed
+                    // (per user spec) so the cabinet is the only
+                    // place trophies show. Each tile is tappable and
+                    // opens an EarnedBadgeDetailView with the
+                    // when/where context for that instance.
                     if !friendEarnedBadges.isEmpty {
                         friendTrophyStrip
                     }
@@ -497,12 +499,8 @@ struct FriendProfilePage: View {
         Self.sampleFriendBadges
     }
 
-    /// Friend's pinned featured badge. Ship 1 mocks this as the first
-    /// sample badge; Ship 2 will read `profiles.featured_badge_id`
-    /// from the joined friend row.
-    private var friendFeaturedBadge: EarnedBadge? {
-        friendEarnedBadges.first
-    }
+    // Featured-badge helpers were removed alongside the slot —
+    // friend trophies are now a flat cabinet, no pin.
 
     /// TEMP — Ship 2 replaces with real reads from the friend's row.
     private static let sampleFriendBadges: [EarnedBadge] = {
@@ -524,63 +522,10 @@ struct FriendProfilePage: View {
         ]
     }()
 
-    /// Featured trophy card — same shape as ProfileView's featured
-    /// slot but no "Change" button (it's their pin, not yours).
-    private func friendFeaturedBadgeCard(_ badge: EarnedBadge) -> some View {
-        HStack(spacing: 14) {
-            Image(badge.imageName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 80, height: 80)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(ar ? "الشارة المميزة" : "FEATURED TROPHY")
-                    .font(.system(size: 10, weight: .heavy))
-                    .kerning(ar ? 0 : 0.8)
-                    .foregroundColor(HexTheme.accent)
-                Text(badge.kind.label(ar: ar))
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
-                Text(friendFeaturedSubtitle(for: badge))
-                    .font(.system(size: 11))
-                    .foregroundColor(HexTheme.dim)
-                    .lineLimit(2)
-            }
-            Spacer()
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(HexTheme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(HexTheme.accent.opacity(0.35), lineWidth: 1.5)
-        )
-    }
-
-    private func friendFeaturedSubtitle(for badge: EarnedBadge) -> String {
-        switch badge.kind {
-        case .monthly:
-            guard let m = badge.month,
-                  let monthN = Int(m.suffix(2)),
-                  let yearN = Int(m.prefix(4))
-            else { return "—" }
-            let name = BadgeKind.monthShortName(for: monthN, ar: ar)
-            return "\(name) \(yearN)"
-        case .power100, .power200, .power500:
-            if let ex = badge.exercise, let v = badge.value {
-                return ar ? "+\(v)٪ في \(ex)" : "+\(v)% on \(ex)"
-            }
-            return badge.kind.criteria(ar: ar)
-        case .hero, .lebron, .invincible:
-            return badge.kind.criteria(ar: ar)
-        }
-    }
-
-    /// Horizontal scroll strip of all earned trophies. Identical
-    /// styling to ProfileView's trophy strip but with a different
-    /// header copy ("Trophies" vs "Trophy Case").
+    /// Horizontal scroll strip of all earned trophies. Each tile is
+    /// tappable and surfaces the per-instance EarnedBadgeDetailView
+    /// — same UX as the user's own cabinet. Sheet binding lives on
+    /// the friend page so taps don't cross-talk with ProfileView.
     private var friendTrophyStrip: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(ar ? "الشارات" : "TROPHIES")
@@ -590,30 +535,39 @@ struct FriendProfilePage: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(friendEarnedBadges.sorted(by: { $0.earnedAt > $1.earnedAt })) { badge in
-                        VStack(spacing: 6) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(HexTheme.surface2)
-                                Image(badge.imageName)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .padding(6)
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            selectedFriendBadge = badge
+                        } label: {
+                            VStack(spacing: 6) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(HexTheme.surface2)
+                                    Image(badge.imageName)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .padding(6)
+                                }
+                                .frame(width: 80, height: 80)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(HexTheme.border, lineWidth: 1)
+                                )
+                                Text(badge.kind.label(ar: ar))
+                                    .font(.system(size: 9, weight: .heavy))
+                                    .foregroundColor(HexTheme.text)
+                                    .lineLimit(1)
+                                    .frame(width: 80)
                             }
-                            .frame(width: 80, height: 80)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(HexTheme.border, lineWidth: 1)
-                            )
-                            Text(badge.kind.label(ar: ar))
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundColor(HexTheme.text)
-                                .lineLimit(1)
-                                .frame(width: 80)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, 4)
             }
+        }
+        .sheet(item: $selectedFriendBadge) { badge in
+            EarnedBadgeDetailView(badge: badge, ar: ar)
         }
     }
 

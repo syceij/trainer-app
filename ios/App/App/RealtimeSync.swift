@@ -38,15 +38,32 @@ final class RealtimeSync {
         let ch = realtime.channel("hex-bros-\(uid.uuidString)")
         self.channel = ch
 
-        // Postgres INSERT streams — typed payloads not needed; every event
-        // simply triggers a `loadSocial()` refresh.
+        // Postgres INSERT + DELETE streams — typed payloads not needed;
+        // every event simply triggers a `loadSocial()` refresh.
+        //
+        // Why DELETE matters: when a friend resets their data or
+        // deletes their account, `resetUserData()` wipes the
+        // friendships row from BOTH directions. Without a DELETE
+        // listener, the still-online friend's device kept showing
+        // the now-removed user until they manually pulled-to-refresh.
+        // Same story for activity_feed rows.
         let friendshipInserts = ch.postgresChange(
             InsertAction.self,
             schema: "public",
             table: "friendships"
         )
+        let friendshipDeletes = ch.postgresChange(
+            DeleteAction.self,
+            schema: "public",
+            table: "friendships"
+        )
         let activityInserts = ch.postgresChange(
             InsertAction.self,
+            schema: "public",
+            table: "activity_feed"
+        )
+        let activityDeletes = ch.postgresChange(
+            DeleteAction.self,
             schema: "public",
             table: "activity_feed"
         )
@@ -67,9 +84,21 @@ final class RealtimeSync {
                 }
             },
             Task { [weak self] in
+                for await _ in friendshipDeletes {
+                    guard !Task.isCancelled, let self else { return }
+                    await self.handleEvent(reason: "friendship-delete")
+                }
+            },
+            Task { [weak self] in
                 for await _ in activityInserts {
                     guard !Task.isCancelled, let self else { return }
                     await self.handleEvent(reason: "activity-insert")
+                }
+            },
+            Task { [weak self] in
+                for await _ in activityDeletes {
+                    guard !Task.isCancelled, let self else { return }
+                    await self.handleEvent(reason: "activity-delete")
                 }
             },
         ]
