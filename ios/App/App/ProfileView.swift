@@ -92,11 +92,26 @@ struct ProfileView: View {
         ]
     }()
 
-    /// Featured badge — by default the most recently earned. Once
-    /// the pin-as-featured interaction lands (Ship 2), this will
-    /// read from the user's chosen pin.
+    /// User's pinned featured badge ID. Option C mechanic: no
+    /// auto-default — the slot stays in a "Pick your featured
+    /// trophy" CTA state until the user explicitly chooses one
+    /// from their earned set. AppStorage is the simplest persistent
+    /// store for Ship 1; Ship 2 will move this onto the user's
+    /// Supabase row alongside the badges array so the choice
+    /// follows them across devices.
+    @AppStorage("featured_badge_id") private var featuredBadgeId: String = ""
+
+    /// Drives the "Pick a featured badge" picker sheet.
+    @State private var showFeaturedPicker = false
+
+    /// Resolved featured badge — looks up the pinned ID in the
+    /// user's earned set. Returns nil if no pin is set OR the
+    /// pinned badge somehow isn't in the earned list anymore
+    /// (defensive; shouldn't happen but keeps the CTA showing
+    /// instead of crashing if the data drifts).
     private var featuredBadge: EarnedBadge? {
-        earnedBadges.sorted(by: { $0.earnedAt > $1.earnedAt }).first
+        guard !featuredBadgeId.isEmpty else { return nil }
+        return earnedBadges.first(where: { $0.id == featuredBadgeId })
     }
 
     private var ar: Bool { app.language == "ar" }
@@ -121,6 +136,9 @@ struct ProfileView: View {
         .navigationBarHidden(true)
         .sheet(isPresented: $showAllBadges) {
             allBadgesSheet
+        }
+        .sheet(isPresented: $showFeaturedPicker) {
+            featuredPickerSheet
         }
         .sheet(isPresented: $showHistory) {
             historySheet
@@ -573,16 +591,22 @@ struct ProfileView: View {
 
     // MARK: - Featured badge slot (above the score card)
 
-    /// One large prominent badge tile rendered between the avatar
-    /// header and the score card. Shows the user's pinned trophy
-    /// (defaults to most-recently-earned if none pinned). When the
-    /// user has no badges yet, renders an "Earn your first badge"
-    /// teaser instead of leaving a blank slot — keeps the layout
-    /// shape consistent for everyone and explains the section.
+    /// One large prominent tile rendered between the avatar header
+    /// and the score card. Renders in one of three states:
+    ///
+    ///   1. User has earned badges + has pinned one → show that
+    ///      badge with a "Change" affordance.
+    ///   2. User has earned badges but hasn't pinned yet → "Pick
+    ///      your featured trophy" CTA. Tap opens the picker sheet.
+    ///      (Option C mechanic — no auto-default to most recent.)
+    ///   3. User has no badges yet → "Earn your first badge" teaser
+    ///      with the easiest unlock hints.
     @ViewBuilder
     private var featuredBadgeSlot: some View {
         if let badge = featuredBadge {
             featuredBadgeView(badge)
+        } else if !earnedBadges.isEmpty {
+            featuredPickCTA
         } else {
             featuredEmptyState
         }
@@ -608,6 +632,22 @@ struct ProfileView: View {
                     .lineLimit(2)
             }
             Spacer()
+            // "Change" button — visible affordance to swap the
+            // featured trophy without forcing the user to discover
+            // a long-press. Opens the same picker sheet the CTA
+            // state uses.
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                showFeaturedPicker = true
+            } label: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.dim)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(HexTheme.surface2))
+                    .overlay(Circle().stroke(HexTheme.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -619,6 +659,175 @@ struct ProfileView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(HexTheme.accent.opacity(0.35), lineWidth: 1.5)
         )
+    }
+
+    /// Option-C "pick a featured" state. Renders when the user has
+    /// earned at least one badge but hasn't yet pinned one. Tap
+    /// anywhere on the tile to open the picker sheet.
+    private var featuredPickCTA: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showFeaturedPicker = true
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(HexTheme.accent)
+                    .frame(width: 80, height: 80)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(HexTheme.accent.opacity(0.10))
+                    )
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(ar ? "الشارة المميزة" : "FEATURED TROPHY")
+                        .font(HexTheme.font(size: 10, weight: .heavy, ar: ar))
+                        .kerning(ar ? 0 : 0.8)
+                        .foregroundColor(HexTheme.accent)
+                    Text(ar ? "اختر شارتك المميزة" : "Pick your featured trophy")
+                        .font(HexTheme.font(size: 16, weight: .heavy, ar: ar))
+                        .foregroundColor(HexTheme.text)
+                    Text(ar
+                         ? "اختر واحدة من شاراتك التي ربحتها لعرضها هنا"
+                         : "Choose one from your earned badges to flex here")
+                        .font(HexTheme.font(size: 11, weight: .regular, ar: ar))
+                        .foregroundColor(HexTheme.dim)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: ar ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(HexTheme.dim)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(HexTheme.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.accent.opacity(0.35), lineWidth: 1.5)
+                    .opacity(0.6)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Picker sheet — grid of the user's earned badges. Tapping one
+    /// pins it as the featured trophy and dismisses. Also exposes
+    /// an "Unpin" option when a featured is already set, letting
+    /// the user revert to the CTA state (e.g. they prefer keeping
+    /// the slot empty until they earn a rarer trophy).
+    private var featuredPickerSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !featuredBadgeId.isEmpty {
+                        Button {
+                            featuredBadgeId = ""
+                            showFeaturedPicker = false
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "star.slash")
+                                    .font(.system(size: 14, weight: .heavy))
+                                    .foregroundColor(HexTheme.danger)
+                                Text(ar ? "إلغاء التثبيت" : "Unpin featured")
+                                    .font(HexTheme.font(size: 14, weight: .heavy, ar: ar))
+                                    .foregroundColor(HexTheme.danger)
+                                Spacer()
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(HexTheme.danger.opacity(0.06))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(HexTheme.danger.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+                    }
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 10),
+                            GridItem(.flexible(), spacing: 10),
+                            GridItem(.flexible(), spacing: 10)
+                        ],
+                        spacing: 14
+                    ) {
+                        ForEach(earnedBadges.sorted(by: { $0.earnedAt > $1.earnedAt })) { badge in
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                featuredBadgeId = badge.id
+                                showFeaturedPicker = false
+                            } label: {
+                                VStack(spacing: 6) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(HexTheme.surface2)
+                                        Image(badge.imageName)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .padding(6)
+                                        if featuredBadgeId == badge.id {
+                                            // Pinned indicator chip on the
+                                            // already-featured badge.
+                                            VStack {
+                                                HStack {
+                                                    Spacer()
+                                                    Image(systemName: "star.fill")
+                                                        .font(.system(size: 11, weight: .heavy))
+                                                        .foregroundColor(.black)
+                                                        .padding(5)
+                                                        .background(Circle().fill(HexTheme.accent))
+                                                }
+                                                Spacer()
+                                            }
+                                            .padding(4)
+                                        }
+                                    }
+                                    .frame(width: 92, height: 92)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(
+                                                featuredBadgeId == badge.id
+                                                    ? HexTheme.accent
+                                                    : HexTheme.border,
+                                                lineWidth: featuredBadgeId == badge.id ? 2 : 1
+                                            )
+                                    )
+                                    Text(badge.kind.label(ar: ar))
+                                        .font(HexTheme.font(size: 9, weight: .heavy, ar: ar))
+                                        .foregroundColor(HexTheme.text)
+                                        .lineLimit(1)
+                                        .frame(width: 92)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+                .padding(.top, 8)
+            }
+            .background(HexTheme.bg.ignoresSafeArea())
+            .navigationTitle(ar ? "اختر شارة مميزة" : "Pick Featured")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(ar ? "إلغاء" : "Cancel") {
+                        showFeaturedPicker = false
+                    }
+                    .foregroundColor(HexTheme.accent)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     /// Detail line beneath the featured badge name — "May 2026" for
@@ -911,6 +1120,38 @@ struct ProfileView: View {
             }
             .padding(.vertical, 10)
 
+            // "Set as featured" — earned badges only. For monthly
+            // slots that match multiple earned instances (e.g. May
+            // 2026 and May 2027 both share the May visual), this
+            // pins the FIRST matching earned badge by earnedAt
+            // (most-recent first). User can drill into the picker
+            // sheet for finer control across years.
+            if earned, let earnedInstance = firstEarnedBadge(for: slot) {
+                let isAlreadyFeatured = featuredBadgeId == earnedInstance.id
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    featuredBadgeId = isAlreadyFeatured ? "" : earnedInstance.id
+                    selectedBadgeSlot = nil   // dismiss the detail
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: isAlreadyFeatured ? "star.slash" : "star.fill")
+                            .font(.system(size: 13, weight: .heavy))
+                        Text(isAlreadyFeatured
+                             ? (ar ? "إلغاء التثبيت من المميزة" : "Unpin from featured")
+                             : (ar ? "تثبيت كشارة مميزة" : "Set as featured"))
+                            .font(HexTheme.font(size: 14, weight: .heavy, ar: ar))
+                    }
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule().fill(HexTheme.accentFill)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -946,12 +1187,20 @@ struct ProfileView: View {
     /// given catalogue slot. Matches monthlies on month number and
     /// power/meta on raw kind.
     private func hasEarned(_ slot: BadgeCatalogue.Slot) -> Bool {
+        firstEarnedBadge(for: slot) != nil
+    }
+
+    /// The most-recently-earned `EarnedBadge` matching this slot
+    /// (or nil if none). Used by the "Set as featured" button in
+    /// the detail sheet — when a slot represents a stackable
+    /// family (any monthly, any 200% Power instance), we pin the
+    /// freshest one by default.
+    private func firstEarnedBadge(for slot: BadgeCatalogue.Slot) -> EarnedBadge? {
+        let candidates: [EarnedBadge]
         switch slot.kind {
         case .monthly:
-            // Earned if any of the user's monthly badges has the
-            // same month number (across all years).
-            guard let target = slot.month else { return false }
-            return earnedBadges.contains { b in
+            guard let target = slot.month else { return nil }
+            candidates = earnedBadges.filter { b in
                 guard b.kind == .monthly,
                       let m = b.month?.suffix(2),
                       let n = Int(m)
@@ -959,8 +1208,9 @@ struct ProfileView: View {
                 return n == target
             }
         case .power100, .power200, .power500, .hero, .lebron, .invincible:
-            return earnedBadges.contains { $0.kind == slot.kind }
+            candidates = earnedBadges.filter { $0.kind == slot.kind }
         }
+        return candidates.sorted(by: { $0.earnedAt > $1.earnedAt }).first
     }
 
     private static func currentMonthKey() -> String {
