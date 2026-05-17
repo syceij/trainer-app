@@ -258,6 +258,18 @@ struct League: Codable, Identifiable, Hashable {
         case adminId   = "admin_id"
         case createdAt = "created_at"
     }
+
+    // Custom decoder uses `LenientDate.optional` because Supabase
+    // sometimes returns `created_at` in formats the default ISO8601
+    // decoder rejects. Matches the pattern other Codable structs in
+    // this codebase use (Programme, WorkoutSession, etc.).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id        = try c.decode(UUID.self,   forKey: .id)
+        self.name      = try c.decode(String.self, forKey: .name)
+        self.adminId   = try c.decode(UUID.self,   forKey: .adminId)
+        self.createdAt = LenientDate.optional(c, .createdAt)
+    }
 }
 
 /// Join-row from `league_members` — combines invite + member states
@@ -277,6 +289,16 @@ struct LeagueMember: Codable, Hashable {
         case status
         case invitedBy  = "invited_by"
         case joinedAt   = "joined_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.leagueId  = try c.decode(UUID.self,   forKey: .leagueId)
+        self.userId    = try c.decode(UUID.self,   forKey: .userId)
+        self.role      = (try? c.decode(String.self, forKey: .role))   ?? "member"
+        self.status    = (try? c.decode(String.self, forKey: .status)) ?? "accepted"
+        self.invitedBy = try? c.decode(UUID.self, forKey: .invitedBy)
+        self.joinedAt  = LenientDate.optional(c, .joinedAt)
     }
 }
 

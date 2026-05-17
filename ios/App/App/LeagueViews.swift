@@ -553,8 +553,15 @@ struct CreateLeagueSheet: View {
             app.toast = ar ? "تم إنشاء الدوري ✓" : "League created ✓"
             dismiss()
         } catch {
+            // Surface the actual error message so we can diagnose
+            // when the create call fails — was hitting a generic
+            // "Couldn't create" toast with the root cause buried in
+            // Xcode logs the user can't see.
             print("[CreateLeagueSheet] failed:", error)
-            app.toast = ar ? "تعذّر الإنشاء" : "Couldn't create"
+            let msg = (error as NSError).localizedDescription
+            app.toast = ar
+                ? "تعذّر الإنشاء: \(msg)"
+                : "Create failed: \(msg)"
         }
     }
 }
