@@ -83,7 +83,15 @@ struct FriendProfilePage: View {
             }
             Spacer()
 
-            if !loading {
+            // Hide the Remove button when viewing a user who isn't
+            // actually in `app.friends` — happens when this page is
+            // opened from a league member tap (the synthetic
+            // FriendListEntry passed in won't be in the friend
+            // list). Showing a Remove button for a non-friend would
+            // be meaningless / confusing.
+            let isActualFriend = app.friends.contains(where: { $0.id == friend.id })
+
+            if !loading && isActualFriend {
                 Button { handleRemove() } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "person.fill.xmark")

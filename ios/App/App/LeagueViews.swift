@@ -100,18 +100,37 @@ struct LeagueListCard: View {
     }
 
     /// One numbered row in the leaderboard panel. `entry == nil`
-    /// renders an empty placeholder slot.
+    /// renders an empty placeholder slot so the card height stays
+    /// consistent whether the league has 1 member or 7+.
     private func rankRow(rank: Int, entry: LeagueLeaderboardEntry?) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text("\(rank)")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: 16, weight: .heavy))
                 .foregroundColor(HexTheme.text)
-                .frame(width: 28, alignment: .leading)
+                .frame(width: 22, alignment: .leading)
             if let e = entry {
-                Text(e.name ?? e.username ?? "—")
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
-                    .lineLimit(1)
+                // Avatar — small circle (28pt) sized for the compact
+                // card row. AvatarCircle handles the URL load with
+                // initial fallback if no photo is set.
+                let initial = String((e.name ?? e.username ?? "?").prefix(1)).uppercased()
+                AvatarCircle(
+                    initial: initial,
+                    url: e.avatarURL,
+                    size: 28,
+                    ring: HexTheme.border
+                )
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(e.name ?? e.username ?? "—")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(HexTheme.text)
+                        .lineLimit(1)
+                    if let u = e.username {
+                        Text("@\(u)")
+                            .font(.system(size: 10))
+                            .foregroundColor(HexTheme.mute)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer()
                 Text("\(e.score)")
                     .font(.system(size: 13, weight: .heavy).monospacedDigit())
@@ -120,8 +139,8 @@ struct LeagueListCard: View {
                 Spacer()
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -141,6 +160,12 @@ struct LeagueDetailView: View {
     @State private var confirmDelete = false
     @State private var memberToKick: LeagueLeaderboardEntry?
     @State private var busy = false
+    /// Tapped row → navigates into the friend-profile page for that
+    /// member. Reuses FriendProfilePage with a synthetic
+    /// FriendListEntry so we don't need a separate "public profile"
+    /// view; FriendProfilePage already hides the Remove button when
+    /// the user isn't actually a friend (see header rewrite below).
+    @State private var memberProfileDestination: FriendListEntry?
 
     private var ar: Bool { app.language == "ar" }
     private var isAdmin: Bool {
@@ -206,19 +231,29 @@ struct LeagueDetailView: View {
                     .font(.system(size: 15, weight: .heavy))
                     .foregroundColor(HexTheme.text)
             }
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: ar ? "chevron.right" : "chevron.left")
-                        .foregroundColor(HexTheme.text)
-                }
-            }
+            // Custom topBarLeading back-button removed — NavigationStack
+            // provides one already, and stacking ours on top caused the
+            // double-chevron the user spotted in the screenshot.
         }
         .sheet(isPresented: $showInviteSheet) {
             LeagueInviteSheet(leagueId: league.league.id,
                               existingMemberIds: Set(league.leaderboard.map(\.id)),
                               ar: ar)
+        }
+        // Navigate into a member's profile when their row is tapped.
+        // Uses an item-binding so the same navigation works for any
+        // entry; FriendProfilePage already hides admin actions
+        // (Remove button) for non-friends.
+        .navigationDestination(
+            isPresented: Binding(
+                get: { memberProfileDestination != nil },
+                set: { if !$0 { memberProfileDestination = nil } }
+            )
+        ) {
+            if let friend = memberProfileDestination {
+                FriendProfilePage(friend: friend)
+                    .environmentObject(app)
+            }
         }
         .confirmationDialog(
             ar ? "مغادرة الدوري؟" : "Leave league?",
@@ -302,59 +337,87 @@ struct LeagueDetailView: View {
     }
 
     private func row(rank: Int, entry: LeagueLeaderboardEntry) -> some View {
-        HStack(spacing: 12) {
-            Text("\(rank)")
-                .font(.system(size: 16, weight: .heavy))
-                .foregroundColor(HexTheme.text)
-                .frame(width: 26, alignment: .leading)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text(entry.name ?? entry.username ?? "—")
-                        .font(.system(size: 14, weight: .heavy))
-                        .foregroundColor(HexTheme.text)
-                        .lineLimit(1)
-                    if entry.role == "admin" {
-                        Text(ar ? "مسؤول" : "admin")
-                            .font(.system(size: 9, weight: .heavy))
-                            .foregroundColor(HexTheme.accent)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(
-                                Capsule().fill(HexTheme.accent.opacity(0.12))
-                            )
+        let initial = String((entry.name ?? entry.username ?? "?").prefix(1)).uppercased()
+        return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            // Tap → push the friend-profile page for this member.
+            // We synthesise a FriendListEntry from the leaderboard
+            // row so FriendProfilePage works for non-friends too.
+            // The "self" row is skipped — your own profile is the
+            // Profile tab, no point opening it from here.
+            guard !entry.isMe else { return }
+            memberProfileDestination = FriendListEntry(
+                id: entry.id,
+                name: entry.name,
+                username: entry.username,
+                avatarURL: entry.avatarURL,
+                leaderboardData: nil
+            )
+        } label: {
+            HStack(spacing: 12) {
+                Text("\(rank)")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                    .frame(width: 26, alignment: .leading)
+
+                AvatarCircle(
+                    initial: initial,
+                    url: entry.avatarURL,
+                    size: 36,
+                    ring: HexTheme.border
+                )
+
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(entry.name ?? entry.username ?? "—")
+                            .font(.system(size: 14, weight: .heavy))
+                            .foregroundColor(HexTheme.text)
+                            .lineLimit(1)
+                        if entry.role == "admin" {
+                            Text(ar ? "مسؤول" : "admin")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(HexTheme.accent)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(
+                                    Capsule().fill(HexTheme.accent.opacity(0.12))
+                                )
+                        }
+                        if entry.isMe {
+                            Text(ar ? "أنت" : "you")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(HexTheme.dim)
+                        }
                     }
-                    if entry.isMe {
-                        Text(ar ? "أنت" : "you")
-                            .font(.system(size: 9, weight: .heavy))
-                            .foregroundColor(HexTheme.dim)
+                    if let u = entry.username {
+                        Text("@\(u)")
+                            .font(.system(size: 11))
+                            .foregroundColor(HexTheme.mute)
                     }
                 }
-                if let u = entry.username {
-                    Text("@\(u)")
-                        .font(.system(size: 11))
-                        .foregroundColor(HexTheme.mute)
+                Spacer()
+                Text("\(entry.score)")
+                    .font(.system(size: 14, weight: .heavy).monospacedDigit())
+                    .foregroundColor(HexTheme.accent)
+                if isAdmin && !entry.isMe {
+                    Button {
+                        memberToKick = entry
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .heavy))
+                            .foregroundColor(HexTheme.danger)
+                            .padding(7)
+                            .background(Circle().fill(HexTheme.danger.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            Spacer()
-            Text("\(entry.score)")
-                .font(.system(size: 14, weight: .heavy).monospacedDigit())
-                .foregroundColor(HexTheme.accent)
-            if isAdmin && !entry.isMe {
-                Button {
-                    memberToKick = entry
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundColor(HexTheme.danger)
-                        .padding(7)
-                        .background(Circle().fill(HexTheme.danger.opacity(0.12)))
-                }
-                .buttonStyle(.plain)
-            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
