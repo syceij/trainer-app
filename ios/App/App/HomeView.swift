@@ -416,24 +416,38 @@ struct HomeView: View {
             Text(dayLabel(dayKey))
                 .font(HexTheme.font(size: ar ? 14 : 12, weight: .heavy, ar: ar))
                 .foregroundColor(dayColor)
-                // Arabic needs more room — "الأربعاء" is wider than "Wed".
-                .frame(width: ar ? 68 : 36,
-                       alignment: ar ? .trailing : .leading)
+                // `.leading` respects the layout direction:
+                //   • LTR: flush-left within the column ("Mon" sits at
+                //     the left edge of its 36pt slot).
+                //   • RTL: flush-right within the column ("الإثنين"
+                //     sits at the right edge of its 70pt slot — what
+                //     the user asked for, "lean to right not middle").
+                // Using `.trailing` here previously was wrong: in RTL
+                // it pushed Arabic text to the left side of the slot,
+                // making it look misaligned next to the session text.
+                .frame(width: ar ? 70 : 36, alignment: .leading)
                 .lineLimit(1)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 0) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(isRest ? HexTheme.mute : HexTheme.text)
-                    if let f = focus, !f.isEmpty {
-                        Text(" · \(f)")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(HexTheme.dim)
-                            .lineLimit(2)
-                    }
+            // Title + focus stacked VERTICALLY (was previously a
+            // single inline HStack with " · " glue, which made the
+            // longer focus strings overrun and visually merge with
+            // the title or even the day-name column on narrower
+            // screens). Title gets its own line in heavy weight,
+            // focus sits beneath it dimmed — same shape as React's
+            // HomeTab session row.
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(HexTheme.font(size: 14, weight: .heavy, ar: ar))
+                    .foregroundColor(isRest ? HexTheme.mute : HexTheme.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                if let f = focus, !f.isEmpty {
+                    Text(f)
+                        .font(HexTheme.font(size: 11, weight: .regular, ar: ar))
+                        .foregroundColor(HexTheme.dim)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -444,7 +458,10 @@ struct HomeView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        // Row taller now — 14pt vertical (was 11) so the title +
+        // focus stack breathes and the row reads as a comfortable
+        // tap target rather than a tightly-packed list item.
+        .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(bgColor)
