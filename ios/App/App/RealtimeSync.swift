@@ -8,14 +8,33 @@ import Supabase
 ///     the current user
 ///   • `activity_feed` — fires when a friend posts a new activity row
 ///
-/// On any event we just re-run `AppState.loadSocial()`, which is cheap
-/// (two tiny queries + a feed join) and keeps the merge logic in one place.
+/// Two-stage refresh strategy:
+///   1. Debounce — coalesce a burst of events (e.g. a friend logging
+///      a 20-set workout = 20 INSERTs in 30s) into a single refresh
+///      1.5s after the last event.
+///   2. Split by class — `friendships` events refetch the whole social
+///      tab (friend list incl. leaderboard_data, pending, feed, leagues);
+///      `activity_feed` events only refetch the cheap activity feed.
+///      Friend leaderboard scores lag until pull-to-refresh, which is
+///      a fine trade for not pulling everyone's score jsonb on every set.
+///
+/// We do NOT recompute the user's own leaderboard score here — that's
+/// fired exclusively from `saveSession()` in AppState, since friend
+/// events can't change the user's own points.
 @MainActor
 final class RealtimeSync {
 
     private weak var app: AppState?
     private var channel: RealtimeChannelV2?
     private var listenerTasks: [Task<Void, Never>] = []
+
+    /// Coalesces a burst of realtime events into a single refresh. When
+    /// a friend logs a full workout we can receive 15-30 activity_feed
+    /// INSERTs in quick succession; without debouncing each one would
+    /// trigger a full `loadSocial()` round-trip. 1.5s gives enough time
+    /// for a typical set-save burst to settle without making the feed
+    /// feel laggy.
+    private var debounceTask: Task<Void, Never>?
 
     init(app: AppState) {
         self.app = app
@@ -80,25 +99,25 @@ final class RealtimeSync {
             Task { [weak self] in
                 for await _ in friendshipInserts {
                     guard !Task.isCancelled, let self else { return }
-                    await self.handleEvent(reason: "friendship-insert")
+                    await self.handleEvent(reason: "friendship-insert", kind: .friendship)
                 }
             },
             Task { [weak self] in
                 for await _ in friendshipDeletes {
                     guard !Task.isCancelled, let self else { return }
-                    await self.handleEvent(reason: "friendship-delete")
+                    await self.handleEvent(reason: "friendship-delete", kind: .friendship)
                 }
             },
             Task { [weak self] in
                 for await _ in activityInserts {
                     guard !Task.isCancelled, let self else { return }
-                    await self.handleEvent(reason: "activity-insert")
+                    await self.handleEvent(reason: "activity-insert", kind: .activity)
                 }
             },
             Task { [weak self] in
                 for await _ in activityDeletes {
                     guard !Task.isCancelled, let self else { return }
-                    await self.handleEvent(reason: "activity-delete")
+                    await self.handleEvent(reason: "activity-delete", kind: .activity)
                 }
             },
         ]
@@ -106,6 +125,8 @@ final class RealtimeSync {
 
     /// Cancel listeners + unsubscribe from the channel. Safe to call twice.
     func stop() async {
+        debounceTask?.cancel()
+        debounceTask = nil
         for t in listenerTasks { t.cancel() }
         listenerTasks = []
         if let ch = channel {
@@ -116,10 +137,55 @@ final class RealtimeSync {
 
     // MARK: - Event handling
 
-    private func handleEvent(reason: String) async {
+    /// Event-class — drives which refresh path runs when the debounce fires.
+    /// `.friendship` is rare (someone accepts/declines a request) but needs
+    /// a full friend-list refetch. `.activity` is the firehose (any friend
+    /// logging any set) and only needs the activity feed refreshed.
+    private enum EventClass {
+        case friendship
+        case activity
+    }
+
+    /// Tracks the heaviest event class seen during the current debounce
+    /// window. Friendship > activity — if even one friendship event
+    /// arrives mid-burst, we promote the eventual refresh to a full
+    /// loadSocial() so the friend list stays in sync.
+    private var pendingClass: EventClass?
+
+    private func handleEvent(reason: String, kind: EventClass) async {
+        // Promote pending event class to the heaviest seen this window.
+        if pendingClass != .friendship { pendingClass = kind }
+
+        debounceTask?.cancel()
+        debounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled, let self else { return }
+            await self.fireRefresh(reason: reason)
+        }
+    }
+
+    private func fireRefresh(reason: String) async {
         guard let app else { return }
-        print("[RealtimeSync] event (\(reason)) → reloading social")
-        await app.loadSocial()
-        app.rebuildLeaderboard()
+        let cls = pendingClass ?? .activity
+        pendingClass = nil
+
+        print("[RealtimeSync] firing refresh (\(reason), class=\(cls))")
+        switch cls {
+        case .friendship:
+            // Friendship changed (added/removed/accepted) — refetch
+            // everything social including the friend list (their
+            // leaderboard_data jsonb). Don't recompute OUR score —
+            // friend changes don't affect it. The user's own score is
+            // recomputed only in saveSession's detached task.
+            await app.loadSocial()
+        case .activity:
+            // A friend logged a set somewhere. Cheap path: only
+            // refresh the activity feed. The friend's score in the
+            // bro-leaderboard might lag until the next pull-to-refresh
+            // or the user's own save — acceptable trade for not
+            // refetching `leaderboard_data` for every friend on every
+            // single set save.
+            await app.refreshActivityFeed()
+        }
     }
 }

@@ -586,6 +586,27 @@ final class AppState: ObservableObject {
         recomputeTrainedToday()
     }
 
+    /// Refresh ONLY the activity feed. Called by RealtimeSync when an
+    /// activity_feed INSERT/DELETE event fires — we don't need to
+    /// refetch the friend list (with its full `leaderboard_data` jsonb
+    /// per row) just because a friend logged a set. Their cached score
+    /// can lag until the next pull-to-refresh on the bro tab or until
+    /// the user's own session save. This is the single biggest data-
+    /// transfer win on the social tab: activity events are the firehose
+    /// (one per set logged across all friends) and they used to refetch
+    /// the entire friends array on every event.
+    func refreshActivityFeed() async {
+        do {
+            let friendIds = friends.map(\.id)
+            self.activityFeed = try await SupabaseManager.shared
+                .fetchActivityFeed(friendIds: friendIds)
+        } catch {
+            // Same keep-stale policy as loadSocial — silent failure
+            // is better than wiping the user's visible feed.
+            print("[AppState] refreshActivityFeed failed — keeping stale:", error)
+        }
+    }
+
     /// Refresh ONLY the leagues list. Called by LeagueDetailView and
     /// CreateLeagueSheet after a mutation (create / add member /
     /// kick / leave) so the CrewView leagues section + open detail
