@@ -327,12 +327,14 @@ struct AccountView: View {
         .accessibilityLabel(Text(choice.label))
     }
 
-    /// Pick black on light swatches (cream) and black on the vibrant
-    /// colours so the selected-state checkmark is always readable.
+    /// Pick the checkmark contrast colour for each swatch so the
+    /// tick is always readable. Light backgrounds (lime / cream /
+    /// electric / gold) get a black mark; darker / more saturated
+    /// backgrounds (magenta / orange / crimson / royal) get white.
     private func swatchCheckmarkColor(_ choice: AccentChoice) -> Color {
         switch choice {
-        case .lime, .cream, .electric: return .black
-        case .magenta, .orange:        return .white
+        case .lime, .cream, .electric, .gold:        return .black
+        case .magenta, .orange, .crimson, .royal:    return .white
         }
     }
 
@@ -413,6 +415,31 @@ struct AccountView: View {
             return AnyShapeStyle(RadialGradient(
                 colors: [base.blendWhite(0.45), base, base.blendBlack(0.10)],
                 center: .center, startRadius: 0, endRadius: 30
+            ))
+        case .chrome:
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendBlack(0.15), base.blendWhite(0.55),
+                    base.blendBlack(0.30), base.blendWhite(0.45),
+                    base.blendBlack(0.10)
+                ],
+                startPoint: .top, endPoint: .bottom
+            ))
+        case .holographic:
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendWhite(0.55), base.blendBlack(0.20),
+                    base.blendWhite(0.10), base.blendBlack(0.30),
+                    base.blendWhite(0.40), base.blendBlack(0.05)
+                ],
+                startPoint: .topTrailing, endPoint: .bottomLeading
+            ))
+        case .frost:
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendWhite(0.55), base.blendWhite(0.35), base.blendWhite(0.45)
+                ],
+                startPoint: .top, endPoint: .bottom
             ))
         }
     }

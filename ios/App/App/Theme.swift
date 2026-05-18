@@ -17,11 +17,17 @@ enum AccentChoice: String, CaseIterable, Identifiable {
     case electric
     case magenta
     case orange
+    case crimson     // bold red — Ferrari-esque, high energy
+    case royal       // premium purple — sleek, expensive feel
+    case gold        // trophy gold — luxurious, ties into the badge aesthetic
 
     var id: String { rawValue }
 
     /// Hex code for the "main" (full-saturation) accent surface.
-    /// Lime is the historical HEX brand colour and remains the default.
+    /// Lime is the historical HEX brand colour; cream is the current
+    /// default. The newer crimson/royal/gold round out the palette
+    /// for users who want a bolder identity (the gold pairs
+    /// especially well with the trophy/badge system).
     var hex: String {
         switch self {
         case .lime:     return "#B8FF00"
@@ -29,6 +35,9 @@ enum AccentChoice: String, CaseIterable, Identifiable {
         case .electric: return "#00E5FF"
         case .magenta:  return "#FF2D9C"
         case .orange:   return "#FF8C00"
+        case .crimson:  return "#FF3344"
+        case .royal:    return "#7B61FF"
+        case .gold:     return "#FFC400"
         }
     }
     /// Hex code for the darker pressed-state variant used by
@@ -40,6 +49,9 @@ enum AccentChoice: String, CaseIterable, Identifiable {
         case .electric: return "#00B8CC"
         case .magenta:  return "#CC247D"
         case .orange:   return "#CC7000"
+        case .crimson:  return "#CC2936"
+        case .royal:    return "#5C46CC"
+        case .gold:     return "#CC9C00"
         }
     }
     /// Human-readable label (English) for the picker swatch tooltip.
@@ -50,6 +62,9 @@ enum AccentChoice: String, CaseIterable, Identifiable {
         case .electric: return "Electric"
         case .magenta:  return "Magenta"
         case .orange:   return "Orange"
+        case .crimson:  return "Crimson"
+        case .royal:    return "Royal"
+        case .gold:     return "Gold"
         }
     }
 }
@@ -122,18 +137,34 @@ enum AccentMaterial: String, CaseIterable, Identifiable {
     case metal
     /// Radial gradient with a bright "hot spot" at the centre. Reads
     /// like a glowing light source (matches the HEX gym/energy
-    /// aesthetic — was the natural "you decide" pick).
+    /// aesthetic).
     case neon
+    /// Vertical mirror-finish gradient — sharper highlights than
+    /// Metal with HORIZONTAL bands instead of diagonal. Reads like
+    /// polished steel or a chrome bumper.
+    case chrome
+    /// Multi-stop diagonal gradient with strong light/dark swings
+    /// that suggest an iridescent shimmer. Different "feel" each
+    /// direction the surface tilts (a static image obviously can't
+    /// shift, but the contrast pattern reads as holographic).
+    case holographic
+    /// Soft pastel wash — base colour blended heavily toward white
+    /// in a vertical gradient. Reads like frosted glass; subtle
+    /// option for users who want personality without dominance.
+    case frost
 
     var id: String { rawValue }
 
     /// Human-readable label rendered under the picker swatch.
     var label: String {
         switch self {
-        case .matte:  return "Matte"
-        case .glossy: return "Glossy"
-        case .metal:  return "Metal"
-        case .neon:   return "Neon"
+        case .matte:        return "Matte"
+        case .glossy:       return "Glossy"
+        case .metal:        return "Metal"
+        case .neon:         return "Neon"
+        case .chrome:       return "Chrome"
+        case .holographic:  return "Holographic"
+        case .frost:        return "Frost"
         }
     }
 }
@@ -257,6 +288,56 @@ enum HexTheme {
                 center: .center,
                 startRadius: 0,
                 endRadius: 50
+            ))
+        case .chrome:
+            // Polished-steel look — sharper highlights than Metal
+            // with horizontal bands instead of diagonal. The
+            // top-then-bottom highlight + mid shadow simulates the
+            // way a curved chrome surface catches an overhead light
+            // and reflects the surroundings.
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendBlack(0.15),
+                    base.blendWhite(0.55),
+                    base.blendBlack(0.30),
+                    base.blendWhite(0.45),
+                    base.blendBlack(0.10),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            ))
+        case .holographic:
+            // Iridescent shimmer — wider light/dark swings than
+            // Metal at an inverted diagonal so the shape reads as
+            // shifting depending on tilt. The strong contrast makes
+            // it pop on small tiles like set buttons; on large
+            // surfaces it feels like a hologram sticker.
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendWhite(0.55),
+                    base.blendBlack(0.20),
+                    base.blendWhite(0.10),
+                    base.blendBlack(0.30),
+                    base.blendWhite(0.40),
+                    base.blendBlack(0.05),
+                ],
+                startPoint: .topTrailing,
+                endPoint: .bottomLeading
+            ))
+        case .frost:
+            // Frosted-glass wash — entire surface lifted heavily
+            // toward white with a soft vertical gradient. The base
+            // hue stays visible as a tint, like coloured glass. Most
+            // subtle of the materials; good for users who want
+            // identity without dominance.
+            return AnyShapeStyle(LinearGradient(
+                colors: [
+                    base.blendWhite(0.55),
+                    base.blendWhite(0.35),
+                    base.blendWhite(0.45),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
             ))
         }
     }

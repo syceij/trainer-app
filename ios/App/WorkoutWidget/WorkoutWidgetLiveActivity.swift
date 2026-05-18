@@ -40,7 +40,11 @@ private var hexAccent: Color {
     case "electric": return Color(red: 0.0,   green: 0.898, blue: 1.0)   // #00E5FF
     case "magenta":  return Color(red: 1.0,   green: 0.176, blue: 0.612) // #FF2D9C
     case "orange":   return Color(red: 1.0,   green: 0.549, blue: 0.0)   // #FF8C00
-    default:         return Color(red: 0.722, green: 1.0,   blue: 0.0)   // #B8FF00
+    case "crimson":  return Color(red: 1.0,   green: 0.2,   blue: 0.267) // #FF3344
+    case "royal":    return Color(red: 0.482, green: 0.380, blue: 1.0)   // #7B61FF
+    case "gold":     return Color(red: 1.0,   green: 0.769, blue: 0.0)   // #FFC400
+    case "lime":     return Color(red: 0.722, green: 1.0,   blue: 0.0)   // #B8FF00
+    default:         return Color(red: 0.906, green: 0.898, blue: 0.878) // cream
     }
 }
 
@@ -82,6 +86,31 @@ private var hexAccentFill: AnyShapeStyle {
         return AnyShapeStyle(RadialGradient(
             colors: [base.blendWhite(0.45), base, base.blendBlack(0.10)],
             center: .center, startRadius: 0, endRadius: 30
+        ))
+    case "chrome":
+        return AnyShapeStyle(LinearGradient(
+            colors: [
+                base.blendBlack(0.15), base.blendWhite(0.55),
+                base.blendBlack(0.30), base.blendWhite(0.45),
+                base.blendBlack(0.10)
+            ],
+            startPoint: .top, endPoint: .bottom
+        ))
+    case "holographic":
+        return AnyShapeStyle(LinearGradient(
+            colors: [
+                base.blendWhite(0.55), base.blendBlack(0.20),
+                base.blendWhite(0.10), base.blendBlack(0.30),
+                base.blendWhite(0.40), base.blendBlack(0.05)
+            ],
+            startPoint: .topTrailing, endPoint: .bottomLeading
+        ))
+    case "frost":
+        return AnyShapeStyle(LinearGradient(
+            colors: [
+                base.blendWhite(0.55), base.blendWhite(0.35), base.blendWhite(0.45)
+            ],
+            startPoint: .top, endPoint: .bottom
         ))
     default:
         return AnyShapeStyle(base)
