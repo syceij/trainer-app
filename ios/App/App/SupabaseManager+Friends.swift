@@ -293,25 +293,33 @@ extension SupabaseManager {
 
     // MARK: - Friend profile (read-only)
 
-    /// Loads `id, name, username, privacy_settings` for the friend profile
-    /// page. `privacy_settings` is jsonb so we decode into a dictionary.
+    /// Loads `id, name, username, avatar_url, privacy_settings,
+    /// leaderboard_data` for the friend profile page. Leaderboard
+    /// data is included so the points hero card reads the same
+    /// values shown on the friends-list leaderboard, AND so users
+    /// opening a friend's profile from a LEAGUE row see real
+    /// points (previously the league-row tap passed a synthetic
+    /// FriendListEntry with `leaderboardData: nil`, which made the
+    /// card read 0 even when the user had a real score).
     struct FriendProfileRow: Decodable {
         let id: UUID
         var name: String?
         var username: String?
         var avatarURL: String?
         var privacySettings: [String: AnyCodable]?
+        var leaderboardData: LeaderboardData?
         enum CodingKeys: String, CodingKey {
             case id, name, username
             case avatarURL       = "avatar_url"
             case privacySettings = "privacy_settings"
+            case leaderboardData = "leaderboard_data"
         }
     }
 
     func fetchFriendProfile(friendId: UUID) async throws -> FriendProfileRow? {
         let rows: [FriendProfileRow] = try await client
             .from("profiles")
-            .select("id, name, username, avatar_url, privacy_settings")
+            .select("id, name, username, avatar_url, privacy_settings, leaderboard_data")
             .eq("id", value: friendId)
             .limit(1)
             .execute()

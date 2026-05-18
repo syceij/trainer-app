@@ -98,20 +98,34 @@ struct CrewView: View {
                 // ── Activity feed ─────────────────────────────────
                 // Activity rows older than 7 days drop off — per user
                 // spec, recent activity should feel like a rolling
-                // week, not a permanent log. Each row "expires" 7
-                // days after its `createdAt`, regardless of how many
-                // rows are in the feed.
+                // week, not a permanent log.
+                //
+                // The feed is constrained to a ~7-row visible window
+                // and becomes internally scrollable when there's more
+                // — keeps the page from stretching to a wall of text
+                // when the user has many friends posting every day.
+                // No visible border: the box edges blend into the
+                // page background, so it just feels like the section
+                // is shorter than it really is.
                 let recentFeed = app.activityFeed.filter { item in
                     item.createdAt.timeIntervalSinceNow > -7 * 24 * 60 * 60
                 }
                 if !recentFeed.isEmpty {
                     sectionLabel(ar ? "النشاط الأخير" : "RECENT ACTIVITY")
                         .padding(.bottom, 6)
-                    VStack(spacing: 0) {
-                        ForEach(recentFeed.prefix(20)) { item in
-                            activityRow(item)
+                    // Approx 7 activity rows fit in 420pt (each row
+                    // ~60pt with its padding + the bottom divider).
+                    // When the feed is shorter than that, the
+                    // container shrinks to fit so we don't show a
+                    // blank scroll area.
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 0) {
+                            ForEach(recentFeed.prefix(50)) { item in
+                                activityRow(item)
+                            }
                         }
                     }
+                    .frame(maxHeight: 420)
                     .padding(.bottom, 12)
                 }
 

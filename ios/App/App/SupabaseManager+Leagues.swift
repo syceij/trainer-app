@@ -93,19 +93,26 @@ extension SupabaseManager {
             let members = allMembers.filter { $0.leagueId == league.id }
             let rows: [LeagueLeaderboardEntry] = members.map { m in
                 let p = profileMap[m.userId]
-                let cachedScore = (p?.leaderboardData?.month == monthKey)
-                    ? (p?.leaderboardData?.score ?? 0)
-                    : 0
+                // Only read the cached leaderboard blob when it's for
+                // the current month — stale rows from past months
+                // would otherwise inflate the leaderboard with
+                // outdated numbers.
+                let ld    = (p?.leaderboardData?.month == monthKey) ? p?.leaderboardData : nil
+                let score = ld?.score          ?? 0
+                let sets  = ld?.setsCompleted  ?? 0
+                let imp   = ld?.improvementPct ?? 0
                 return LeagueLeaderboardEntry(
-                    id:        m.userId,
-                    rank:      0,
-                    name:      p?.name,
-                    username:  p?.username,
-                    avatarURL: p?.avatarURL,
-                    score:     cachedScore,
-                    role:      m.role,
-                    status:    m.status,
-                    isMe:      m.userId == uid
+                    id:             m.userId,
+                    rank:           0,
+                    name:           p?.name,
+                    username:       p?.username,
+                    avatarURL:      p?.avatarURL,
+                    score:          score,
+                    setsCompleted:  sets,
+                    improvementPct: imp,
+                    role:           m.role,
+                    status:         m.status,
+                    isMe:           m.userId == uid
                 )
             }
             // Sort by score desc; ties broken by name

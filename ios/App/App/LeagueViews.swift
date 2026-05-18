@@ -16,6 +16,15 @@ struct LeagueListCard: View {
     let ar: Bool
     var onTap: () -> Void
 
+    /// Card padding budget — leagues now support up to 25 members.
+    /// We render the populated leaderboard PLUS empty placeholder
+    /// slots up to a stable visible count so the card height stays
+    /// predictable. 7 slots fits the "preview" look from the user's
+    /// mockup; the full 25 lives in LeagueDetailView.
+    private static let previewSlots = 7
+    /// Max league size — per user spec, 1 to 25 players.
+    static let maxMembers = 25
+
     var body: some View {
         Button(action: {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -31,7 +40,7 @@ struct LeagueListCard: View {
                     Spacer(minLength: 8)
                     Text(mvpLine)
                         .font(.system(size: 10, weight: .heavy))
-                        .kerning(ar ? 0 : 0.6)
+                        .kerning(0.6)
                         .foregroundColor(HexTheme.dim)
                         .lineLimit(1)
                 }
@@ -39,27 +48,20 @@ struct LeagueListCard: View {
                 .padding(.top, 14)
                 .padding(.bottom, 12)
 
-                // Outlined inner panel with up to 7 ranked rows
+                // Outlined inner panel with `previewSlots` ranked rows.
+                // The divider sits BETWEEN every adjacent pair of rows
+                // (no per-section gap that broke when the populated
+                // count crossed a boundary in the old code).
                 VStack(spacing: 0) {
-                    let preview = Array(league.leaderboard.prefix(7))
-                    ForEach(Array(preview.enumerated()), id: \.offset) { idx, entry in
+                    let preview = Array(league.leaderboard.prefix(Self.previewSlots))
+                    let total = Self.previewSlots
+                    ForEach(0..<total, id: \.self) { idx in
+                        let entry = idx < preview.count ? preview[idx] : nil
                         rankRow(rank: idx + 1, entry: entry)
-                        if idx < preview.count - 1 {
+                        if idx < total - 1 {
                             Rectangle()
                                 .fill(HexTheme.accent.opacity(0.35))
                                 .frame(height: 1)
-                        }
-                    }
-                    // Pad to 7 rows so the card height is stable
-                    // whether you have 2 members or 7+.
-                    if preview.count < 7 {
-                        ForEach(preview.count..<7, id: \.self) { i in
-                            rankRow(rank: i + 1, entry: nil)
-                            if i < 6 {
-                                Rectangle()
-                                    .fill(HexTheme.accent.opacity(0.35))
-                                    .frame(height: 1)
-                            }
                         }
                     }
                 }
@@ -86,17 +88,17 @@ struct LeagueListCard: View {
         .buttonStyle(.plain)
     }
 
-    /// "MVP : <name>" line. Falls back to a placeholder when the
-    /// last-month winner hasn't been computed yet (Ship A — the
-    /// historical-snapshot computation lands in Ship B).
+    /// "MVP : <name>" line above the leaderboard. "MVP" is kept
+    /// untranslated in Arabic per user preference (it's a known
+    /// acronym in sports contexts globally — translating it loses
+    /// the brand feel). Falls back to "—" when last month's winner
+    /// hasn't been computed yet (Ship A — needs historical
+    /// snapshot infra that lands in a later ship).
     private var mvpLine: String {
-        let prefix = ar ? "أفضل لاعب" : "MVP"
         if let mvp = league.lastMonthMVP {
-            return "\(prefix) : \(mvp.name ?? "—")"
+            return "MVP : \(mvp.name ?? "—")"
         }
-        return ar
-            ? "\(prefix) : (الفائز السابق)"
-            : "\(prefix) : (LAST MONTHS WINNER)"
+        return "MVP : —"
     }
 
     /// One numbered row in the leaderboard panel. `entry == nil`
@@ -109,9 +111,6 @@ struct LeagueListCard: View {
                 .foregroundColor(HexTheme.text)
                 .frame(width: 22, alignment: .leading)
             if let e = entry {
-                // Avatar — small circle (28pt) sized for the compact
-                // card row. AvatarCircle handles the URL load with
-                // initial fallback if no photo is set.
                 let initial = String((e.name ?? e.username ?? "?").prefix(1)).uppercased()
                 AvatarCircle(
                     initial: initial,
@@ -119,29 +118,41 @@ struct LeagueListCard: View {
                     size: 28,
                     ring: HexTheme.border
                 )
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(e.name ?? e.username ?? "—")
                         .font(.system(size: 13, weight: .heavy))
                         .foregroundColor(HexTheme.text)
                         .lineLimit(1)
-                    if let u = e.username {
-                        Text("@\(u)")
-                            .font(.system(size: 10))
-                            .foregroundColor(HexTheme.mute)
-                            .lineLimit(1)
-                    }
+                    // Secondary stats: sets + improvement % packed
+                    // into one dim line so the card row stays
+                    // compact. "144 sets · +54%" reads at a glance
+                    // without needing to open the detail page.
+                    Text(secondaryLine(for: e))
+                        .font(.system(size: 10))
+                        .foregroundColor(HexTheme.mute)
+                        .lineLimit(1)
                 }
                 Spacer()
                 Text("\(e.score)")
                     .font(.system(size: 13, weight: .heavy).monospacedDigit())
-                    .foregroundColor(HexTheme.dim)
+                    .foregroundColor(HexTheme.accent)
             } else {
                 Spacer()
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// "144 sets · +54%" — secondary stats line on each row. The
+    /// number agrees with the leaderboard_data blob the user's
+    /// score was computed from, so taps that drill into the friend
+    /// page show the same numbers in the points card.
+    private func secondaryLine(for e: LeagueLeaderboardEntry) -> String {
+        let setsLabel = ar ? "\(e.setsCompleted) مجموعة" : "\(e.setsCompleted) sets"
+        let impSign = e.improvementPct >= 0 ? "+" : ""
+        return "\(setsLabel) · \(impSign)\(e.improvementPct)%"
     }
 }
 
@@ -301,12 +312,17 @@ struct LeagueDetailView: View {
         }
     }
 
+    /// "MVP last month : <name>" — top of LeagueDetailView under the
+    /// big title. Keeps "MVP" untranslated even in Arabic (same
+    /// convention as the card; the acronym is recognized globally
+    /// and translating loses brand feel). Falls back to "—" until
+    /// the historical-snapshot computation lands.
     private var mvpLine: String {
-        let prefix = ar ? "أفضل لاعب الشهر السابق" : "MVP last month"
+        let prefix = ar ? "MVP الشهر السابق" : "MVP last month"
         if let mvp = league.lastMonthMVP {
             return "\(prefix) : \(mvp.name ?? "—")"
         }
-        return ar ? "\(prefix) : (قيد التطوير)" : "\(prefix) : (coming soon)"
+        return "\(prefix) : —"
     }
 
     /// Full-width outlined leaderboard card.
@@ -389,16 +405,33 @@ struct LeagueDetailView: View {
                                 .foregroundColor(HexTheme.dim)
                         }
                     }
-                    if let u = entry.username {
-                        Text("@\(u)")
+                    HStack(spacing: 4) {
+                        if let u = entry.username {
+                            Text("@\(u)")
+                                .font(.system(size: 11))
+                                .foregroundColor(HexTheme.mute)
+                            Text("·")
+                                .font(.system(size: 11))
+                                .foregroundColor(HexTheme.mute)
+                        }
+                        // Sets + improvement — same numbers the
+                        // points card on the user's own profile
+                        // shows. "144 sets · +54%".
+                        Text(detailSecondaryLine(for: entry))
                             .font(.system(size: 11))
-                            .foregroundColor(HexTheme.mute)
+                            .foregroundColor(HexTheme.dim)
+                            .lineLimit(1)
                     }
                 }
                 Spacer()
-                Text("\(entry.score)")
-                    .font(.system(size: 14, weight: .heavy).monospacedDigit())
-                    .foregroundColor(HexTheme.accent)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(entry.score)")
+                        .font(.system(size: 16, weight: .heavy).monospacedDigit())
+                        .foregroundColor(HexTheme.accent)
+                    Text(ar ? "نقطة" : "pts")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundColor(HexTheme.mute)
+                }
                 if isAdmin && !entry.isMe {
                     Button {
                         memberToKick = entry
@@ -467,6 +500,13 @@ struct LeagueDetailView: View {
             .buttonStyle(.plain)
             .padding(.top, 12)
         }
+    }
+
+    /// "144 sets · +54%" formatter — bilingual, signed.
+    private func detailSecondaryLine(for e: LeagueLeaderboardEntry) -> String {
+        let setsLabel = ar ? "\(e.setsCompleted) مجموعة" : "\(e.setsCompleted) sets"
+        let impSign = e.improvementPct >= 0 ? "+" : ""
+        return "\(setsLabel) · \(impSign)\(e.improvementPct)%"
     }
 
     // MARK: - Mutation handlers

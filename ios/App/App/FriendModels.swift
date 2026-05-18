@@ -304,7 +304,7 @@ struct LeagueMember: Codable, Hashable {
 
 /// One row rendered in the league leaderboard list — joins the
 /// member row to the user's profile (name + avatar + this month's
-/// cached score).
+/// cached score / sets / improvement).
 struct LeagueLeaderboardEntry: Identifiable, Hashable {
     let id: UUID              // user id (also row id for SwiftUI lists)
     var rank: Int
@@ -312,6 +312,12 @@ struct LeagueLeaderboardEntry: Identifiable, Hashable {
     var username: String?
     var avatarURL: String?
     var score: Int
+    /// Sets completed this month — surfaces on the row as "144 sets".
+    /// Same source as `score` (the user's cached leaderboard_data).
+    var setsCompleted: Int
+    /// Average improvement % across tracked lifts this month —
+    /// renders as "+54%". Stale-month rows read as 0.
+    var improvementPct: Int
     var role: String          // "admin" | "member"
     var status: String        // mostly "accepted" here; included for future invite handling
     var isMe: Bool

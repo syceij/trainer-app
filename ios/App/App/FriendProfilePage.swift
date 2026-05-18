@@ -259,10 +259,24 @@ struct FriendProfilePage: View {
     /// drop stale data (different month key) so the card reads zeros
     /// instead of showing March's score in May. Matches how
     /// `rebuildLeaderboard()` in AppState treats stale rows.
+    ///
+    /// Reads from the freshly-loaded `profile.leaderboardData` first
+    /// (always has the latest server values), then falls back to
+    /// the `friend.leaderboardData` passed in by the parent view.
+    /// The fallback is necessary because some entry points
+    /// (notably tapping a league row) pass a synthetic
+    /// FriendListEntry with `leaderboardData: nil` — previously
+    /// that made the card read 0 even when the user had a real
+    /// score in their profile row.
     private var currentMonthData: LeaderboardData? {
         let key = Self.currentMonthKey()
-        guard let ld = friend.leaderboardData, ld.month == key else { return nil }
-        return ld
+        if let ld = profile?.leaderboardData, ld.month == key {
+            return ld
+        }
+        if let ld = friend.leaderboardData, ld.month == key {
+            return ld
+        }
+        return nil
     }
 
     private var pointsCard: some View {
