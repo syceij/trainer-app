@@ -82,37 +82,10 @@ private var hexAccentFill: AnyShapeStyle {
             ],
             startPoint: .topLeading, endPoint: .bottomTrailing
         ))
-    case "neon":
-        return AnyShapeStyle(RadialGradient(
-            colors: [base.blendWhite(0.45), base, base.blendBlack(0.10)],
-            center: .center, startRadius: 0, endRadius: 30
-        ))
-    case "chrome":
-        return AnyShapeStyle(LinearGradient(
-            colors: [
-                base.blendBlack(0.15), base.blendWhite(0.55),
-                base.blendBlack(0.30), base.blendWhite(0.45),
-                base.blendBlack(0.10)
-            ],
-            startPoint: .top, endPoint: .bottom
-        ))
-    case "holographic":
-        return AnyShapeStyle(LinearGradient(
-            colors: [
-                base.blendWhite(0.55), base.blendBlack(0.20),
-                base.blendWhite(0.10), base.blendBlack(0.30),
-                base.blendWhite(0.40), base.blendBlack(0.05)
-            ],
-            startPoint: .topTrailing, endPoint: .bottomLeading
-        ))
-    case "frost":
-        return AnyShapeStyle(LinearGradient(
-            colors: [
-                base.blendWhite(0.55), base.blendWhite(0.35), base.blendWhite(0.45)
-            ],
-            startPoint: .top, endPoint: .bottom
-        ))
     default:
+        // Neon / Chrome / Holographic / Frost were removed — any
+        // stored UserDefaults value pointing at them falls through
+        // here and renders matte.
         return AnyShapeStyle(base)
     }
 }

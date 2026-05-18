@@ -135,36 +135,21 @@ enum AccentMaterial: String, CaseIterable, Identifiable {
     /// Reads like brushed metal — small angle keeps the streaks
     /// visible without making the colour identity disappear.
     case metal
-    /// Radial gradient with a bright "hot spot" at the centre. Reads
-    /// like a glowing light source (matches the HEX gym/energy
-    /// aesthetic).
-    case neon
-    /// Vertical mirror-finish gradient — sharper highlights than
-    /// Metal with HORIZONTAL bands instead of diagonal. Reads like
-    /// polished steel or a chrome bumper.
-    case chrome
-    /// Multi-stop diagonal gradient with strong light/dark swings
-    /// that suggest an iridescent shimmer. Different "feel" each
-    /// direction the surface tilts (a static image obviously can't
-    /// shift, but the contrast pattern reads as holographic).
-    case holographic
-    /// Soft pastel wash — base colour blended heavily toward white
-    /// in a vertical gradient. Reads like frosted glass; subtle
-    /// option for users who want personality without dominance.
-    case frost
+
+    // Neon / Chrome / Holographic / Frost were trialled and removed
+    // per user spec — kept the codebase to three clean material
+    // options (matte / glossy / metal). Stored UserDefaults values
+    // pointing at the dropped materials fall through to `.matte`
+    // via the rawValue lookup in `currentAccentMaterial`.
 
     var id: String { rawValue }
 
     /// Human-readable label rendered under the picker swatch.
     var label: String {
         switch self {
-        case .matte:        return "Matte"
-        case .glossy:       return "Glossy"
-        case .metal:        return "Metal"
-        case .neon:         return "Neon"
-        case .chrome:       return "Chrome"
-        case .holographic:  return "Holographic"
-        case .frost:        return "Frost"
+        case .matte:  return "Matte"
+        case .glossy: return "Glossy"
+        case .metal:  return "Metal"
         }
     }
 }
@@ -274,70 +259,6 @@ enum HexTheme {
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
-            ))
-        case .neon:
-            // Radial hot-spot in the middle fading out to a slightly
-            // darker rim — simulates an internal light source without
-            // needing an outer shadow (which `.fill` can't emit).
-            return AnyShapeStyle(RadialGradient(
-                colors: [
-                    base.blendWhite(0.45),
-                    base,
-                    base.blendBlack(0.10),
-                ],
-                center: .center,
-                startRadius: 0,
-                endRadius: 50
-            ))
-        case .chrome:
-            // Polished-steel look — sharper highlights than Metal
-            // with horizontal bands instead of diagonal. The
-            // top-then-bottom highlight + mid shadow simulates the
-            // way a curved chrome surface catches an overhead light
-            // and reflects the surroundings.
-            return AnyShapeStyle(LinearGradient(
-                colors: [
-                    base.blendBlack(0.15),
-                    base.blendWhite(0.55),
-                    base.blendBlack(0.30),
-                    base.blendWhite(0.45),
-                    base.blendBlack(0.10),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            ))
-        case .holographic:
-            // Iridescent shimmer — wider light/dark swings than
-            // Metal at an inverted diagonal so the shape reads as
-            // shifting depending on tilt. The strong contrast makes
-            // it pop on small tiles like set buttons; on large
-            // surfaces it feels like a hologram sticker.
-            return AnyShapeStyle(LinearGradient(
-                colors: [
-                    base.blendWhite(0.55),
-                    base.blendBlack(0.20),
-                    base.blendWhite(0.10),
-                    base.blendBlack(0.30),
-                    base.blendWhite(0.40),
-                    base.blendBlack(0.05),
-                ],
-                startPoint: .topTrailing,
-                endPoint: .bottomLeading
-            ))
-        case .frost:
-            // Frosted-glass wash — entire surface lifted heavily
-            // toward white with a soft vertical gradient. The base
-            // hue stays visible as a tint, like coloured glass. Most
-            // subtle of the materials; good for users who want
-            // identity without dominance.
-            return AnyShapeStyle(LinearGradient(
-                colors: [
-                    base.blendWhite(0.55),
-                    base.blendWhite(0.35),
-                    base.blendWhite(0.45),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
             ))
         }
     }

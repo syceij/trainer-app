@@ -277,22 +277,39 @@ struct AccountView: View {
     ///   • pushes a no-op `Activity.update` so the Lock Screen card
     ///     recolours immediately rather than waiting for a set toggle.
     private var accentColorRow: some View {
-        HStack(spacing: 14) {
+        // Layout switched from a single-line HStack to a top-aligned
+        // HStack with a wrapping grid for the swatches. With 8
+        // colours, the old single-line approach forced the swatches
+        // off the right edge of the screen and dragged the whole
+        // settings card into a horizontal overflow — visible as the
+        // weirdly-clipped row in the user's screenshot.
+        //
+        // LazyVGrid with `.adaptive(minimum: 30)` lets SwiftUI fit
+        // as many 30pt swatches per row as the available width
+        // allows, then wraps the rest to the next row. Works at any
+        // device width without hard-coding a column count.
+        HStack(alignment: .top, spacing: 14) {
             iconBox(name: "paintpalette.fill", accent: true)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(ar ? "اللون المميز" : "Accent Color")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(HexTheme.text)
-                HStack(spacing: 10) {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 38, maximum: 44),
+                                       spacing: 10,
+                                       alignment: .leading)],
+                    alignment: .leading,
+                    spacing: 10
+                ) {
                     ForEach(AccentChoice.allCases) { choice in
                         accentSwatch(choice)
                     }
                 }
             }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -410,36 +427,6 @@ struct AccountView: View {
                     base.blendBlack(0.10)
                 ],
                 startPoint: .topLeading, endPoint: .bottomTrailing
-            ))
-        case .neon:
-            return AnyShapeStyle(RadialGradient(
-                colors: [base.blendWhite(0.45), base, base.blendBlack(0.10)],
-                center: .center, startRadius: 0, endRadius: 30
-            ))
-        case .chrome:
-            return AnyShapeStyle(LinearGradient(
-                colors: [
-                    base.blendBlack(0.15), base.blendWhite(0.55),
-                    base.blendBlack(0.30), base.blendWhite(0.45),
-                    base.blendBlack(0.10)
-                ],
-                startPoint: .top, endPoint: .bottom
-            ))
-        case .holographic:
-            return AnyShapeStyle(LinearGradient(
-                colors: [
-                    base.blendWhite(0.55), base.blendBlack(0.20),
-                    base.blendWhite(0.10), base.blendBlack(0.30),
-                    base.blendWhite(0.40), base.blendBlack(0.05)
-                ],
-                startPoint: .topTrailing, endPoint: .bottomLeading
-            ))
-        case .frost:
-            return AnyShapeStyle(LinearGradient(
-                colors: [
-                    base.blendWhite(0.55), base.blendWhite(0.35), base.blendWhite(0.45)
-                ],
-                startPoint: .top, endPoint: .bottom
             ))
         }
     }
