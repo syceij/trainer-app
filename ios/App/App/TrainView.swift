@@ -225,10 +225,54 @@ struct TrainView: View {
                                       // backward compatibility with old
                                       // staged payloads still in storage).
                 )
+                // Figure out which exercise to surface on the LA
+                // card first. If the user has done sets in-app
+                // already, jumping back to exercise #1 would be
+                // disorienting — we want the LA to land on the
+                // first NOT-fully-completed exercise (or the very
+                // first if none touched), and reflect any partial
+                // set completions on that exercise so the buttons
+                // are already half-checked.
+                //
+                // `priorSetsDone` accumulates sets done on every
+                // exercise BEFORE the starting one — drives the
+                // top session-wide progress bar so it reflects the
+                // user's true point in the workout from second-zero.
+                var startIdx = 0
+                var partialSetsForStart: [Bool]? = nil
+                var priorDone = 0
+                for (i, ex) in exercises.enumerated() {
+                    let exKey = "\(i)_\(ex.name)"
+                    let exSets = max(ex.sets, 1)
+                    let flags: [Bool] = (0..<exSets).map { si in
+                        completedSets["\(exKey)_\(si)"] == true
+                    }
+                    let allDone = flags.allSatisfy { $0 }
+                    if allDone {
+                        priorDone += exSets
+                        continue
+                    }
+                    // Found the first incomplete exercise — start
+                    // here and pass its current set-completion
+                    // pattern so the LA card matches in-app state.
+                    startIdx = i
+                    partialSetsForStart = flags
+                    break
+                }
+                // Capture for the async closure (Swift can't auto-capture mutable vars).
+                let capturedStart = startIdx
+                let capturedFlags = partialSetsForStart
+                let capturedPrior = priorDone
+
                 if #available(iOS 16.2, *) {
                     Task {
                         do {
-                            _ = try await LiveActivityService.shared.start(staged: dto)
+                            _ = try await LiveActivityService.shared.start(
+                                staged: dto,
+                                startExerciseIndex: capturedStart,
+                                initialSetsCompleted: capturedFlags,
+                                priorSetsDone: capturedPrior
+                            )
                             await MainActor.run { liveActivityActive = true }
                         } catch {
                             print("[TrainView] LiveActivity start failed:", error)

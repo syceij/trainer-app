@@ -354,26 +354,42 @@ struct WorkoutLiveActivity: Widget {
                 }
 
             } compactLeading: {
+                // Smaller dumbbell — keeps the leading pill tight
+                // against the camera island so the whole compact
+                // form doesn't span half the screen when active.
                 Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .heavy))
                     .foregroundStyle(hexAccent)
 
             } compactTrailing: {
+                // Trailing side intentionally tight. The previous
+                // `Text(date, style: .timer)` here auto-formatted
+                // to "M:SS" which iOS rendered with extra glyph
+                // padding, making the compact island feel very
+                // wide while the rest timer was running.
+                //
+                // Fix: when the timer's active, show just a small
+                // circular "ring" icon — Apple's pattern for
+                // "something is happening, tap to see" — instead
+                // of the full text. The exact remaining time is
+                // already visible in the expanded view + the lock-
+                // screen card; compact mode only needs to indicate
+                // "rest timer active".
                 if hasTimer {
-                    Text(s.restEndsAt, style: .timer)
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
+                    Image(systemName: "timer")
+                        .font(.system(size: 11, weight: .heavy))
                         .foregroundStyle(hexAccent)
-                        .contentTransition(.numericText(countsDown: true))
                 } else {
                     Text("\(s.setsDone)/\(s.setsTotal)")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 10, weight: .heavy))
                         .foregroundStyle(hexAccent)
                         .monospacedDigit()
+                        .lineLimit(1)
                 }
 
             } minimal: {
                 Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 10, weight: .heavy))
                     .foregroundStyle(hexAccent)
             }
         }

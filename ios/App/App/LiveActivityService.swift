@@ -37,15 +37,45 @@ final class LiveActivityService {
     /// Persists the session into the App Group store so the widget
     /// extension's `ToggleSetIntent` can read it back when the user
     /// taps a set button on the Lock Screen.
+    /// Start a Live Activity for the staged session.
+    ///
+    /// - Parameters:
+    ///   - staged: The session DTO mirrored into App Group storage.
+    ///   - startExerciseIndex: Which exercise to surface on the
+    ///     Lock Screen card initially. Defaults to 0 (first
+    ///     exercise) but the caller in TrainView passes the index
+    ///     of the first NOT-fully-completed exercise so a user
+    ///     who's done half the workout in-app doesn't see the
+    ///     Live Activity rewind to "exercise 1" when they tap
+    ///     Start.
+    ///   - initialSetsCompleted: Per-set completion flags for the
+    ///     starting exercise. Lets the LA reflect partial in-app
+    ///     progress on the visible exercise. Defaults to all-false
+    ///     when the starting exercise hasn't been touched.
+    ///   - priorSetsDone: Sets the user has already completed on
+    ///     exercises BEFORE the starting one. Drives the top
+    ///     session-wide progress bar so it shows the right "X / Y
+    ///     done" number from the moment the LA appears.
     @available(iOS 16.2, *)
     @discardableResult
-    func start(staged: StagedSessionDTO) async throws -> String {
+    func start(
+        staged: StagedSessionDTO,
+        startExerciseIndex: Int = 0,
+        initialSetsCompleted: [Bool]? = nil,
+        priorSetsDone: Int = 0
+    ) async throws -> String {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             throw LAError.disabled
         }
-        guard let firstExercise = staged.exercises.first else {
+        guard !staged.exercises.isEmpty else {
             throw LAError.emptySession
         }
+        // Clamp the index defensively so a stale/oversized value
+        // doesn't crash the request — fall back to 0 if out of range.
+        let idx = staged.exercises.indices.contains(startExerciseIndex)
+            ? startExerciseIndex
+            : 0
+        let startExercise = staged.exercises[idx]
 
         // Always end any lingering activity first (in-memory OR from previous
         // app sessions) — iOS limits each app to a small number of concurrent
@@ -62,23 +92,30 @@ final class LiveActivityService {
         // top progress bar on the Live Activity card.
         let totalSessionSets = staged.exercises.reduce(0) { $0 + max($1.sets, 1) }
 
+        // Set-completion flags for the starting exercise. Defaults
+        // to all-false when the caller didn't provide partial
+        // progress; otherwise we trust the caller to size the
+        // array correctly (TrainView pads as needed).
+        let setsForStart = initialSetsCompleted
+            ?? Array(repeating: false, count: max(startExercise.sets, 1))
+
         let attrs = WorkoutActivityAttributes(sessionName: staged.name)
         let state = WorkoutActivityAttributes.ContentState(
-            exerciseName:     firstExercise.name,
-            exerciseIndex:    0,
+            exerciseName:     startExercise.name,
+            exerciseIndex:    idx,
             totalExercises:   staged.exercises.count,
-            setsCompleted:    Array(repeating: false, count: max(firstExercise.sets, 1)),
-            targetReps:       firstExercise.reps,
-            weightKg:         firstExercise.weightKg,
-            weightLabel:      firstExercise.bodyweight ? "BW" : nil,
-            targetRpe:        firstExercise.rpe,
-            tag:              firstExercise.tag,
-            focus:            firstExercise.focus,
+            setsCompleted:    setsForStart,
+            targetReps:       startExercise.reps,
+            weightKg:         startExercise.weightKg,
+            weightLabel:      startExercise.bodyweight ? "BW" : nil,
+            targetRpe:        startExercise.rpe,
+            tag:              startExercise.tag,
+            focus:            startExercise.focus,
             restEndsAt:       .distantPast,
             // Per-exercise rest seconds. Fallback to session-level value
             // only if the per-exercise field wasn't populated.
-            restSeconds:      max(15, firstExercise.restSeconds > 0 ? firstExercise.restSeconds : staged.restSeconds),
-            priorSetsDone:    0,
+            restSeconds:      max(15, startExercise.restSeconds > 0 ? startExercise.restSeconds : staged.restSeconds),
+            priorSetsDone:    priorSetsDone,
             totalSessionSets: totalSessionSets
         )
 
@@ -88,7 +125,7 @@ final class LiveActivityService {
             pushType: nil
         )
         currentActivity = activity
-        print("[LiveActivity] started id=\(activity.id) exercise=\(firstExercise.name)")
+        print("[LiveActivity] started id=\(activity.id) exercise=\(startExercise.name) (idx=\(idx), prior=\(priorSetsDone))")
         return activity.id
     }
 
