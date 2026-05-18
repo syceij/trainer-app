@@ -9,6 +9,22 @@
 /* Begin PBXBuildFile section */
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		AABB0060CCDD0060EEFF0060 /* ThmanyahSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */; };
+		AABB0080CCDD0080EEFF0080 /* AppIconLime@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0081CCDD0081EEFF0081 /* AppIconLime@2x.png */; };
+		AABB0082CCDD0082EEFF0082 /* AppIconLime@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0083CCDD0083EEFF0083 /* AppIconLime@3x.png */; };
+		AABB0084CCDD0084EEFF0084 /* AppIconCream@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0085CCDD0085EEFF0085 /* AppIconCream@2x.png */; };
+		AABB0086CCDD0086EEFF0086 /* AppIconCream@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0087CCDD0087EEFF0087 /* AppIconCream@3x.png */; };
+		AABB0088CCDD0088EEFF0088 /* AppIconElectric@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0089CCDD0089EEFF0089 /* AppIconElectric@2x.png */; };
+		AABB008ACCDD008AEEFF008A /* AppIconElectric@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB008BCCDD008BEEFF008B /* AppIconElectric@3x.png */; };
+		AABB008CCCDD008CEEFF008C /* AppIconMagenta@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB008DCCDD008DEEFF008D /* AppIconMagenta@2x.png */; };
+		AABB008ECCDD008EEEFF008E /* AppIconMagenta@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB008FCCDD008FEEFF008F /* AppIconMagenta@3x.png */; };
+		AABB0090CCDD0090EEFF0090 /* AppIconOrange@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0091CCDD0091EEFF0091 /* AppIconOrange@2x.png */; };
+		AABB0092CCDD0092EEFF0092 /* AppIconOrange@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0093CCDD0093EEFF0093 /* AppIconOrange@3x.png */; };
+		AABB0094CCDD0094EEFF0094 /* AppIconCrimson@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0095CCDD0095EEFF0095 /* AppIconCrimson@2x.png */; };
+		AABB0096CCDD0096EEFF0096 /* AppIconCrimson@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0097CCDD0097EEFF0097 /* AppIconCrimson@3x.png */; };
+		AABB0098CCDD0098EEFF0098 /* AppIconRoyal@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB0099CCDD0099EEFF0099 /* AppIconRoyal@2x.png */; };
+		AABB009ACCDD009AEEFF009A /* AppIconRoyal@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB009BCCDD009BEEFF009B /* AppIconRoyal@3x.png */; };
+		AABB009CCCDD009CEEFF009C /* AppIconGold@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB009DCCDD009DEEFF009D /* AppIconGold@2x.png */; };
+		AABB009ECCDD009EEEFF009E /* AppIconGold@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = AABB009FCCDD009FEEFF009F /* AppIconGold@3x.png */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */; };
 		AABB0051CCDD0051EEFF0051 /* ToggleSetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0050CCDD0050EEFF0050 /* ToggleSetIntent.swift */; };
@@ -82,6 +98,22 @@
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fonts/ThmanyahSans-Bold.ttf"; sourceTree = "<group>"; };
+		AABB0081CCDD0081EEFF0081 /* AppIconLime@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconLime@2x.png"; sourceTree = "<group>"; };
+		AABB0083CCDD0083EEFF0083 /* AppIconLime@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconLime@3x.png"; sourceTree = "<group>"; };
+		AABB0085CCDD0085EEFF0085 /* AppIconCream@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconCream@2x.png"; sourceTree = "<group>"; };
+		AABB0087CCDD0087EEFF0087 /* AppIconCream@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconCream@3x.png"; sourceTree = "<group>"; };
+		AABB0089CCDD0089EEFF0089 /* AppIconElectric@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconElectric@2x.png"; sourceTree = "<group>"; };
+		AABB008BCCDD008BEEFF008B /* AppIconElectric@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconElectric@3x.png"; sourceTree = "<group>"; };
+		AABB008DCCDD008DEEFF008D /* AppIconMagenta@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconMagenta@2x.png"; sourceTree = "<group>"; };
+		AABB008FCCDD008FEEFF008F /* AppIconMagenta@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconMagenta@3x.png"; sourceTree = "<group>"; };
+		AABB0091CCDD0091EEFF0091 /* AppIconOrange@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconOrange@2x.png"; sourceTree = "<group>"; };
+		AABB0093CCDD0093EEFF0093 /* AppIconOrange@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconOrange@3x.png"; sourceTree = "<group>"; };
+		AABB0095CCDD0095EEFF0095 /* AppIconCrimson@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconCrimson@2x.png"; sourceTree = "<group>"; };
+		AABB0097CCDD0097EEFF0097 /* AppIconCrimson@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconCrimson@3x.png"; sourceTree = "<group>"; };
+		AABB0099CCDD0099EEFF0099 /* AppIconRoyal@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconRoyal@2x.png"; sourceTree = "<group>"; };
+		AABB009BCCDD009BEEFF009B /* AppIconRoyal@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconRoyal@3x.png"; sourceTree = "<group>"; };
+		AABB009DCCDD009DEEFF009D /* AppIconGold@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconGold@2x.png"; sourceTree = "<group>"; };
+		AABB009FCCDD009FEEFF009F /* AppIconGold@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIconGold@3x.png"; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
@@ -222,6 +254,22 @@
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				AABB0050CCDD0050EEFF0050 /* ToggleSetIntent.swift */,
 				AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */,
+				AABB0081CCDD0081EEFF0081 /* AppIconLime@2x.png */,
+				AABB0083CCDD0083EEFF0083 /* AppIconLime@3x.png */,
+				AABB0085CCDD0085EEFF0085 /* AppIconCream@2x.png */,
+				AABB0087CCDD0087EEFF0087 /* AppIconCream@3x.png */,
+				AABB0089CCDD0089EEFF0089 /* AppIconElectric@2x.png */,
+				AABB008BCCDD008BEEFF008B /* AppIconElectric@3x.png */,
+				AABB008DCCDD008DEEFF008D /* AppIconMagenta@2x.png */,
+				AABB008FCCDD008FEEFF008F /* AppIconMagenta@3x.png */,
+				AABB0091CCDD0091EEFF0091 /* AppIconOrange@2x.png */,
+				AABB0093CCDD0093EEFF0093 /* AppIconOrange@3x.png */,
+				AABB0095CCDD0095EEFF0095 /* AppIconCrimson@2x.png */,
+				AABB0097CCDD0097EEFF0097 /* AppIconCrimson@3x.png */,
+				AABB0099CCDD0099EEFF0099 /* AppIconRoyal@2x.png */,
+				AABB009BCCDD009BEEFF009B /* AppIconRoyal@3x.png */,
+				AABB009DCCDD009DEEFF009D /* AppIconGold@2x.png */,
+				AABB009FCCDD009FEEFF009F /* AppIconGold@3x.png */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
@@ -332,6 +380,22 @@
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				AABB0060CCDD0060EEFF0060 /* ThmanyahSans-Bold.ttf in Resources */,
+				AABB0080CCDD0080EEFF0080 /* AppIconLime@2x.png in Resources */,
+				AABB0082CCDD0082EEFF0082 /* AppIconLime@3x.png in Resources */,
+				AABB0084CCDD0084EEFF0084 /* AppIconCream@2x.png in Resources */,
+				AABB0086CCDD0086EEFF0086 /* AppIconCream@3x.png in Resources */,
+				AABB0088CCDD0088EEFF0088 /* AppIconElectric@2x.png in Resources */,
+				AABB008ACCDD008AEEFF008A /* AppIconElectric@3x.png in Resources */,
+				AABB008CCCDD008CEEFF008C /* AppIconMagenta@2x.png in Resources */,
+				AABB008ECCDD008EEEFF008E /* AppIconMagenta@3x.png in Resources */,
+				AABB0090CCDD0090EEFF0090 /* AppIconOrange@2x.png in Resources */,
+				AABB0092CCDD0092EEFF0092 /* AppIconOrange@3x.png in Resources */,
+				AABB0094CCDD0094EEFF0094 /* AppIconCrimson@2x.png in Resources */,
+				AABB0096CCDD0096EEFF0096 /* AppIconCrimson@3x.png in Resources */,
+				AABB0098CCDD0098EEFF0098 /* AppIconRoyal@2x.png in Resources */,
+				AABB009ACCDD009AEEFF009A /* AppIconRoyal@3x.png in Resources */,
+				AABB009CCCDD009CEEFF009C /* AppIconGold@2x.png in Resources */,
+				AABB009ECCDD009EEEFF009E /* AppIconGold@3x.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
