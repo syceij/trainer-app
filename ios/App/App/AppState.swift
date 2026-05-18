@@ -451,14 +451,25 @@ final class AppState: ObservableObject {
         try await finishWorkout(session, sets: setRows)
     }
 
-    /// On launch, check whether Supabase has a stored session and update phase.
+    /// On launch, check whether Supabase has a stored session and update
+    /// phase.
+    ///
+    /// `authPhase` is intentionally flipped to `.signedIn` AFTER
+    /// `loadUserData()` finishes — not before. This keeps the splash
+    /// screen visible during the data fetch so HomeView / TrainView /
+    /// Bros / Profile never render with zero-state placeholders on a
+    /// returning user (visible to the user as the "0 sessions / 0
+    /// streak / —" flash that appeared for ~1 second on every
+    /// launch).
     func restoreSession() async {
         let sb = SupabaseManager.shared
         do {
             // .session throws if no session is stored
             _ = try await sb.client.auth.session
-            authPhase = .signedIn
+            // Fetch profile + programme + history + social etc.
+            // BEFORE flipping the UI into the signed-in state.
             await loadUserData()
+            authPhase = .signedIn
         } catch {
             authPhase = .signedOut
         }
@@ -734,8 +745,11 @@ final class AppState: ObservableObject {
         _ = try await SupabaseManager.shared.signIn(
             email: resolvedEmail, password: password
         )
-        authPhase = .signedIn
+        // Load user data first; flip into `.signedIn` only once the
+        // home/train tabs will render with real numbers. Avoids the
+        // zero-state flash on returning users.
         await loadUserData()
+        authPhase = .signedIn
     }
 
     enum AuthError: LocalizedError {
@@ -791,8 +805,12 @@ final class AppState: ObservableObject {
         pendingSignupName = nil
         pendingSignupUsername = nil
         pendingSignupEmail = nil
-        authPhase = .signedIn
+        // Load user data first so the new account's empty state
+        // doesn't flash through HomeView / TrainView. For a brand
+        // new signup most loaders return immediately empty anyway,
+        // but it keeps the auth → main-app transition smooth.
         await loadUserData()
+        authPhase = .signedIn
     }
 
     func resendOTP(email: String) async throws {
