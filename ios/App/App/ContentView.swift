@@ -108,7 +108,13 @@ private struct LoadingPulseView: View {
             .frame(width: 140, height: 140)
             .scaleEffect(pulse ? 1.05 : 0.95)
             .animation(
-                .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                // Tightened from 1.2s → 0.7s per user request — the
+                // splash feels snappier and the animation reads as
+                // a quick heartbeat rather than a slow breath. The
+                // splash dismisses as soon as `loadUserData()`
+                // returns, so this duration is just how it feels
+                // while loading is in flight.
+                .easeInOut(duration: 0.7).repeatForever(autoreverses: true),
                 value: pulse
             )
             .onAppear { pulse = true }

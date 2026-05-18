@@ -53,6 +53,73 @@
 	<array>
 		<string>ThmanyahSans-Bold.ttf</string>
 	</array>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconName</key>
+			<string>AppIcon</string>
+		</dict>
+		<key>CFBundleAlternateIcons</key>
+		<dict>
+			<key>AppIconLime</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconLime</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconCream</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconCream</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconElectric</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconElectric</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconMagenta</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconMagenta</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconOrange</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconOrange</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconCrimson</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconCrimson</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconRoyal</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconRoyal</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>AppIconGold</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconGold</string></array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

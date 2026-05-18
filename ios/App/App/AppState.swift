@@ -229,6 +229,24 @@ final class AppState: ObservableObject {
         groupDefaults?.set(choice.rawValue, forKey: HexTheme.accentChoiceKey)
         UserDefaults.standard.set(choice.rawValue, forKey: HexTheme.accentChoiceKey)
 
+        // Swap the home-screen app icon to match the chosen accent.
+        // Each accent has its own dumbbell-tinted variant bundled at
+        // build time (`AppIconLime`, `AppIconCream`, ...).
+        // `setAlternateIconName` requires the call from the main
+        // thread; UIApplication.shared.supportsAlternateIcons is the
+        // gate. iOS will show its system "HEX has changed its icon"
+        // confirmation on each switch — unavoidable, every iOS app
+        // that supports alt icons does this.
+        let altName = "AppIcon\(choice.rawValue.capitalized)"
+        DispatchQueue.main.async {
+            guard UIApplication.shared.supportsAlternateIcons else { return }
+            UIApplication.shared.setAlternateIconName(altName) { error in
+                if let error = error {
+                    print("[AppState] setAlternateIconName(\(altName)) failed:", error)
+                }
+            }
+        }
+
         // Re-push the running Live Activity so the Lock Screen card
         // recolours immediately instead of waiting for the next set
         // toggle. Wrapped in `if #available` because the widget API
