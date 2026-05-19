@@ -514,35 +514,17 @@ struct FriendProfilePage: View {
 
     // MARK: - Friend trophies + featured
 
-    /// Friend's earned badges. Ship 1 uses a hardcoded sample so the
-    /// strip + featured slot are visible for preview; Ship 2 will
-    /// read from the friend's `profiles.badges` column.
+    /// Friend's earned badges — read straight from the loaded
+    /// `FriendProfileRow.badges`. nil during the brief window
+    /// between view appear and `load()` returning. Empty array
+    /// when the friend has no trophies yet (the launch state for
+    /// everyone until awarding logic ships).
     private var friendEarnedBadges: [EarnedBadge] {
-        Self.sampleFriendBadges
+        profile?.badges ?? []
     }
 
     // Featured-badge helpers were removed alongside the slot —
     // friend trophies are now a flat cabinet, no pin.
-
-    /// TEMP — Ship 2 replaces with real reads from the friend's row.
-    private static let sampleFriendBadges: [EarnedBadge] = {
-        let now = Date()
-        let cal = Calendar(identifier: .gregorian)
-        func date(daysAgo: Int) -> Date {
-            cal.date(byAdding: .day, value: -daysAgo, to: now) ?? now
-        }
-        return [
-            EarnedBadge(id: "monthly_2026_02", kind: .monthly,
-                        month: "2026-02", exercise: nil, value: nil,
-                        earnedAt: date(daysAgo: 90)),
-            EarnedBadge(id: "monthly_2026_01", kind: .monthly,
-                        month: "2026-01", exercise: nil, value: nil,
-                        earnedAt: date(daysAgo: 120)),
-            EarnedBadge(id: "power_100_squat", kind: .power100,
-                        month: nil, exercise: "Squat", value: 120,
-                        earnedAt: date(daysAgo: 45)),
-        ]
-    }()
 
     /// Horizontal scroll strip of all earned trophies. Each tile is
     /// tappable and surfaces the per-instance EarnedBadgeDetailView

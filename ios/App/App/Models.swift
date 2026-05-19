@@ -40,6 +40,11 @@ struct Profile: Codable, Identifiable, Hashable {
     var trackedMuscles: [String]?   // 6 muscle groups
     var avatarURL: String?
     var createdAt: Date?
+    /// Earned trophies, persisted as a jsonb array on the row
+    /// (see migration 2026-05-20-profiles-badges-column.sql). nil
+    /// when the column is empty/null — treat as []. Awarding logic
+    /// that appends to this array ships in a later milestone.
+    var badges: [EarnedBadge]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -51,11 +56,12 @@ struct Profile: Codable, Identifiable, Hashable {
         case trackedMuscles = "tracked_muscles"
         case avatarURL      = "avatar_url"
         case createdAt      = "created_at"
+        case badges
     }
 
     init(id: UUID, name: String?, username: String?, email: String?,
          language: String?, trackedLifts: [TrackedLift?]?, trackedMuscles: [String]?,
-         avatarURL: String?, createdAt: Date?) {
+         avatarURL: String?, createdAt: Date?, badges: [EarnedBadge]? = nil) {
         self.id = id
         self.name = name
         self.username = username
@@ -65,6 +71,7 @@ struct Profile: Codable, Identifiable, Hashable {
         self.trackedMuscles = trackedMuscles
         self.avatarURL = avatarURL
         self.createdAt = createdAt
+        self.badges = badges
     }
 
     init(from decoder: Decoder) throws {
@@ -80,6 +87,7 @@ struct Profile: Codable, Identifiable, Hashable {
         self.trackedMuscles = try? c.decode([String].self, forKey: .trackedMuscles)
         self.avatarURL      = try? c.decode(String.self, forKey: .avatarURL)
         self.createdAt      = LenientDate.optional(c, .createdAt)
+        self.badges         = try? c.decode([EarnedBadge].self, forKey: .badges)
     }
 
     /// Tolerant decoder for `tracked_lifts` — accepts both the canonical

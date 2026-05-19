@@ -308,8 +308,11 @@ extension SupabaseManager {
         var avatarURL: String?
         var privacySettings: [String: AnyCodable]?
         var leaderboardData: LeaderboardData?
+        /// Earned trophies (same shape as `Profile.badges`). nil when
+        /// the friend has no badges yet — treat as [] at the call site.
+        var badges: [EarnedBadge]?
         enum CodingKeys: String, CodingKey {
-            case id, name, username
+            case id, name, username, badges
             case avatarURL       = "avatar_url"
             case privacySettings = "privacy_settings"
             case leaderboardData = "leaderboard_data"
@@ -319,7 +322,7 @@ extension SupabaseManager {
     func fetchFriendProfile(friendId: UUID) async throws -> FriendProfileRow? {
         let rows: [FriendProfileRow] = try await client
             .from("profiles")
-            .select("id, name, username, avatar_url, privacy_settings, leaderboard_data")
+            .select("id, name, username, avatar_url, privacy_settings, leaderboard_data, badges")
             .eq("id", value: friendId)
             .limit(1)
             .execute()

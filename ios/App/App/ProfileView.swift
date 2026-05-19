@@ -56,41 +56,13 @@ struct ProfileView: View {
     ///   • 100% Power on Bench Press
     ///   • 200% Power on Squat
     ///   • Hero (earned because we have 3+ monthlies)
+    /// Earned badges for the current user, read straight off the
+    /// loaded profile row. Backed by the `profiles.badges` jsonb
+    /// column added in the 2026-05-20 migration. Empty at launch —
+    /// awarding logic that appends to this column ships later.
     private var earnedBadges: [EarnedBadge] {
-        Self.sampleEarnedBadges
+        app.currentProfile?.badges ?? []
     }
-
-    /// TEMP — Ship 2 will delete this. Stable date math so the
-    /// "most recent" sort is deterministic when the screen renders.
-    private static let sampleEarnedBadges: [EarnedBadge] = {
-        let now = Date()
-        let cal = Calendar(identifier: .gregorian)
-        // Anchored offsets from "now" so all six earnedAt dates
-        // sort consistently — May (most recent) wins featured.
-        func date(daysAgo: Int) -> Date {
-            cal.date(byAdding: .day, value: -daysAgo, to: now) ?? now
-        }
-        return [
-            EarnedBadge(id: "monthly_2026_01", kind: .monthly,
-                        month: "2026-01", exercise: nil, value: nil,
-                        earnedAt: date(daysAgo: 120)),
-            EarnedBadge(id: "monthly_2026_03", kind: .monthly,
-                        month: "2026-03", exercise: nil, value: nil,
-                        earnedAt: date(daysAgo: 60)),
-            EarnedBadge(id: "monthly_2026_05", kind: .monthly,
-                        month: "2026-05", exercise: nil, value: nil,
-                        earnedAt: date(daysAgo: 1)),
-            EarnedBadge(id: "power_100_bench_press", kind: .power100,
-                        month: nil, exercise: "Bench Press", value: 115,
-                        earnedAt: date(daysAgo: 30)),
-            EarnedBadge(id: "power_200_squat", kind: .power200,
-                        month: nil, exercise: "Squat", value: 210,
-                        earnedAt: date(daysAgo: 15)),
-            EarnedBadge(id: "hero", kind: .hero,
-                        month: nil, exercise: nil, value: nil,
-                        earnedAt: date(daysAgo: 2)),
-        ]
-    }()
 
     /// A specific earned badge tapped in the trophy cabinet. When
     /// non-nil, presents a detail sheet showing the badge with its
