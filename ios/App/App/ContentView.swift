@@ -91,126 +91,60 @@ struct ContentView: View {
     }
 }
 
-/// Futuristic loading view.
+/// Minimal radar-ping loader. Just the logo + three rings emanating
+/// outward continuously. No rotation, no orbital nodes, no static
+/// brand mark — restraint is the design.
 ///
-/// Composition (back to front):
-///   1. Radial accent halo — adds soft depth without being noisy.
-///   2. Static brand hexagon outline (the "HEX" mark, subtle).
-///   3. Slow CW-rotating dashed ring — base rhythm.
-///   4. Three bright orbital nodes — fast CW, the eye locks onto these.
-///   5. Inner gradient arc, counter-rotating — opposite direction
-///      makes the composition feel like layers rotating in 3D.
-///   6. Centred dumbbell logo with a rapid glow pulse (~0.4s cycle).
+/// How the motion works:
+///   • Each ring's "phase" loops 0 → 1 over 1.6s. Phase 0 means the
+///     ring is small + bright; phase 1 means fully expanded + invisible.
+///   • Three rings share the same loop but are offset by 1/3 of the
+///     period — so there's always at least one ring mid-expand and
+///     one fading out, never a dead frame.
+///   • The logo itself has a subtle glow + scale pulse on a faster
+///     sin wave (~0.6s cycle) so the core feels alive.
 ///
-/// Driven by `TimelineView(.animation)` so every frame is computed
-/// from a single time source — smoother than chaining
-/// `.repeatForever` animations and produces no animation-glitch when
+/// Driven by `TimelineView(.animation)` so every frame derives from
+/// one time source — layers stay in sync, no animation-glitch when
 /// the splash dismisses mid-cycle.
 private struct HexLoadingView: View {
     var body: some View {
         TimelineView(.animation) { context in
             let t = context.date.timeIntervalSinceReferenceDate
+
             ZStack {
-                // 1. Soft accent halo behind everything
-                RadialGradient(
-                    colors: [HexTheme.accent.opacity(0.18), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: 140
-                )
-                .frame(width: 280, height: 280)
-
-                // 2. Static brand hexagon (matches the app name)
-                HexagonShape()
-                    .stroke(HexTheme.accent.opacity(0.22), lineWidth: 1)
-                    .frame(width: 210, height: 210)
-
-                // 3. Outer dashed ring — slow CW (30°/s)
-                Circle()
-                    .strokeBorder(
-                        HexTheme.accent.opacity(0.55),
-                        style: StrokeStyle(lineWidth: 1, dash: [3, 10])
-                    )
-                    .frame(width: 180, height: 180)
-                    .rotationEffect(.degrees(t * 30))
-
-                // 4. Three orbital nodes at 120° spacing, fast CW (120°/s)
+                // Three radar rings, phase-offset by 1/3 of the cycle.
                 ForEach(0..<3, id: \.self) { i in
-                    let deg = Double(i) * 120.0 + t * 120.0
-                    let rad = deg * .pi / 180.0
+                    let phase = (t / 1.6 + Double(i) / 3.0)
+                        .truncatingRemainder(dividingBy: 1.0)
+                    let size: CGFloat = 60 + CGFloat(phase) * 200
+                    let opacity = (1.0 - phase) * 0.55
                     Circle()
-                        .fill(HexTheme.accent)
-                        .frame(width: 7, height: 7)
-                        .shadow(color: HexTheme.accent, radius: 8)
-                        .offset(x: 90 * cos(rad), y: 90 * sin(rad))
+                        .stroke(HexTheme.accent, lineWidth: 1.5)
+                        .frame(width: size, height: size)
+                        .opacity(opacity)
                 }
 
-                // 5. Inner gradient arc counter-rotating (180°/s CCW)
-                Circle()
-                    .trim(from: 0.0, to: 0.32)
-                    .stroke(
-                        AngularGradient(
-                            colors: [.clear, HexTheme.accent, HexTheme.accent],
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                    )
-                    .frame(width: 115, height: 115)
-                    .rotationEffect(.degrees(-t * 180))
+                // Centred logo + soft glow halo. Same sin wave drives
+                // glow opacity and a small scale pulse so the core
+                // breathes slightly.
+                let pulse = (sin(t * 3.5) + 1.0) * 0.5
 
-                // 6. Core logo with pulsing glow halo
-                core(t: t)
+                Circle()
+                    .fill(HexTheme.accent)
+                    .frame(width: 60, height: 60)
+                    .blur(radius: 18)
+                    .opacity(0.25 + pulse * 0.25)
+
+                Image("LoadingLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(HexTheme.accent)
+                    .frame(width: 60, height: 60)
+                    .scaleEffect(0.95 + pulse * 0.08)
             }
         }
         .frame(width: 280, height: 280)
-    }
-
-    /// Centred dumbbell with a sinusoidal glow + scale pulse driven
-    /// by the timeline `t`. ~0.4s cycle reads as a rapid heartbeat.
-    @ViewBuilder
-    private func core(t: Double) -> some View {
-        // sin → 0..1
-        let pulse = (sin(t * 5.0) + 1.0) * 0.5
-        let scale = 0.94 + pulse * 0.10
-        let glow  = 0.25 + pulse * 0.40
-
-        ZStack {
-            Circle()
-                .fill(HexTheme.accent)
-                .frame(width: 64, height: 64)
-                .blur(radius: 18)
-                .opacity(glow)
-
-            Image("LoadingLogo")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(HexTheme.accent)
-                .frame(width: 64, height: 64)
-                .scaleEffect(scale)
-        }
-    }
-}
-
-/// Regular hexagon, point-up. Used as the static brand mark behind
-/// the orbital rings — the "HEX" in the app name made literal.
-private struct HexagonShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let radius: CGFloat = min(rect.width, rect.height) / 2
-        var path = Path()
-        for i in 0..<6 {
-            // Start angle at -90° so a vertex is at the top. Use
-            // CGFloat throughout so the trig + multiply doesn't go
-            // ambiguous between Double and CGFloat overloads.
-            let angle: CGFloat = CGFloat(i) * .pi / 3.0 - .pi / 2.0
-            let pt = CGPoint(
-                x: center.x + radius * cos(angle),
-                y: center.y + radius * sin(angle)
-            )
-            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
-        }
-        path.closeSubpath()
-        return path
     }
 }
