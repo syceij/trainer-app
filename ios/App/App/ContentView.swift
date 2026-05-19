@@ -197,11 +197,13 @@ private struct HexLoadingView: View {
 private struct HexagonShape: Shape {
     func path(in rect: CGRect) -> Path {
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let radius = min(rect.width, rect.height) / 2
+        let radius: CGFloat = min(rect.width, rect.height) / 2
         var path = Path()
         for i in 0..<6 {
-            // Start angle at -90° so a vertex is at the top
-            let angle = Double(i) * .pi / 3.0 - .pi / 2.0
+            // Start angle at -90° so a vertex is at the top. Use
+            // CGFloat throughout so the trig + multiply doesn't go
+            // ambiguous between Double and CGFloat overloads.
+            let angle: CGFloat = CGFloat(i) * .pi / 3.0 - .pi / 2.0
             let pt = CGPoint(
                 x: center.x + radius * cos(angle),
                 y: center.y + radius * sin(angle)
