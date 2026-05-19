@@ -23,7 +23,22 @@ struct ContentView: View {
                         OTPView(email: email)
                     }
                 case .signedIn:
-                    MainTabView()
+                    // Mirror of React's App.jsx:381-426 routing: a
+                    // programme row is the only signal that decides
+                    // "show the main app" vs "show welcome/onboarding".
+                    // Brand-new users (just verified OTP) land here
+                    // with activeProgramme == nil → welcome flow.
+                    // Returning users already have a programme loaded
+                    // by loadUserData() → MainTabView immediately.
+                    // When the welcome flow finishes building a
+                    // programme, activeProgramme flips non-nil and
+                    // this switch re-evaluates to MainTabView — no
+                    // new auth phase needed.
+                    if app.activeProgramme == nil {
+                        WelcomeFlowContainer()
+                    } else {
+                        MainTabView()
+                    }
                 }
             }
             // Global Arabic font override — applies to every Text view
@@ -123,5 +138,67 @@ private struct HexLoadingView: View {
             Spacer().frame(height: 100)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Welcome / programme-setup flow
+
+/// Hosts WelcomeView for users who have signed in but don't have a
+/// programme yet (brand-new account or someone who deleted theirs).
+/// Direct port of React's `phase === 'welcome' / 'onboarding' /
+/// 'manual_builder' / 'import'` routing in App.jsx:1034-1057.
+///
+/// Navigation is path-driven so:
+///   • Each builder pushes onto the NavigationStack — back swipes
+///     return cleanly to the welcome screen.
+///   • Completion handlers call `app.enterApp(...)` /
+///     `app.enterAppWithImport(...)`, both of which set
+///     `activeProgramme`. The parent `ContentView` watches that
+///     @Published value and swaps this whole container for
+///     `MainTabView` the moment a programme exists — no manual
+///     dismiss needed, no flash of empty home.
+private struct WelcomeFlowContainer: View {
+    @EnvironmentObject var app: AppState
+
+    /// Destinations the welcome screen can push into. Hashable so
+    /// the NavigationStack path can carry them.
+    private enum Stage: Hashable {
+        case onboarding   // auto-generated 7-step wizard
+        case manual       // manual builder (6-step)
+        case importing    // paste-JSON importer
+    }
+
+    @State private var path: [Stage] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            WelcomeView(
+                onBuild:  { path.append(.onboarding) },
+                onManual: { path.append(.manual) },
+                onImport: { path.append(.importing) }
+            )
+            .navigationDestination(for: Stage.self) { stage in
+                switch stage {
+                case .onboarding:
+                    OnboardingView { profile in
+                        // Same handler AccountView uses for its
+                        // "Build my programme" row. ProgrammeBuilder
+                        // generates a Programme, enterApp persists it,
+                        // and `activeProgramme` flips — parent
+                        // re-renders into MainTabView.
+                        Task {
+                            await app.enterApp(
+                                profile: profile,
+                                weights: profile.startingWeights
+                            )
+                        }
+                    }
+                case .manual:
+                    ManualProgrammeBuilder()
+                case .importing:
+                    ImportView()
+                }
+            }
+        }
     }
 }
