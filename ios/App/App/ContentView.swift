@@ -109,7 +109,7 @@ private struct HexLoadingView: View {
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(HexTheme.accent)
-                .frame(width: 130, height: 130)
+                .frame(width: 220, height: 220)
 
             Spacer()
 
@@ -118,7 +118,7 @@ private struct HexLoadingView: View {
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(HexTheme.accent)
-                .frame(width: 240)
+                .frame(width: 110)
 
             Spacer().frame(height: 100)
         }
