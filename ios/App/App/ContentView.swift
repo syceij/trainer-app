@@ -81,42 +81,134 @@ struct ContentView: View {
     }
 
     private var splash: some View {
-        // 1:1 port of React's `LoadingScreen` in src/App.jsx:62-77.
-        // Centred lime-tinted dumbbell that "breathes" — scale loops
-        // 0.95 -> 1.05 -> 0.95 on a 1.2s ease-in-out cycle, forever.
-        // No spinner (the React version has none either — the gentle
-        // pulse is the only motion cue).
-        LoadingPulseView()
+        // Replaces the old breathing-dumbbell loader with a multi-layer
+        // orbital design — feels like a system booting, not a yoga
+        // class. The splash dismisses as soon as `loadUserData()`
+        // returns; this view is just what users see during that fetch.
+        HexLoadingView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .hexBackground()
     }
 }
 
-/// The actual pulsing dumbbell. Lives in its own view so the @State
-/// `pulse` flag survives splash dismissals and the animation kicks
-/// off automatically via `.onAppear`. Template-rendered so the
-/// dumbbell shape inherits the user's chosen accent colour.
-private struct LoadingPulseView: View {
-    @State private var pulse = false
-
+/// Futuristic loading view.
+///
+/// Composition (back to front):
+///   1. Radial accent halo — adds soft depth without being noisy.
+///   2. Static brand hexagon outline (the "HEX" mark, subtle).
+///   3. Slow CW-rotating dashed ring — base rhythm.
+///   4. Three bright orbital nodes — fast CW, the eye locks onto these.
+///   5. Inner gradient arc, counter-rotating — opposite direction
+///      makes the composition feel like layers rotating in 3D.
+///   6. Centred dumbbell logo with a rapid glow pulse (~0.4s cycle).
+///
+/// Driven by `TimelineView(.animation)` so every frame is computed
+/// from a single time source — smoother than chaining
+/// `.repeatForever` animations and produces no animation-glitch when
+/// the splash dismisses mid-cycle.
+private struct HexLoadingView: View {
     var body: some View {
-        Image("LoadingLogo")
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .foregroundStyle(HexTheme.accent)
-            .frame(width: 140, height: 140)
-            .scaleEffect(pulse ? 1.05 : 0.95)
-            .animation(
-                // Tightened from 1.2s → 0.7s per user request — the
-                // splash feels snappier and the animation reads as
-                // a quick heartbeat rather than a slow breath. The
-                // splash dismisses as soon as `loadUserData()`
-                // returns, so this duration is just how it feels
-                // while loading is in flight.
-                .easeInOut(duration: 0.7).repeatForever(autoreverses: true),
-                value: pulse
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            ZStack {
+                // 1. Soft accent halo behind everything
+                RadialGradient(
+                    colors: [HexTheme.accent.opacity(0.18), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 140
+                )
+                .frame(width: 280, height: 280)
+
+                // 2. Static brand hexagon (matches the app name)
+                HexagonShape()
+                    .stroke(HexTheme.accent.opacity(0.22), lineWidth: 1)
+                    .frame(width: 210, height: 210)
+
+                // 3. Outer dashed ring — slow CW (30°/s)
+                Circle()
+                    .strokeBorder(
+                        HexTheme.accent.opacity(0.55),
+                        style: StrokeStyle(lineWidth: 1, dash: [3, 10])
+                    )
+                    .frame(width: 180, height: 180)
+                    .rotationEffect(.degrees(t * 30))
+
+                // 4. Three orbital nodes at 120° spacing, fast CW (120°/s)
+                ForEach(0..<3, id: \.self) { i in
+                    let deg = Double(i) * 120.0 + t * 120.0
+                    let rad = deg * .pi / 180.0
+                    Circle()
+                        .fill(HexTheme.accent)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: HexTheme.accent, radius: 8)
+                        .offset(x: 90 * cos(rad), y: 90 * sin(rad))
+                }
+
+                // 5. Inner gradient arc counter-rotating (180°/s CCW)
+                Circle()
+                    .trim(from: 0.0, to: 0.32)
+                    .stroke(
+                        AngularGradient(
+                            colors: [.clear, HexTheme.accent, HexTheme.accent],
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                    )
+                    .frame(width: 115, height: 115)
+                    .rotationEffect(.degrees(-t * 180))
+
+                // 6. Core logo with pulsing glow halo
+                core(t: t)
+            }
+        }
+        .frame(width: 280, height: 280)
+    }
+
+    /// Centred dumbbell with a sinusoidal glow + scale pulse driven
+    /// by the timeline `t`. ~0.4s cycle reads as a rapid heartbeat.
+    @ViewBuilder
+    private func core(t: Double) -> some View {
+        // sin → 0..1
+        let pulse = (sin(t * 5.0) + 1.0) * 0.5
+        let scale = 0.94 + pulse * 0.10
+        let glow  = 0.25 + pulse * 0.40
+
+        ZStack {
+            Circle()
+                .fill(HexTheme.accent)
+                .frame(width: 64, height: 64)
+                .blur(radius: 18)
+                .opacity(glow)
+
+            Image("LoadingLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(HexTheme.accent)
+                .frame(width: 64, height: 64)
+                .scaleEffect(scale)
+        }
+    }
+}
+
+/// Regular hexagon, point-up. Used as the static brand mark behind
+/// the orbital rings — the "HEX" in the app name made literal.
+private struct HexagonShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        var path = Path()
+        for i in 0..<6 {
+            // Start angle at -90° so a vertex is at the top
+            let angle = Double(i) * .pi / 3.0 - .pi / 2.0
+            let pt = CGPoint(
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle)
             )
-            .onAppear { pulse = true }
+            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        path.closeSubpath()
+        return path
     }
 }
