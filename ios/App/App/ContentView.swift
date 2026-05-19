@@ -81,70 +81,47 @@ struct ContentView: View {
     }
 
     private var splash: some View {
-        // Replaces the old breathing-dumbbell loader with a multi-layer
-        // orbital design — feels like a system booting, not a yoga
-        // class. The splash dismisses as soon as `loadUserData()`
-        // returns; this view is just what users see during that fetch.
+        // Pure-black background, dumbbell mid-screen, slogan near the
+        // bottom. Both assets are template-rendered so they retint
+        // automatically when the user changes accent colour. No
+        // animations — the splash exists only as long as
+        // `loadUserData()` is in flight, which is fast on a warm
+        // network. Keeping it static makes the dismissal feel
+        // instant rather than interrupting a half-played loop.
         HexLoadingView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .hexBackground()
+            .background(Color.black.ignoresSafeArea())
     }
 }
 
-/// Minimal radar-ping loader. Just the logo + three rings emanating
-/// outward continuously. No rotation, no orbital nodes, no static
-/// brand mark — restraint is the design.
-///
-/// How the motion works:
-///   • Each ring's "phase" loops 0 → 1 over 1.6s. Phase 0 means the
-///     ring is small + bright; phase 1 means fully expanded + invisible.
-///   • Three rings share the same loop but are offset by 1/3 of the
-///     period — so there's always at least one ring mid-expand and
-///     one fading out, never a dead frame.
-///   • The logo itself has a subtle glow + scale pulse on a faster
-///     sin wave (~0.6s cycle) so the core feels alive.
-///
-/// Driven by `TimelineView(.animation)` so every frame derives from
-/// one time source — layers stay in sync, no animation-glitch when
-/// the splash dismisses mid-cycle.
+/// Static splash. Logo + slogan stacked vertically over black, both
+/// tinted with the user's chosen accent. The Spacer weights below put
+/// the logo roughly mid-screen and the slogan in the lower third,
+/// matching the reference mock.
 private struct HexLoadingView: View {
     var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        VStack(spacing: 0) {
+            Spacer()
+            Spacer()
 
-            ZStack {
-                // Three radar rings, phase-offset by 1/3 of the cycle.
-                ForEach(0..<3, id: \.self) { i in
-                    let phase = (t / 1.6 + Double(i) / 3.0)
-                        .truncatingRemainder(dividingBy: 1.0)
-                    let size: CGFloat = 60 + CGFloat(phase) * 200
-                    let opacity = (1.0 - phase) * 0.55
-                    Circle()
-                        .stroke(HexTheme.accent, lineWidth: 1.5)
-                        .frame(width: size, height: size)
-                        .opacity(opacity)
-                }
+            Image("LoadingLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(HexTheme.accent)
+                .frame(width: 130, height: 130)
 
-                // Centred logo + soft glow halo. Same sin wave drives
-                // glow opacity and a small scale pulse so the core
-                // breathes slightly.
-                let pulse = (sin(t * 3.5) + 1.0) * 0.5
+            Spacer()
 
-                Circle()
-                    .fill(HexTheme.accent)
-                    .frame(width: 60, height: 60)
-                    .blur(radius: 18)
-                    .opacity(0.25 + pulse * 0.25)
+            Image("SloganProgress")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(HexTheme.accent)
+                .frame(width: 240)
 
-                Image("LoadingLogo")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(HexTheme.accent)
-                    .frame(width: 60, height: 60)
-                    .scaleEffect(0.95 + pulse * 0.08)
-            }
+            Spacer().frame(height: 100)
         }
-        .frame(width: 280, height: 280)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
