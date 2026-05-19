@@ -23,8 +23,10 @@ struct SignupView: View {
         case idle, short, checking, available, taken, invalid
     }
 
-    /// Letters, digits, underscore; 3–20 chars.
-    private static let usernamePattern = "^[a-z0-9_]{3,20}$"
+    /// Letters (upper or lower), digits, underscore; 3–20 chars.
+    /// Uniqueness is enforced case-insensitively at the DB level via the
+    /// citext column type — see migration 2026-05-19-username-citext.
+    private static let usernamePattern = "^[a-zA-Z0-9_]{3,20}$"
 
     var body: some View {
         ScrollView {
@@ -259,8 +261,10 @@ struct SignupView: View {
     }
 
     private func handleUsernameChange(_ raw: String) {
-        // Lowercase + strip whitespace to match React behaviour.
-        let cleaned = raw.lowercased().filter { !$0.isWhitespace }
+        // Strip whitespace only — capitals are allowed now. Casing is
+        // preserved for display ("JohnDoe") while the citext column type
+        // makes uniqueness + lookups case-insensitive at the DB level.
+        let cleaned = raw.filter { !$0.isWhitespace }
         if cleaned != raw { username = cleaned; return }
 
         checkTask?.cancel()

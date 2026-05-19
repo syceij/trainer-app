@@ -5,7 +5,10 @@ import { supabase } from '../lib/supabase.js';
 import { upsertProfile } from '../lib/db.js';
 import { C, spring, springSoft } from '../tokens.js';
 
-const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+// Letters (upper + lower), digits, underscore; 3–20 chars.
+// Uniqueness is enforced case-insensitively at the DB level — the
+// profiles.username column is citext (see 2026-05-19 migration).
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const GREEN = '#ADFF2F';
 const RED   = '#E24B4A';
 
@@ -321,7 +324,9 @@ function SignupView({ onSwitch, onConfirm, ar, kbOpen, onKbChange }) {
   const debounceRef = useRef(null);
 
   const handleUsernameChange = (val) => {
-    const cleaned = val.toLowerCase().replace(/\s/g, '');
+    // Strip whitespace only — capitals are preserved. The DB's
+    // citext column makes lookups + uniqueness case-insensitive.
+    const cleaned = val.replace(/\s/g, '');
     setUsername(cleaned);
     clearTimeout(debounceRef.current);
 
