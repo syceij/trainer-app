@@ -159,14 +159,47 @@ struct FriendSession: Identifiable, Hashable {
     var date: Date
     var name: String
     var exercises: [Exercise]
+
+    /// Total tonnage for the session — the same number that gets
+    /// written to the activity_feed row when the session is saved
+    /// (see AppState.saveSession's `let volume = sets.reduce…`).
+    ///
+    /// Formula: Σ weight × reps × sets across non-bodyweight
+    /// exercises. Previously this missed the reps multiplier and
+    /// returned `weight × sets` only — which is why the friend
+    /// profile detail sheet showed 525 while the activity feed
+    /// showed 5250 for the exact same session (off by exactly 10×
+    /// — the upper bound of the "8-10" rep range).
+    ///
+    /// Reps are stored as a string ("8-10" / "12" / etc.). We
+    /// use the upper bound for the multiplier so the value lines
+    /// up with what the user actually logged on a session they
+    /// completed at the top of the range, which is the common case.
+    /// If the reps string can't be parsed at all (empty / unusual
+    /// format), we fall back to 8.
     var volume: Double {
-        // Same formula React uses in App.jsx when building the history list:
-        // skip bodyweight rows; otherwise add weight × max(sets, 1).
         exercises.reduce(0) { acc, ex in
             if ex.bodyweight { return acc }
             guard let w = ex.weight, w > 0 else { return acc }
-            return acc + w * Double(max(ex.sets, 1))
+            let reps = Self.upperRepCount(ex.reps)
+            return acc + w * Double(reps) * Double(max(ex.sets, 1))
         }
+    }
+
+    /// Parse the upper end of a rep prescription string.
+    ///   "8-10"  → 10
+    ///   "12"    → 12
+    ///   ""      → 8 (sensible default for hypertrophy)
+    ///   "10-12 each side" → 12 (takes the last integer it finds)
+    private static func upperRepCount(_ s: String) -> Int {
+        let trimmed = s.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return 8 }
+        // Pull every integer-looking chunk, take the largest.
+        // Handles "10", "8-10", "10-12 each side", "AMRAP 8" etc.
+        let digitChunks = trimmed
+            .split { !$0.isNumber }
+            .compactMap { Int($0) }
+        return digitChunks.max() ?? 8
     }
 }
 
