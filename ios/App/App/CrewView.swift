@@ -719,6 +719,27 @@ private struct AddBubble: View {
     }
 }
 
+// MARK: - Avatar helpers
+
+/// Decode a "data:image/jpeg;base64,XXX" URL string into a UIImage.
+/// Returns nil for plain http(s) URLs, malformed input, or bytes
+/// that don't decode as an image. AsyncImage in SwiftUI hands data
+/// URLs straight to URLSession's cache layer, which discards them —
+/// so anywhere we display an avatar we have to short-circuit data
+/// URLs and decode them ourselves.
+///
+/// React stores avatars as base64 data URLs directly in
+/// profiles.avatar_url (see src/components/ProfileTab.jsx
+/// compressImage + App.jsx saveAvatarUrl). The iOS port writes
+/// the same format so both clients see each other's avatars.
+func decodeDataURLImage(_ s: String) -> UIImage? {
+    guard s.hasPrefix("data:"),
+          let commaIdx = s.firstIndex(of: ","),
+          let data = Data(base64Encoded: String(s[s.index(after: commaIdx)...]))
+    else { return nil }
+    return UIImage(data: data)
+}
+
 // MARK: - Avatar circle (shared)
 
 struct AvatarCircle: View {
@@ -733,21 +754,36 @@ struct AvatarCircle: View {
     var body: some View {
         let fs = fontSize ?? size * 0.36
         ZStack {
-            if let urlString = url, let parsed = URL(string: urlString) {
-                AsyncImage(url: parsed) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    default:
-                        ZStack {
-                            Circle().fill(bg)
-                            Text(initial)
-                                .font(.system(size: fs, weight: .heavy))
-                                .foregroundColor(textColor)
+            if let urlString = url {
+                // Data URL → decode immediately. http URL → AsyncImage.
+                // Anything else → fallback initial.
+                if let dataImg = decodeDataURLImage(urlString) {
+                    Image(uiImage: dataImg)
+                        .resizable()
+                        .scaledToFill()
+                        .clipShape(Circle())
+                } else if let parsed = URL(string: urlString),
+                          parsed.scheme == "http" || parsed.scheme == "https" {
+                    AsyncImage(url: parsed) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                        default:
+                            ZStack {
+                                Circle().fill(bg)
+                                Text(initial)
+                                    .font(.system(size: fs, weight: .heavy))
+                                    .foregroundColor(textColor)
+                            }
                         }
                     }
+                    .clipShape(Circle())
+                } else {
+                    Circle().fill(bg)
+                    Text(initial)
+                        .font(.system(size: fs, weight: .heavy))
+                        .foregroundColor(textColor)
                 }
-                .clipShape(Circle())
             } else {
                 Circle().fill(bg)
                 Text(initial)

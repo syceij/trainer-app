@@ -85,17 +85,29 @@ struct AccountView: View {
         HStack(spacing: 16) {
             ZStack(alignment: .bottomTrailing) {
                 Group {
-                    if let url = app.currentProfile?.avatarURL,
-                       let parsed = URL(string: url) {
-                        AsyncImage(url: parsed) { phase in
-                            switch phase {
-                            case .success(let img):
-                                img.resizable().scaledToFill()
-                            default:
-                                avatarFallback
+                    if let url = app.currentProfile?.avatarURL {
+                        // Data URLs (the React-compatible format we
+                        // write from handleAvatarPick) decode locally;
+                        // http URLs go through AsyncImage as before.
+                        if let dataImg = decodeDataURLImage(url) {
+                            Image(uiImage: dataImg)
+                                .resizable()
+                                .scaledToFill()
+                                .clipShape(Circle())
+                        } else if let parsed = URL(string: url),
+                                  parsed.scheme == "http" || parsed.scheme == "https" {
+                            AsyncImage(url: parsed) { phase in
+                                switch phase {
+                                case .success(let img):
+                                    img.resizable().scaledToFill()
+                                default:
+                                    avatarFallback
+                                }
                             }
+                            .clipShape(Circle())
+                        } else {
+                            avatarFallback
                         }
-                        .clipShape(Circle())
                     } else {
                         avatarFallback
                     }
@@ -887,62 +899,94 @@ struct AccountView: View {
     /// in the `avatars` Supabase Storage bucket, then update
     /// `profile.avatar_url` and refresh the in-memory profile.
     @MainActor
+    /// Pick + persist an avatar, matching React's exact pipeline so the
+    /// web and iOS clients are 1:1 interoperable.
+    ///
+    /// React (src/components/ProfileTab.jsx:13-35):
+    ///   • scale = min(220/w, 220/h, 1) — never upscales
+    ///   • circular clip via canvas.arc + ctx.clip()
+    ///   • canvas.toDataURL('image/jpeg', 0.80)
+    ///   • result stored DIRECTLY in profiles.avatar_url as a
+    ///     "data:image/jpeg;base64,…" string. No Supabase Storage.
+    ///
+    /// Previously the iOS path uploaded to a `avatars` Storage bucket
+    /// that was never set up server-side — explained why uploads kept
+    /// failing while the React app "just worked." Matching React's
+    /// approach means zero Supabase config to maintain and both
+    /// platforms see each other's avatars immediately.
     private func handleAvatarPick(_ item: PhotosPickerItem) async {
         guard let uid = SupabaseManager.shared.currentUser?.id else { return }
         uploadingAvatar = true
         defer { uploadingAvatar = false }
 
         do {
-            // 1) Load image data
+            // 1) Load raw image data
             guard let raw = try await item.loadTransferable(type: Data.self),
                   let img = UIImage(data: raw) else {
                 app.toast = ar ? "تعذّر قراءة الصورة" : "Couldn't read image"
                 return
             }
-            // 2) Downscale to ≤ 1024px on longest side, re-encode as JPEG 75%
-            let scaled = downscale(img, max: 1024)
-            guard let jpeg = scaled.jpegData(compressionQuality: 0.75) else {
+
+            // 2) Downscale to ≤ 220px on longest side AND circle-crop.
+            //    Matches React's compressImage scale + clip step.
+            let scaled = scaleAndCircleCrop(img, maxPx: 220)
+
+            // 3) JPEG @ 0.80 quality (mirrors canvas.toDataURL second arg)
+            guard let jpeg = scaled.jpegData(compressionQuality: 0.80) else {
                 app.toast = ar ? "تعذّر ضغط الصورة" : "Couldn't compress image"
                 return
             }
-            // 3) Upload to Storage at avatars/<uid>/<timestamp>.jpg
-            let path = "\(uid.uuidString)/\(Int(Date().timeIntervalSince1970)).jpg"
-            _ = try await SupabaseManager.shared.client.storage
-                .from("avatars")
-                .upload(path,
-                        data: jpeg,
-                        options: FileOptions(contentType: "image/jpeg", upsert: true))
-            // 4) Build the public URL
-            let publicURL = try SupabaseManager.shared.client.storage
-                .from("avatars")
-                .getPublicURL(path: path)
-            // 5) Persist on the profile row + refresh local state
+
+            // 4) Build the data URL string the way browsers do for
+            //    canvas.toDataURL — "data:image/jpeg;base64,<bytes>".
+            //    A few KB per profile row at 220×220 / 0.80, which is
+            //    what React has been doing all along.
+            let dataURL = "data:image/jpeg;base64,\(jpeg.base64EncodedString())"
+
+            // 5) Persist on the profile row + refresh local state.
+            //    No Storage call, no bucket needed.
             var profile = app.currentProfile ?? Profile(
                 id: uid,
                 name: nil, username: nil, email: nil, language: nil,
                 trackedLifts: nil, trackedMuscles: nil,
                 avatarURL: nil, createdAt: nil
             )
-            profile.avatarURL = publicURL.absoluteString
+            profile.avatarURL = dataURL
             try await SupabaseManager.shared.upsertOwnProfile(profile)
             await app.loadOwnProfile()
             app.toast = ar ? "تم تحديث الصورة ✓" : "Avatar updated ✓"
         } catch {
-            print("[AccountView] avatar upload failed:", error)
-            app.toast = ar ? "تعذّر رفع الصورة" : "Upload failed"
+            print("[AccountView] avatar save failed:", error)
+            app.toast = ar ? "تعذّر حفظ الصورة" : "Photo upload failed"
         }
         avatarPick = nil
     }
 
-    private func downscale(_ img: UIImage, max maxPx: CGFloat) -> UIImage {
+    /// Scale to ≤ maxPx on the longest side AND apply a circular clip
+    /// mask. Mirrors React's canvas pipeline (scale → ctx.arc → ctx.clip
+    /// → drawImage). UIImage doesn't expose canvas-style clipping
+    /// directly, but `UIBezierPath(ovalIn:).addClip()` inside a graphics
+    /// context gives the same effect: pixels outside the circle never
+    /// get drawn, so the JPEG encoder leaves them transparent-on-black
+    /// which renders as a clean circle when displayed.
+    private func scaleAndCircleCrop(_ img: UIImage, maxPx: CGFloat) -> UIImage {
         let w = img.size.width, h = img.size.height
-        let longest = Swift.max(w, h)
-        guard longest > maxPx else { return img }
-        let scale: CGFloat = maxPx / longest
-        let size = CGSize(width: w * scale, height: h * scale)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { _ in
-            img.draw(in: CGRect(origin: .zero, size: size))
+        let scale: CGFloat = Swift.min(maxPx / w, maxPx / h, 1.0)
+        let target = CGSize(width: round(w * scale), height: round(h * scale))
+
+        let renderer = UIGraphicsImageRenderer(size: target)
+        return renderer.image { ctx in
+            // Background fill — JPEG has no alpha channel, so anywhere
+            // outside the circle gets the underlying fill colour.
+            // Black matches the app's HexTheme.bg so the avatar still
+            // reads as a clean circle on any dark UI background.
+            UIColor.black.setFill()
+            ctx.fill(CGRect(origin: .zero, size: target))
+
+            // Clip to a circle, then draw the source image inside.
+            let circle = UIBezierPath(ovalIn: CGRect(origin: .zero, size: target))
+            circle.addClip()
+            img.draw(in: CGRect(origin: .zero, size: target))
         }
     }
 }

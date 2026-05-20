@@ -206,17 +206,32 @@ struct FriendProfilePage: View {
             // friend list entry we navigated in from.
             let urlString = profile?.avatarURL ?? friend.avatarURL
             ZStack {
-                if let url = urlString.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFill()
-                        default:
-                            avatarFallback
+                if let url = urlString {
+                    // Same three-branch decode as AccountView: data
+                    // URLs decode locally, http URLs go via AsyncImage,
+                    // everything else falls through to the gradient.
+                    if let dataImg = decodeDataURLImage(url) {
+                        Image(uiImage: dataImg)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 72, height: 72)
+                            .clipShape(Circle())
+                    } else if let parsed = URL(string: url),
+                              parsed.scheme == "http" || parsed.scheme == "https" {
+                        AsyncImage(url: parsed) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFill()
+                            default:
+                                avatarFallback
+                            }
                         }
+                        .frame(width: 72, height: 72)
+                        .clipShape(Circle())
+                    } else {
+                        avatarFallback
+                            .frame(width: 72, height: 72)
                     }
-                    .frame(width: 72, height: 72)
-                    .clipShape(Circle())
                 } else {
                     avatarFallback
                         .frame(width: 72, height: 72)
