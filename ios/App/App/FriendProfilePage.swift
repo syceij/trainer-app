@@ -35,6 +35,11 @@ struct FriendProfilePage: View {
     /// it from.
     @State private var selectedFriendBadge: EarnedBadge?
 
+    /// Tapped session row in the "Recent sessions" card. Non-nil
+    /// presents the FriendSessionDetailSheet — a read-only breakdown
+    /// of the session's exercises, sets/reps, weights, RPEs, notes.
+    @State private var selectedSession: FriendSession?
+
     private var ar: Bool { app.language == "ar" }
 
     // MARK: - Body
@@ -47,6 +52,11 @@ struct FriendProfilePage: View {
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
         .task { await load() }
+        .sheet(item: $selectedSession) { session in
+            FriendSessionDetailSheet(session: session, ar: ar)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Header
@@ -445,37 +455,51 @@ struct FriendProfilePage: View {
                 .padding(.bottom, 8)
 
             ForEach(Array(sessions.prefix(5).enumerated()), id: \.element.id) { _, s in
-                HStack(spacing: 12) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(HexTheme.mute)
-                        .frame(width: 32, height: 32)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(HexTheme.surface)
-                        )
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(s.name)
-                            .font(.system(size: 13, weight: .heavy))
-                            .foregroundColor(HexTheme.text)
-                            .lineLimit(1)
-                        Text(ar
-                             ? "\(s.exercises.count) تمرين"
-                             : "\(s.exercises.count) exercise\(s.exercises.count == 1 ? "" : "s")")
-                            .font(.system(size: 11))
+                // Each row is a button that presents FriendSession-
+                // DetailSheet with the exercises / weights / RPEs from
+                // that session. We already loaded the full exercise
+                // payload in `load()`, so the sheet is instant — no
+                // extra fetch needed.
+                Button {
+                    selectedSession = s
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "dumbbell.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(HexTheme.mute)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(HexTheme.surface)
+                            )
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(s.name)
+                                .font(.system(size: 13, weight: .heavy))
+                                .foregroundColor(HexTheme.text)
+                                .lineLimit(1)
+                            Text(ar
+                                 ? "\(s.exercises.count) تمرين"
+                                 : "\(s.exercises.count) exercise\(s.exercises.count == 1 ? "" : "s")")
+                                .font(.system(size: 11))
+                                .foregroundColor(HexTheme.mute)
+                        }
+                        Spacer()
+                        Text(formatDate(s.date))
+                            .font(.system(size: 12))
+                            .foregroundColor(HexTheme.mute)
+                        Image(systemName: ar ? "chevron.left" : "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(HexTheme.mute)
                     }
-                    Spacer()
-                    Text(formatDate(s.date))
-                        .font(.system(size: 12))
-                        .foregroundColor(HexTheme.mute)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .contentShape(Rectangle())
+                    .overlay(
+                        Rectangle().fill(HexTheme.border).frame(height: 1),
+                        alignment: .top
+                    )
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 11)
-                .overlay(
-                    Rectangle().fill(HexTheme.border).frame(height: 1),
-                    alignment: .top
-                )
+                .buttonStyle(.plain)
             }
         }
         .background(
@@ -957,5 +981,189 @@ struct FriendProfilePage: View {
         w.truncatingRemainder(dividingBy: 1) == 0
             ? String(Int(w))
             : String(format: "%.1f", w)
+    }
+}
+
+// MARK: - Recent-session detail sheet
+
+/// Read-only breakdown of one of a friend's logged sessions. Presented
+/// as a sheet from FriendProfilePage when the user taps a row in the
+/// Recent Sessions card. Shows: session name + date in the header,
+/// total volume pill, then a list of every exercise with its sets,
+/// reps, weight (or BW), RPE, and notes if present.
+///
+/// No editing — friends can only ever look. Mirrors how the React
+/// side renders the same data in src/components/FriendProfilePage.jsx.
+private struct FriendSessionDetailSheet: View {
+    let session: FriendSession
+    let ar: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 12)
+
+                volumeRow
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 18)
+
+                Text(ar ? "التمارين" : "EXERCISES")
+                    .font(.system(size: 11, weight: .heavy))
+                    .kerning(ar ? 0 : 0.7)
+                    .foregroundColor(HexTheme.dim)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(session.exercises.enumerated()), id: \.offset) { idx, ex in
+                        exerciseRow(ex)
+                        if idx < session.exercises.count - 1 {
+                            Divider().background(HexTheme.border)
+                        }
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(HexTheme.surface2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(HexTheme.border, lineWidth: 1)
+                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(HexTheme.bg.ignoresSafeArea())
+    }
+
+    // MARK: - Header (name + date)
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(session.name)
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundColor(HexTheme.text)
+            Text(formattedDate(session.date))
+                .font(.system(size: 12))
+                .foregroundColor(HexTheme.mute)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Date string matching the rest of the FriendProfilePage —
+    /// "MMM d" in the user's language, Gregorian calendar pinned so
+    /// Arabic doesn't slip into Islamic Civil.
+    private func formattedDate(_ d: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: ar ? "ar_SA" : "en_GB")
+        df.calendar = Calendar(identifier: .gregorian)
+        df.dateFormat = "MMM d, yyyy"
+        return df.string(from: d)
+    }
+
+    // MARK: - Volume pill
+
+    private var volumeRow: some View {
+        let vol = session.volume
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+        nf.maximumFractionDigits = 0
+        nf.locale = Locale(identifier: "en_US_POSIX")
+        let formatted = nf.string(from: NSNumber(value: Int(vol))) ?? "\(Int(vol))"
+        return HStack(spacing: 8) {
+            Image(systemName: "scalemass.fill")
+                .font(.system(size: 12, weight: .semibold))
+            Text(ar
+                 ? "\(formatted) كجم حجم إجمالي"
+                 : "\(formatted) kg total volume")
+                .font(.system(size: 13, weight: .heavy))
+        }
+        .foregroundColor(.black)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(
+            Capsule().fill(HexTheme.accent)
+        )
+    }
+
+    // MARK: - Exercise row
+
+    @ViewBuilder
+    private func exerciseRow(_ ex: Exercise) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Name + tag pill
+            HStack(spacing: 6) {
+                if let tag = ex.tag {
+                    Text(tag.uppercased())
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundColor(tag == "compound" ? HexTheme.accent : HexTheme.mute)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(HexTheme.surface)
+                        )
+                }
+                Text(ex.name)
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundColor(HexTheme.text)
+                    .lineLimit(1)
+                Spacer()
+            }
+
+            // Stats row — sets · reps · weight · RPE
+            HStack(spacing: 14) {
+                statCell(label: ar ? "مج" : "Sets",
+                         value: "\(ex.sets)")
+                statCell(label: ar ? "عد"  : "Reps",
+                         value: ex.reps.isEmpty ? "—" : ex.reps)
+                statCell(label: ar ? "وزن" : "Weight",
+                         value: weightLabel(ex),
+                         color: (ex.weight ?? 0) > 0 ? HexTheme.accent : HexTheme.mute)
+                statCell(label: "RPE",
+                         value: ex.rpe ?? "—",
+                         color: HexTheme.dim)
+                Spacer()
+            }
+
+            // Notes (if any)
+            if let notes = ex.notes, !notes.isEmpty {
+                Text(notes)
+                    .font(.system(size: 11).italic())
+                    .foregroundColor(HexTheme.mute)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    /// Single stat cell — labelled tiny caption + bold value below.
+    /// Compact horizontal layout so the four cells fit on one row.
+    private func statCell(label: String,
+                          value: String,
+                          color: Color = HexTheme.text) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundColor(HexTheme.mute)
+            Text(value)
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundColor(color)
+        }
+    }
+
+    /// Weight rendered as "30 kg" / "BW" / fractional like "27.5 kg".
+    private func weightLabel(_ ex: Exercise) -> String {
+        guard let w = ex.weight, w > 0 else { return ar ? "وزن الجسم" : "BW" }
+        let formatted = w.truncatingRemainder(dividingBy: 1) == 0
+            ? String(Int(w))
+            : String(format: "%.1f", w)
+        return ar ? "\(formatted) كجم" : "\(formatted) kg"
     }
 }
