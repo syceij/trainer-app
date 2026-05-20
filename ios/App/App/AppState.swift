@@ -1447,6 +1447,136 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Programme day management (move / rest / delete / add)
+
+    /// Canonical Mon→Sun ordering used when re-sorting sessions after a
+    /// day change so the schedule grid stays in calendar order.
+    private static let dayOrder: [String: Int] = [
+        "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+    ]
+
+    /// Move the session at `sessionIdx` to `newDay`. If `newDay` already
+    /// has a session, the two swap days (so "Upper on Mon, Rest on Tue"
+    /// → tap Mon's session, pick Tue → Mon becomes Rest, Tue becomes
+    /// Upper). After the swap the sessions array is re-sorted Mon→Sun
+    /// so the schedule grid renders correctly.
+    func setSessionDay(weekIdx: Int, sessionIdx: Int, newDay: String) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        guard sessionIdx < week.sessions.count else { return }
+
+        let oldDay = week.sessions[sessionIdx].day
+        guard oldDay != newDay else { return }
+
+        // Swap if the target day is already occupied.
+        if let targetIdx = week.sessions.firstIndex(where: { $0.day == newDay }),
+           targetIdx != sessionIdx {
+            week.sessions[targetIdx].day = oldDay
+        }
+        week.sessions[sessionIdx].day = newDay
+        week.sessions.sort {
+            (Self.dayOrder[$0.day.lowercased()] ?? 99)
+            < (Self.dayOrder[$1.day.lowercased()] ?? 99)
+        }
+
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+        await persistProgrammeChange(programme, op: "setSessionDay")
+    }
+
+    /// Toggle a session between training and rest. Rest sessions keep
+    /// their `day` slot in the week but clear their exercises + name —
+    /// the schedule grid still shows them so the user knows the day
+    /// is intentionally a rest, not just missing.
+    func toggleSessionRest(weekIdx: Int, sessionIdx: Int) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        guard sessionIdx < week.sessions.count else { return }
+
+        var session = week.sessions[sessionIdx]
+        if session.isRest {
+            // Rest → Training. Empty session ready for the user to fill.
+            session.isRest = false
+            session.name = "Training"
+            session.exercises = []
+        } else {
+            // Training → Rest. Drop name + exercises but keep the slot.
+            session.isRest = true
+            session.name = "Rest"
+            session.exercises = []
+        }
+        week.sessions[sessionIdx] = session
+
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+        await persistProgrammeChange(programme, op: "toggleSessionRest")
+    }
+
+    /// Delete a session entirely (vs. converting to rest, which keeps
+    /// the slot). The day becomes "missing" in the schedule grid.
+    func deleteSession(weekIdx: Int, sessionIdx: Int) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        guard sessionIdx < week.sessions.count else { return }
+
+        week.sessions.remove(at: sessionIdx)
+
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+        await persistProgrammeChange(programme, op: "deleteSession")
+    }
+
+    /// Add a new (empty) training session on the given day. No-op if a
+    /// session already exists for that day — caller is expected to
+    /// gate the menu to unused days only.
+    func addSession(weekIdx: Int, day: String) async {
+        guard var programme = activeProgramme,
+              var data = programme.data,
+              weekIdx < data.weeks.count else { return }
+        var week = data.weeks[weekIdx]
+        if week.sessions.contains(where: { $0.day == day }) { return }
+
+        let newSession = ProgrammeSession(
+            day:       day,
+            name:      "Training",
+            exercises: [],
+            focus:     nil,
+            block:     nil,
+            isRest:    false
+        )
+        week.sessions.append(newSession)
+        week.sessions.sort {
+            (Self.dayOrder[$0.day.lowercased()] ?? 99)
+            < (Self.dayOrder[$1.day.lowercased()] ?? 99)
+        }
+
+        data.weeks[weekIdx] = week
+        programme.data = data
+        activeProgramme = programme
+        await persistProgrammeChange(programme, op: "addSession")
+    }
+
+    /// Common tail for the four mutators above: persist the updated
+    /// programme to Supabase and log on failure. Kept silent on success
+    /// so the user doesn't get a toast on every micro-edit.
+    private func persistProgrammeChange(_ programme: Programme,
+                                        op: String) async {
+        do {
+            try await SupabaseManager.shared.upsertProgramme(programme)
+        } catch {
+            print("[AppState] \(op) persist failed:", error)
+        }
+    }
+
     /// Pick today's session from the active programme and stage it as
     /// `currentSession`, ready to be logged on the Train tab. Mirrors
     /// React's `sessionForTodayImported` + auto-mode fallback:

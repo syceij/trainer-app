@@ -236,6 +236,13 @@ struct ProgrammePage: View {
                             weekIdx: 0,
                             sessionIdx: idx)
             }
+
+            // "+ Add training day" button. Shows only if at least one
+            // weekday isn't already in the sessions list — otherwise
+            // there's nothing meaningful to add.
+            if !availableDays(in: week).isEmpty {
+                addDayButton(weekIdx: 0, week: week)
+            }
         }
 
         Text(ar
@@ -351,6 +358,12 @@ struct ProgrammePage: View {
                             isToday: session.name == app.currentSession?.name,
                             weekIdx: activeWeekIdxForOverview,
                             sessionIdx: idx)
+            }
+
+            // Add-day button for imported mode (per-week — the menu
+            // adds the new training day to the currently visible week).
+            if !availableDays(in: activeWeek).isEmpty {
+                addDayButton(weekIdx: activeWeekIdxForOverview, week: activeWeek)
             }
         }
 
@@ -475,6 +488,12 @@ struct ProgrammePage: View {
                             .foregroundColor(HexTheme.mute)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+
+                    // Day-management menu — three-dot button. Move, toggle
+                    // rest, delete. Placed before the expand chevron so
+                    // it's reachable without expanding the card first.
+                    dayMenu(session: session, weekIdx: weekIdx, sessionIdx: sessionIdx)
+                        .padding(.top, 4)
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 13, weight: .semibold))
@@ -839,6 +858,132 @@ struct ProgrammePage: View {
             "5":"٥","6":"٦","7":"٧","8":"٨","9":"٩",
         ]
         return String(String(n).map { map[$0] ?? $0 })
+    }
+
+    // MARK: - Day management UI
+
+    /// Mon→Sun ordering used to render menu items in calendar order
+    /// (the underlying session array also keeps this order — see
+    /// AppState.dayOrder).
+    private static let weekdayKeys: [String] = ["mon","tue","wed","thu","fri","sat","sun"]
+
+    /// Localised long-form weekday label for menu rows + the
+    /// "Add training day" sheet.
+    private func dayLabel(_ key: String) -> String {
+        let i = ProgrammePage.weekdayKeys.firstIndex(of: key.lowercased()) ?? 0
+        let en = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+        let arr = ["الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت","الأحد"]
+        return ar ? arr[i] : en[i]
+    }
+
+    /// Weekdays NOT currently in `week.sessions` — feeds the
+    /// "Add training day" menu so the user can only pick empty slots.
+    private func availableDays(in week: ProgrammeWeek) -> [String] {
+        let taken = Set(week.sessions.map { $0.day.lowercased() })
+        return ProgrammePage.weekdayKeys.filter { !taken.contains($0) }
+    }
+
+    /// Three-dot menu on each session card. Lets the user move the
+    /// session to another weekday (swaps if occupied), toggle rest,
+    /// or delete the day entirely. Held inside its own button so
+    /// tapping the dots doesn't also trigger the expand/collapse on
+    /// the outer card.
+    @ViewBuilder
+    private func dayMenu(session: ProgrammeSession,
+                         weekIdx: Int,
+                         sessionIdx: Int) -> some View {
+        Menu {
+            // Move to: every weekday OTHER than this session's current
+            // day. Tapping an occupied day will swap the two sessions.
+            Section(ar ? "نقل إلى" : "Move to") {
+                ForEach(ProgrammePage.weekdayKeys, id: \.self) { key in
+                    if key != session.day.lowercased() {
+                        Button(dayLabel(key)) {
+                            Task {
+                                await app.setSessionDay(
+                                    weekIdx: weekIdx,
+                                    sessionIdx: sessionIdx,
+                                    newDay: key
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Convert rest ⇄ training.
+            Button {
+                Task {
+                    await app.toggleSessionRest(
+                        weekIdx: weekIdx,
+                        sessionIdx: sessionIdx
+                    )
+                }
+            } label: {
+                if session.isRest {
+                    Label(ar ? "تحويل إلى يوم تدريب" : "Convert to training day",
+                          systemImage: "figure.strengthtraining.traditional")
+                } else {
+                    Label(ar ? "تحويل إلى يوم راحة" : "Convert to rest day",
+                          systemImage: "moon.fill")
+                }
+            }
+
+            // Delete entirely. Destructive role so iOS renders the row
+            // in red and adds a slight haptic on confirm.
+            Button(role: .destructive) {
+                Task {
+                    await app.deleteSession(
+                        weekIdx: weekIdx,
+                        sessionIdx: sessionIdx
+                    )
+                }
+            } label: {
+                Label(ar ? "حذف اليوم" : "Delete day",
+                      systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 14, weight: .heavy))
+                .foregroundColor(HexTheme.mute)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// "+ Add training day" CTA at the bottom of the sessions list.
+    /// Wraps a Menu of available weekdays — tapping one creates an
+    /// empty session for that day (user can then expand it to add
+    /// exercises via the existing swap flow).
+    @ViewBuilder
+    private func addDayButton(weekIdx: Int, week: ProgrammeWeek) -> some View {
+        Menu {
+            ForEach(availableDays(in: week), id: \.self) { key in
+                Button(dayLabel(key)) {
+                    Task {
+                        await app.addSession(weekIdx: weekIdx, day: key)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text(ar ? "إضافة يوم تدريب" : "Add training day")
+                    .font(.system(size: 14, weight: .heavy))
+                Spacer()
+            }
+            .foregroundColor(HexTheme.accent)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(HexTheme.accent.opacity(0.45),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            )
+        }
     }
 }
 
