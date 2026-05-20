@@ -873,6 +873,9 @@ struct ProfileView: View {
     private static func formattedMonthYear(for date: Date, ar: Bool) -> String {
         let df = DateFormatter()
         df.locale = Locale(identifier: ar ? "ar" : "en")
+        // Pin Gregorian — without this, Arabic locale defaulted to
+        // Islamic Civil and produced "ذو الحجة 2026" for May 2026.
+        df.calendar = Calendar(identifier: .gregorian)
         df.dateFormat = "MMMM yyyy"
         return df.string(from: date).uppercased()
     }
@@ -996,10 +999,17 @@ struct EarnedBadgeDetailView: View {
     private var dateDetail: String {
         let df = DateFormatter()
         df.locale = Locale(identifier: ar ? "ar" : "en")
+        // Both formatters get Gregorian pinned explicitly. The
+        // absolute DateFormatter needs it because Arabic locale
+        // defaults to Islamic Civil; the RelativeDateTimeFormatter
+        // needs it for the same reason when computing month
+        // boundaries (e.g. "last month" vs "this month").
+        df.calendar = Calendar(identifier: .gregorian)
         df.dateStyle = .medium
         let abs = df.string(from: badge.earnedAt)
         let rel = RelativeDateTimeFormatter()
         rel.locale = Locale(identifier: ar ? "ar" : "en")
+        rel.calendar = Calendar(identifier: .gregorian)
         rel.unitsStyle = .full
         let relText = rel.localizedString(for: badge.earnedAt, relativeTo: Date())
         return ar ? "\(abs) · \(relText)" : "\(abs) · \(relText)"

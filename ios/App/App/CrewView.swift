@@ -496,7 +496,22 @@ struct CrewView: View {
         case "session_completed":
             let vol = item.doubleField("volume") ?? 0
             let name = item.stringField("session_name") ?? (ar ? "جلسة" : "a session")
-            let volStr = vol > 0 ? " · \(Int(vol)) kg" : ""
+            // Volume = sum of (weight × reps) across every completed
+            // set — standard strength-training "tonnage" metric.
+            // Format with thousands separator (matches React's
+            // toLocaleString) so big numbers read cleanly: "5,250 kg"
+            // not "5250 kg". Uses Gregorian/en_US locale on the
+            // number formatter so the comma stays as a comma even
+            // when the rest of the UI is Arabic.
+            let volStr: String = {
+                guard vol > 0 else { return "" }
+                let nf = NumberFormatter()
+                nf.numberStyle = .decimal
+                nf.maximumFractionDigits = 0
+                nf.locale = Locale(identifier: "en_US_POSIX")
+                let formatted = nf.string(from: NSNumber(value: Int(vol))) ?? "\(Int(vol))"
+                return " · \(formatted) \(ar ? "كجم" : "kg")"
+            }()
             return ar ? "أتم \"\(name)\"\(volStr)" : "completed \"\(name)\"\(volStr)"
         case "new_pr":
             let ex = item.stringField("exercise_name") ?? (ar ? "تمرين" : "an exercise")
@@ -518,6 +533,11 @@ struct CrewView: View {
         if diff < 86_400 { return ar ? "منذ \(Int(diff/3600))س" : "\(Int(diff/3600))h ago" }
         let df = DateFormatter()
         df.locale = Locale(identifier: ar ? "ar_SA" : "en_GB")
+        // Pin to Gregorian so the Arabic locale doesn't default to
+        // Islamic Civil (which produced "ذو الحجة ٣" for May 2026).
+        // Localised month names still get rendered in Arabic — just
+        // from the Gregorian calendar, e.g. "مايو ٣".
+        df.calendar = Calendar(identifier: .gregorian)
         df.dateFormat = "MMM d"
         return df.string(from: date)
     }

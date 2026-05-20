@@ -380,6 +380,8 @@ struct FriendProfilePage: View {
     private static func formattedMonthYear(for date: Date, ar: Bool) -> String {
         let df = DateFormatter()
         df.locale = Locale(identifier: ar ? "ar" : "en")
+        // Force Gregorian so Arabic doesn't slip into Islamic Civil.
+        df.calendar = Calendar(identifier: .gregorian)
         df.dateFormat = "MMMM yyyy"
         return df.string(from: date).uppercased()
     }
@@ -943,6 +945,10 @@ struct FriendProfilePage: View {
     private func formatDate(_ d: Date) -> String {
         let df = DateFormatter()
         df.locale = Locale(identifier: ar ? "ar_SA" : "en_GB")
+        // Force Gregorian. Without this, ar_SA defaulted to Islamic
+        // Civil — that's how recent-session dates were rendering as
+        // "ذو الحجة ٣" (Dhu al-Hijjah 3) instead of Gregorian May 3.
+        df.calendar = Calendar(identifier: .gregorian)
         df.dateFormat = "MMM d"
         return df.string(from: d)
     }
