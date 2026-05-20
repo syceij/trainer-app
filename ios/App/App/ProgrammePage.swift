@@ -864,17 +864,9 @@ struct ProgrammePage: View {
 
     /// Mon→Sun ordering used to render menu items in calendar order
     /// (the underlying session array also keeps this order — see
-    /// AppState.dayOrder).
+    /// AppState.dayOrder). dayLabel(_:) already exists at line ~380
+    /// — reused here for the menu rows.
     private static let weekdayKeys: [String] = ["mon","tue","wed","thu","fri","sat","sun"]
-
-    /// Localised long-form weekday label for menu rows + the
-    /// "Add training day" sheet.
-    private func dayLabel(_ key: String) -> String {
-        let i = ProgrammePage.weekdayKeys.firstIndex(of: key.lowercased()) ?? 0
-        let en = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-        let arr = ["الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت","الأحد"]
-        return ar ? arr[i] : en[i]
-    }
 
     /// Weekdays NOT currently in `week.sessions` — feeds the
     /// "Add training day" menu so the user can only pick empty slots.
