@@ -605,18 +605,28 @@ struct ProgrammePage: View {
                     save(weekIdx, sessionIdx, exerciseIdx, .reps, $0)
                 }
 
-                // Weight is only shown when the exercise has a numeric
-                // working weight; bodyweight moves hide this column
-                // entirely (matches React's `if (!ex.bodyweight)` gate).
-                if let w = ex.weight, w > 0 {
-                    editableCell(label: ar ? "وزن" : "Weight",
-                                 value: formatWeight(w),
-                                 kind: .number,
-                                 suffix: "kg",
-                                 valueColor: HexTheme.accent,
-                                 editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "weight")) {
-                        save(weekIdx, sessionIdx, exerciseIdx, .weight, $0)
-                    }
+                // Weight cell — always rendered now, regardless of the
+                // exercise's tag. Bodyweight moves show "BW" with the
+                // kg suffix hidden, so users can flip an exercise from
+                // BW → loaded (by typing a number) or back to BW (by
+                // clearing the field). Earlier builds gated this on
+                // `if let w = ex.weight, w > 0`, which meant exercises
+                // like Leg Press / Leg Extension imported with a
+                // missing weight column had no way to set one — the
+                // cell never appeared.
+                let hasWeight = (ex.weight ?? 0) > 0
+                editableCell(
+                    label: ar ? "وزن" : "Weight",
+                    value: hasWeight
+                        ? formatWeight(ex.weight!)
+                        : (ar ? "وزن الجسم" : "BW"),
+                    kind: .number,
+                    placeholder: ar ? "وزن الجسم" : "BW",
+                    suffix: hasWeight ? "kg" : nil,
+                    valueColor: hasWeight ? HexTheme.accent : HexTheme.mute,
+                    editKey: editKey(weekIdx, sessionIdx, exerciseIdx, "weight")
+                ) {
+                    save(weekIdx, sessionIdx, exerciseIdx, .weight, $0)
                 }
 
                 editableCell(label: "RPE",

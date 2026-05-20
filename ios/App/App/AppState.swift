@@ -1327,11 +1327,20 @@ final class AppState: ObservableObject {
         case .reps:
             ex.reps = value
         case .weight:
+            // Empty / "bw" / "bodyweight" / "0" → switch to bodyweight
+            // (nil). A non-zero number → set as the working weight.
+            // Anything else → leave unchanged so a typo doesn't blow
+            // away a valid weight.
             let trimmed = value.trimmingCharacters(in: .whitespaces).lowercased()
-            if trimmed == "bw" || trimmed == "bodyweight" {
+            if trimmed.isEmpty
+                || trimmed == "bw"
+                || trimmed == "bodyweight"
+                || trimmed == "وزن الجسم" {
                 ex.weight = nil
-            } else if let w = Double(trimmed) {
+            } else if let w = Double(trimmed), w > 0 {
                 ex.weight = w
+            } else if let w = Double(trimmed), w == 0 {
+                ex.weight = nil
             }
         case .rpe:
             ex.rpe = value.isEmpty ? nil : value
