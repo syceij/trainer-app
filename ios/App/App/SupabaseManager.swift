@@ -284,21 +284,33 @@ final class SupabaseManager {
             .execute()
     }
 
-    /// Reset all user data, then sign out. We can't delete the auth.users
-    /// row from the client — that requires a service-role key — so account
-    /// deletion is "wipe data + sign out + tell the user to email support
-    /// for full account removal".
+    /// Delete the user's account FOR REAL — wipes public-schema data
+    /// AND nukes the auth.users row, freeing up the email for future
+    /// reuse.
+    ///
+    /// The auth.users delete can't run from a client session (the row
+    /// is protected). Instead we call a Postgres RPC,
+    /// `public.delete_current_user()`, which is SECURITY DEFINER:
+    /// it runs as `postgres` so it can hit auth.users, but its body
+    /// scopes everything to `auth.uid()` — meaning a caller can only
+    /// ever delete themselves, never another user. See migration
+    /// 2026-05-20-delete-current-user-rpc.sql for the function body.
     func deleteOwnAccount() async throws {
-        try await resetUserData()
-        // Also clear the profile row entirely so re-signin doesn't bring
-        // back the username / name.
-        if let uid = currentUser?.id {
-            _ = try? await client
-                .from("profiles")
-                .delete()
-                .eq("id", value: uid)
-                .execute()
-        }
+        // Belt-and-suspenders: best-effort wipe of public-schema rows
+        // BEFORE calling the RPC. The RPC also wipes them, but doing
+        // it from the client side first means if the RPC fails, the
+        // user's data is at least mostly gone (recoverable via
+        // dashboard re-create rather than a stale account stuck
+        // around with workouts in it).
+        try? await resetUserData()
+
+        // The RPC drops everything including auth.users. Token is
+        // dead after this returns — the signOut below is just for
+        // clearing local state.
+        _ = try await client
+            .rpc("delete_current_user")
+            .execute()
+
         try await signOut()
     }
 

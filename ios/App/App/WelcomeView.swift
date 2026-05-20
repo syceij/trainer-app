@@ -16,7 +16,15 @@ struct WelcomeView: View {
             ZStack(alignment: .topTrailing) {
                 HStack {
                     Spacer()
-                    Image("HexLogo")
+                    // LoadingLogo is the white-on-transparent dumbbell
+                    // (same asset the splash uses). HexLogo can't be
+                    // used here — it ships as the dumbbell on an opaque
+                    // black square, so `.renderingMode(.template)` tints
+                    // the whole rectangle accent-colour, giving a flat
+                    // cream square. LoadingLogo's transparent pixels
+                    // stay transparent under template rendering, so
+                    // only the dumbbell shape recolours.
+                    Image("LoadingLogo")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
