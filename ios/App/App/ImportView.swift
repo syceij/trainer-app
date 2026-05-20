@@ -273,43 +273,30 @@ struct ImportView: View {
 
     // MARK: - Action buttons
 
+    /// Single primary CTA — tap once, the handler validates inline
+    /// then imports if the JSON parses cleanly. Earlier builds had a
+    /// separate "Validate" button next to this one, but the layout
+    /// collapsed it to near-zero width (the Import side had
+    /// `.layoutPriority(1)`, starving Validate of HStack space) and
+    /// users couldn't find it. The two-button split was a React port
+    /// — React renders them side-by-side fine, SwiftUI fights it.
+    /// Folding validate into import is the cleaner mobile UX anyway.
     private var actionButtons: some View {
-        HStack(spacing: 10) {
-            // Validate (secondary)
-            Button { tryValidate() } label: {
-                Text(ar ? "التحقق" : "Validate")
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(HexTheme.text)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(HexTheme.surface2)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(HexTheme.border, lineWidth: 1.5)
-                    )
-            }
-            .buttonStyle(.plain)
+        let canTap = !json.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-            // Import & start (primary, disabled until validated)
-            Button { doImport() } label: {
-                Text(ar ? "← استيراد والبدء" : "Import & start →")
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(hasValidated ? .black : HexTheme.mute)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(hasValidated ? HexTheme.accent : HexTheme.surface2)
-                    )
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasValidated)
-            // Give the import button slightly more visual weight (~1.5x flex)
-            .layoutPriority(1)
+        return Button { validateAndImport() } label: {
+            Text(ar ? "← استيراد والبدء" : "Import & start →")
+                .font(.system(size: 14, weight: .heavy))
+                .foregroundColor(canTap ? .black : HexTheme.mute)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(canTap ? HexTheme.accent : HexTheme.surface2)
+                )
         }
+        .buttonStyle(.plain)
+        .disabled(!canTap)
     }
 
     // MARK: - Actions
@@ -330,8 +317,14 @@ struct ImportView: View {
         validatedData = nil
     }
 
-    private func tryValidate() {
-        // 1) JSON parse check
+    /// Single-tap import: parses JSON, runs the full schema validator
+    /// (port of validateImported in importHelpers.js), and if everything
+    /// checks out, hands the data off to AppState.enterAppWithImport.
+    /// On any error (parse fail OR schema fail), populates the inline
+    /// error panel so the user can see what's wrong and fix it without
+    /// the import actually happening.
+    private func validateAndImport() {
+        // 1) JSON parse
         guard let bytes = json.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any]
         else {
@@ -340,18 +333,21 @@ struct ImportView: View {
                 : "Invalid JSON — check for missing commas, brackets, or quotes"]
             validProgrammeName = nil
             validatedData = nil
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             return
         }
 
-        // 2) Full schema check — port of validateImported in importHelpers.js.
+        // 2) Schema validation
         let errs = ImportHelpers.validateImported(parsed)
         if !errs.isEmpty {
             errors = errs
             validProgrammeName = nil
             validatedData = nil
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             return
         }
 
+        // 3) Valid — populate the success panel and import
         errors = nil
         validProgrammeName = parsed["name"] as? String
         let weeks = parsed["weeks"] as? [[String: Any]] ?? []
@@ -359,13 +355,10 @@ struct ImportView: View {
         let firstSessions = (weeks.first?["sessions"] as? [[String: Any]]) ?? []
         validSessionsPerWeek = firstSessions.filter { ($0["isRest"] as? Bool) != true }.count
         validatedData = parsed
-    }
 
-    private func doImport() {
-        guard let data = validatedData else { return }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task {
-            await app.enterAppWithImport(data)
+            await app.enterAppWithImport(parsed)
             await MainActor.run { dismiss() }
         }
     }
