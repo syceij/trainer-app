@@ -856,7 +856,7 @@ struct LeagueInviteSheet: View {
             // Notify the invitee. Best-effort. Look up the league name
             // from the freshly-reloaded myLeagues — we just inserted as
             // admin so the league is guaranteed in the list.
-            let leagueName = app.myLeagues.first { $0.id == leagueId }?.name
+            let leagueName = app.myLeagues.first { $0.id == leagueId }?.league.name
                 ?? (ar ? "دوريك" : "a league")
             let me = app.currentProfile?.name
                 ?? app.currentProfile?.username
