@@ -88,6 +88,14 @@ struct CrewView: View {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(HexTheme.surface)
                     )
+                    // Clip child content (incl. the "me" indicator bar
+                    // each row draws on its leading edge) to the same
+                    // rounded shape as the background. Without this the
+                    // bar paints past the top/bottom rounded corners,
+                    // visible as a yellow tab sticking out of the card.
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(HexTheme.border, lineWidth: 1)
