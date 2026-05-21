@@ -25,6 +25,12 @@ struct AccountView: View {
     @State private var editingName = false
     @State private var nameDraft   = ""
 
+    // Notification toggles — loaded on view appear, written back to
+    // profiles.notification_prefs on each flip. Missing keys are
+    // treated as "ON" by the Edge Function, so the toggles default
+    // to the on position for a brand-new user.
+    @State private var notifPrefs: [String: Bool] = [:]
+
     private var ar: Bool { app.language == "ar" }
 
     var body: some View {
@@ -41,6 +47,10 @@ struct AccountView: View {
                 // ── Preferences section ──────────────────────────
                 sectionTitle(ar ? "التفضيلات" : "PREFERENCES").padding(.bottom, 10)
                 preferencesSection.padding(.bottom, 24)
+
+                // ── Notifications section ────────────────────────
+                sectionTitle(ar ? "الإشعارات" : "NOTIFICATIONS").padding(.bottom, 10)
+                notificationsSection.padding(.bottom, 24)
 
                 // ── PT shortcut ──────────────────────────────────
                 sectionTitle(ar ? "المدرب" : "COACHING").padding(.bottom, 10)
@@ -69,6 +79,14 @@ struct AccountView: View {
         }
         .background(HexTheme.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .task {
+            // Load notification toggles from the DB on first appear.
+            // If the column is unset / null, we get an empty dict —
+            // which the toggle bindings treat as "all on" (default).
+            if let prefs = try? await SupabaseManager.shared.fetchNotificationPrefs() {
+                notifPrefs = prefs
+            }
+        }
         .confirmationDialog(ar ? "تسجيل الخروج؟" : "Sign out?",
                             isPresented: $showSignOutConfirm,
                             titleVisibility: .visible) {
@@ -204,6 +222,110 @@ struct AccountView: View {
             .environmentObject(app)
             .presentationDetents([.height(220)])
         }
+    }
+
+    // MARK: - Notifications section
+
+    /// 5 toggles for the notification categories. Each writes back to
+    /// profiles.notification_prefs immediately on flip — no save button.
+    /// Missing keys default to "ON" (matches the Edge Function's logic).
+    private var notificationsSection: some View {
+        VStack(spacing: 0) {
+            notificationToggleRow(
+                key:      .friends,
+                icon:     "person.2.fill",
+                title:    ar ? "طلبات الأصدقاء والقبول" : "Friend requests & accepts",
+                subtitle: ar
+                    ? "عندما يرسل شخص طلب أو يقبل طلبك"
+                    : "When someone sends or accepts a request"
+            )
+            Divider().background(HexTheme.border).padding(.leading, 64)
+            notificationToggleRow(
+                key:      .leagues,
+                icon:     "trophy.fill",
+                title:    ar ? "دعوات الدوريات" : "League invites",
+                subtitle: ar
+                    ? "عندما يدعوك صديق لدوريه"
+                    : "When a friend invites you to their league"
+            )
+            Divider().background(HexTheme.border).padding(.leading, 64)
+            notificationToggleRow(
+                key:      .friend_sessions,
+                icon:     "figure.strengthtraining.traditional",
+                title:    ar ? "جلسات الأصدقاء" : "Friend sessions",
+                subtitle: ar
+                    ? "عندما يكمل صديق جلسة تدريب"
+                    : "When a bro completes a workout"
+            )
+            Divider().background(HexTheme.border).padding(.leading, 64)
+            notificationToggleRow(
+                key:      .friend_badges,
+                icon:     "star.fill",
+                title:    ar ? "شارات الأصدقاء" : "Friend badges",
+                subtitle: ar
+                    ? "عندما يحصل صديق على شارة جديدة"
+                    : "When a bro earns a new badge"
+            )
+            Divider().background(HexTheme.border).padding(.leading, 64)
+            notificationToggleRow(
+                key:      .monthly_leaderboard,
+                icon:     "chart.bar.fill",
+                title:    ar ? "نتيجة الشهر" : "Monthly result",
+                subtitle: ar
+                    ? "ترتيبك في نهاية كل شهر"
+                    : "Your rank at the end of each month",
+                isLast:   true
+            )
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(HexTheme.surface2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(HexTheme.border, lineWidth: 1)
+        )
+    }
+
+    /// Single toggle row — icon box + title/subtitle + Toggle. The
+    /// binding writes through to Supabase on flip; UI updates
+    /// optimistically so toggles feel responsive even on slow networks.
+    @ViewBuilder
+    private func notificationToggleRow(
+        key: SupabaseManager.NotificationPrefKey,
+        icon: String,
+        title: String,
+        subtitle: String,
+        isLast: Bool = false
+    ) -> some View {
+        let isOn = Binding<Bool>(
+            // Missing key = ON. Explicit false = OFF.
+            get: { notifPrefs[key.rawValue] != false },
+            set: { newValue in
+                notifPrefs[key.rawValue] = newValue
+                Task {
+                    try? await SupabaseManager.shared.setNotificationPref(key, enabled: newValue)
+                }
+            }
+        )
+        HStack(spacing: 14) {
+            iconBox(name: icon, accent: false)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(HexTheme.text)
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundColor(HexTheme.mute)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(HexTheme.accent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
     }
 
     // MARK: - Preferences section

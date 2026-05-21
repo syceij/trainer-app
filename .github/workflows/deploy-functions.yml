@@ -1,0 +1,54 @@
+name: Deploy Supabase Functions
+
+# Runs whenever anything inside supabase/functions/ changes — does NOT
+# rebuild the iOS app, so it's fast (~30s vs 4 min for the iOS build).
+# Pushes that touch only Swift code skip this workflow entirely.
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-functions.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Sync the APNs secrets to Supabase. Done on every deploy so a
+      # rotated key in GitHub Secrets propagates automatically — no
+      # manual `supabase secrets set` step needed when rotating.
+      - name: Set function secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          APNS_AUTH_KEY:         ${{ secrets.APNS_AUTH_KEY }}
+          APNS_KEY_ID:           ${{ secrets.APNS_KEY_ID }}
+          APNS_TEAM_ID:          ${{ secrets.APNS_TEAM_ID }}
+          PROJECT_REF:           ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          supabase secrets set \
+            APNS_AUTH_KEY="$APNS_AUTH_KEY" \
+            APNS_KEY_ID="$APNS_KEY_ID" \
+            APNS_TEAM_ID="$APNS_TEAM_ID" \
+            --project-ref "$PROJECT_REF"
+
+      - name: Deploy send-push function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF:           ${{ secrets.SUPABASE_PROJECT_REF }}
+        # --no-verify-jwt because the Edge Function is invoked
+        # server-to-server with the SUPABASE_SERVICE_ROLE_KEY (or via
+        # the client SDK with an auth token, validated inside the
+        # function itself when needed). For HEX's use case — server-
+        # triggered pushes — we don't want Supabase's middleware
+        # rejecting requests that lack a user JWT.
+        run: |
+          supabase functions deploy send-push \
+            --no-verify-jwt \
+            --project-ref "$PROJECT_REF"

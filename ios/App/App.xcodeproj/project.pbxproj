@@ -78,6 +78,9 @@
 		B1A2C3D400000000003D0001 /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D400000000003D0002 /* Badges.swift */; };
 		B1A2C3D400000000003E0001 /* SupabaseManager+Leagues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D400000000003E0002 /* SupabaseManager+Leagues.swift */; };
 		B1A2C3D400000000003F0001 /* LeagueViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D400000000003F0002 /* LeagueViews.swift */; };
+		B1A2C3D40000000000400001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000400002 /* AppDelegate.swift */; };
+		B1A2C3D40000000000410001 /* PushService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000410002 /* PushService.swift */; };
+		B1A2C3D40000000000420001 /* SupabaseManager+Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D40000000000420002 /* SupabaseManager+Push.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -166,6 +169,9 @@
 		B1A2C3D400000000003D0002 /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Badges.swift; sourceTree = "<group>"; };
 		B1A2C3D400000000003E0002 /* SupabaseManager+Leagues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+Leagues.swift"; sourceTree = "<group>"; };
 		B1A2C3D400000000003F0002 /* LeagueViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueViews.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000400002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000410002 /* PushService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushService.swift; sourceTree = "<group>"; };
+		B1A2C3D40000000000420002 /* SupabaseManager+Push.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+Push.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -251,6 +257,9 @@
 				B1A2C3D400000000003D0002 /* Badges.swift */,
 				B1A2C3D400000000003E0002 /* SupabaseManager+Leagues.swift */,
 				B1A2C3D400000000003F0002 /* LeagueViews.swift */,
+				B1A2C3D40000000000400002 /* AppDelegate.swift */,
+				B1A2C3D40000000000410002 /* PushService.swift */,
+				B1A2C3D40000000000420002 /* SupabaseManager+Push.swift */,
 				AABB0001CCDD0001EEFF0001 /* WorkoutActivityAttributes.swift */,
 				AABB0050CCDD0050EEFF0050 /* ToggleSetIntent.swift */,
 				AABB0061CCDD0061EEFF0061 /* ThmanyahSans-Bold.ttf */,
@@ -457,6 +466,9 @@
 				B1A2C3D400000000003D0001 /* Badges.swift in Sources */,
 				B1A2C3D400000000003E0001 /* SupabaseManager+Leagues.swift in Sources */,
 				B1A2C3D400000000003F0001 /* LeagueViews.swift in Sources */,
+				B1A2C3D40000000000400001 /* AppDelegate.swift in Sources */,
+				B1A2C3D40000000000410001 /* PushService.swift in Sources */,
+				B1A2C3D40000000000420001 /* SupabaseManager+Push.swift in Sources */,
 				AABB0002CCDD0002EEFF0002 /* WorkoutActivityAttributes.swift in Sources */,
 				AABB0051CCDD0051EEFF0051 /* ToggleSetIntent.swift in Sources */,
 			);

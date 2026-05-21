@@ -488,6 +488,12 @@ final class AppState: ObservableObject {
             // BEFORE flipping the UI into the signed-in state.
             await loadUserData()
             authPhase = .signedIn
+            // Re-register for remote notifications if the user
+            // previously granted permission. Covers reinstalls + token
+            // rotation. Also replays any device token that arrived
+            // before the auth session was restored.
+            await PushService.shared.reregisterIfPermitted()
+            await PushService.shared.uploadCachedTokenIfAny()
         } catch {
             authPhase = .signedOut
         }
@@ -700,6 +706,18 @@ final class AppState: ObservableObject {
         do {
             try await SupabaseManager.shared.sendFriendRequest(toUserId: uid)
             toast = language == "ar" ? "تم إرسال طلب الصداقة ✓" : "Friend request sent ✓"
+            // Notify the recipient. Best-effort — never blocks success.
+            let me = currentProfile?.name
+                ?? currentProfile?.username
+                ?? (language == "ar" ? "شخص ما" : "Someone")
+            await SupabaseManager.shared.sendPush(
+                toUserIds: [uid],
+                category:  "friend_request",
+                title:     language == "ar" ? "طلب صداقة جديد" : "New friend request",
+                body:      language == "ar"
+                    ? "\(me) يريد أن يصبح صديقك"
+                    : "\(me) wants to be your bro"
+            )
         } catch {
             print("[AppState] sendFriendRequest failed:", error)
             toast = language == "ar" ? "تعذّر إرسال الطلب" : "Couldn't send request"
@@ -722,6 +740,19 @@ final class AppState: ObservableObject {
                     leaderboardData: nil
                 ))
                 rebuildLeaderboard()
+                // Tell the requester their request was accepted. Skipped
+                // on decline — declining a request silently is kinder.
+                let me = currentProfile?.name
+                    ?? currentProfile?.username
+                    ?? (language == "ar" ? "صديقك الجديد" : "your new bro")
+                await SupabaseManager.shared.sendPush(
+                    toUserIds: [req.userId],
+                    category:  "friend_accepted",
+                    title:     language == "ar" ? "تم قبول طلبك 🤝" : "Request accepted 🤝",
+                    body:      language == "ar"
+                        ? "\(me) قبل طلب الصداقة"
+                        : "\(me) accepted your bro request"
+                )
             }
         } catch {
             print("[AppState] respondToRequest failed:", error)
@@ -789,6 +820,10 @@ final class AppState: ObservableObject {
         // zero-state flash on returning users.
         await loadUserData()
         authPhase = .signedIn
+        // Re-register push token now that we know the user — handles
+        // sign-in on a fresh device, account switch, etc.
+        await PushService.shared.reregisterIfPermitted()
+        await PushService.shared.uploadCachedTokenIfAny()
     }
 
     enum AuthError: LocalizedError {
@@ -850,6 +885,10 @@ final class AppState: ObservableObject {
         // but it keeps the auth → main-app transition smooth.
         await loadUserData()
         authPhase = .signedIn
+        // Brand-new account just verified OTP. We DON'T ask for push
+        // permission here — that's deferred until the user finishes
+        // their first session (better acceptance rate). Token will be
+        // requested at that point.
     }
 
     func resendOTP(email: String) async throws {
@@ -864,6 +903,13 @@ final class AppState: ObservableObject {
 
     func signOut() async {
         await realtimeSync.stop()
+        // Drop this device's push token first — otherwise the phone
+        // keeps receiving notifications addressed to the previous user
+        // until they sign in again. Best-effort; failure is fine.
+        if let token = UserDefaults.standard.string(forKey: "last_apns_token") {
+            await SupabaseManager.shared.deletePushDevice(token: token)
+            UserDefaults.standard.removeObject(forKey: "last_apns_token")
+        }
         try? await SupabaseManager.shared.signOut()
         currentProfile = nil
         activeProgramme = nil
@@ -1205,6 +1251,33 @@ final class AppState: ObservableObject {
                 "exercises":    session.data?.exercises.count ?? 0,
             ]
         )
+
+        // Ask for push permission now if we haven't yet. This is the
+        // best moment in the app — the user just finished their first
+        // session, dopamine is high, they're bought in. iOS only shows
+        // the dialog once per install, so PushService.requestPermissionIfNeeded
+        // no-ops on subsequent saves.
+        await PushService.shared.requestPermissionIfNeeded()
+
+        // Notify all friends that the session was completed (if the
+        // user's "friend_sessions" toggle isn't a thing on THEIR side —
+        // they each control whether they hear about it). The Edge
+        // Function reads each recipient's notification_prefs and skips
+        // anyone opted out, plus enforces quiet hours for this category.
+        if !friends.isEmpty {
+            let displayName = currentProfile?.name
+                ?? currentProfile?.username
+                ?? (language == "ar" ? "صديقك" : "your bro")
+            await SupabaseManager.shared.sendPush(
+                toUserIds: friends.map { $0.id },
+                category:  "friend_session",
+                title:     language == "ar" ? "جلسة جديدة" : "New session",
+                body:      language == "ar"
+                    ? "\(displayName) أتم \(session.name)"
+                    : "\(displayName) completed \(session.name)",
+                data:      ["session_name": session.name]
+            )
+        }
         // Recalculate leaderboard score so the friends-leaderboard refreshes
         // on next CrewView load. Detach so it doesn't block the caller.
         Task.detached { [weak self] in

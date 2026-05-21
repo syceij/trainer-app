@@ -852,6 +852,23 @@ struct LeagueInviteSheet: View {
             addedIds.insert(user.id)
             await app.loadLeagues()
             app.toast = ar ? "تمت الإضافة" : "Added"
+
+            // Notify the invitee. Best-effort. Look up the league name
+            // from the freshly-reloaded myLeagues — we just inserted as
+            // admin so the league is guaranteed in the list.
+            let leagueName = app.myLeagues.first { $0.id == leagueId }?.name
+                ?? (ar ? "دوريك" : "a league")
+            let me = app.currentProfile?.name
+                ?? app.currentProfile?.username
+                ?? (ar ? "صديقك" : "Someone")
+            await SupabaseManager.shared.sendPush(
+                toUserIds: [user.id],
+                category:  "league_invite",
+                title:     ar ? "دعوة لدوري 🏆" : "League invite 🏆",
+                body:      ar
+                    ? "\(me) دعاك إلى \"\(leagueName)\""
+                    : "\(me) invited you to \"\(leagueName)\""
+            )
         } catch {
             print("[LeagueInvite] add failed:", error)
             app.toast = ar ? "تعذّرت الإضافة" : "Couldn't add"

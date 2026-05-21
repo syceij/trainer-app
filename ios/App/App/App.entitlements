@@ -6,5 +6,16 @@
 	<array>
 		<string>group.com.hexapp.training</string>
 	</array>
+	<!--
+		APNs environment.
+		- "production"  ↔ tokens bound to api.push.apple.com  (TestFlight, App Store)
+		- "development" ↔ tokens bound to api.sandbox.push.apple.com (Xcode debug)
+		HEX ships exclusively via TestFlight/AppStore (no local Xcode debug
+		builds on Windows), so "production" is correct here. The Edge
+		Function still supports sandbox routing per device via the
+		push_devices.is_sandbox column if we ever add a Mac dev path.
+	-->
+	<key>aps-environment</key>
+	<string>production</string>
 </dict>
 </plist>

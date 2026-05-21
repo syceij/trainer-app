@@ -7,6 +7,12 @@ struct HEXApp: App {
     /// Shared app state, injected into the environment.
     @StateObject private var appState = AppState()
 
+    /// Adopt UIApplicationDelegate so we can receive APNs token
+    /// callbacks (didRegisterForRemoteNotificationsWithDeviceToken)
+    /// and notification-tap callbacks — neither is available in pure
+    /// SwiftUI. AppDelegate forwards everything to PushService.
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     init() {
         configureGlobalAppearance()
     }
@@ -19,6 +25,11 @@ struct HEXApp: App {
                 .tint(HexTheme.accent)
                 .environment(\.layoutDirection,
                              appState.language == "ar" ? .rightToLeft : .leftToRight)
+                .onAppear {
+                    // PushService is a singleton owned by UIKit; pass
+                    // it the AppState reference so tap routing works.
+                    PushService.shared.app = appState
+                }
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
