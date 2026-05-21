@@ -248,7 +248,9 @@ struct CalendarView: View {
 
     private func dayBucket(date: Date) -> DayBucket {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        // logicalToday honours the 2am rollover so a user opening the
+        // calendar at 01:30 still sees yesterday's cell as "today".
+        let today = AppState.logicalToday
         let d = cal.startOfDay(for: date)
         let comps = cal.dateComponents([.year, .month, .day], from: d)
         let isLogged = loggedDates.contains(comps)
@@ -377,7 +379,9 @@ struct CalendarView: View {
 
     private func passedTrainingDayCount() -> Int {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        // Same rollover treatment as dayBucket — stats reflect the
+        // user's logical day, not the wall-clock day.
+        let today = AppState.logicalToday
         guard let range = cal.range(of: .day, in: .month,
                                     for: DateComponents(calendar: cal,
                                                         year: viewYear,

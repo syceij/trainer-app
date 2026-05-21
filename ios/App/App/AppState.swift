@@ -25,6 +25,46 @@ final class AppState: ObservableObject {
         case home, train, progress, bros, pt, profile
     }
 
+    // MARK: - Logical day rollover (late-night training grace period)
+
+    /// Hours after midnight where the app still treats the previous
+    /// day as "today". Lets users who train late (e.g. finishing at
+    /// 01:30 local) have their session count for the day they intended
+    /// rather than tomorrow.
+    ///
+    /// With offset = 2:
+    ///   • Sun 23:30 → logicalToday = Sunday
+    ///   • Mon 00:30 → logicalToday = Sunday (still grace period)
+    ///   • Mon 01:59 → logicalToday = Sunday
+    ///   • Mon 02:00 → logicalToday = Monday
+    ///
+    /// Used by: session save date, calendar "today" indicator, streak
+    /// counter, "trained today" flag, programme's today-session pick.
+    /// NOT used for relative-time displays ("3 min ago") — those keep
+    /// using `Date()` so the time matches reality.
+    static let dayRolloverOffsetHours: Int = 2
+
+    /// `Date()` shifted back by `dayRolloverOffsetHours`. Use anywhere
+    /// you'd reach for `Date()` to answer "what day is it".
+    static var logicalNow: Date {
+        Date().addingTimeInterval(-Double(dayRolloverOffsetHours) * 3600)
+    }
+
+    /// Start-of-day of `logicalNow`. Equivalent to "the calendar cell
+    /// the user is currently inside" given the rollover offset.
+    static var logicalToday: Date {
+        Calendar.current.startOfDay(for: logicalNow)
+    }
+
+    /// Map any timestamp to its logical day (start-of-day after the
+    /// offset is subtracted). Used to compare timestamps from other
+    /// users (activity feed, friend sessions) against the current
+    /// user's logical day on equal footing.
+    static func logicalDate(of date: Date) -> Date {
+        let shifted = date.addingTimeInterval(-Double(dayRolloverOffsetHours) * 3600)
+        return Calendar.current.startOfDay(for: shifted)
+    }
+
     @Published var authPhase: AuthPhase = .checking
     @Published var currentProfile: Profile?
     @Published var activeTab: Tab = .home
@@ -626,12 +666,14 @@ final class AppState: ObservableObject {
     }
 
     /// Re-derive `friendsTrainedToday` from the current activity feed.
+    /// Both the cutoff and each row's timestamp run through the same
+    /// rollover offset so a friend who trained at 01:00 local also
+    /// shows as "trained today" for someone checking at 01:30.
     private func recomputeTrainedToday() {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        let today = AppState.logicalToday
         var set: Set<UUID> = []
         for row in activityFeed where row.type == "session_completed" {
-            if cal.isDate(row.createdAt, inSameDayAs: today) {
+            if AppState.logicalDate(of: row.createdAt) == today {
                 set.insert(row.userId)
             }
         }
@@ -1682,7 +1724,11 @@ final class AppState: ObservableObject {
                 ?? weeks.first!
         guard !week.sessions.isEmpty else { return }
         let dayKeys = ["sun","mon","tue","wed","thu","fri","sat"]
-        let todayIdx = Calendar.current.component(.weekday, from: Date()) - 1
+        // Use logicalNow so the user who opens the app at 01:30 still
+        // sees yesterday's session staged (not tomorrow's). Programmes
+        // are weekday-keyed, so the rollover affects which session
+        // card is "today's session" on the Train tab.
+        let todayIdx = Calendar.current.component(.weekday, from: AppState.logicalNow) - 1
         let todayKey = dayKeys[max(0, min(6, todayIdx))]
 
         let hasDayKeys = week.sessions.contains(where: { !$0.day.isEmpty })
@@ -1714,7 +1760,10 @@ final class AppState: ObservableObject {
             userId: uid,
             programmeId: prog.id,
             name: picked.name,
-            date: Date(),
+            // logicalNow honours the 2am rollover — a session staged
+            // at 01:30 Mon gets dated as Sunday, matching the day the
+            // user intended to train (and what the calendar shows).
+            date: AppState.logicalNow,
             weekNumber: week.weekNumber,
             block: picked.block,
             completed: false,
@@ -1737,7 +1786,8 @@ final class AppState: ObservableObject {
             userId: uid,
             programmeId: prog.id,
             name: session.name,
-            date: Date(),
+            // Same rollover treatment as stageCurrentSessionFromActiveProgramme.
+            date: AppState.logicalNow,
             weekNumber: weekNumber,
             block: session.block,
             completed: false,

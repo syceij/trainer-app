@@ -522,7 +522,9 @@ struct HomeView: View {
     private var autoStreakRow: some View {
         // Bool array indexed Mon → Fri (iOS weekday 2-6, JS getDay 1-5).
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        // logicalToday honours the 2am rollover so the weekly streak
+        // dots reflect the user's intended day of training.
+        let today = AppState.logicalToday
         let weekStart = cal.date(
             from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
         ) ?? today
@@ -636,7 +638,11 @@ struct HomeView: View {
         )
         guard !dayKeys.isEmpty else { return 0 }
         var streak = 0
-        var cursor = cal.startOfDay(for: Date())
+        // Start the streak walk from logicalToday — a session logged
+        // last night at 23:30 should keep the streak alive when the
+        // user checks at 01:30, not break it because "today" hasn't
+        // technically rolled over yet in the user's perception.
+        var cursor = AppState.logicalToday
         // Allow the streak to start from "yesterday" if today wasn't logged
         // yet — matches React.
         if !dayKeys.contains(cursor) {
