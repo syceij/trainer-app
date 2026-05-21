@@ -523,8 +523,17 @@ struct FriendProfilePage: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
 
-            let sorted = weights.sorted { $0.value > $1.value }.prefix(8)
-            ForEach(Array(sorted), id: \.key) { name, w in
+            // working_weights are intentionally written under BOTH the
+            // exercise's display name ("Chest Press Machine") AND its
+            // slug ("chest_press_machine") so the Progress tab can
+            // resolve a lookup via either — see AppState.finishWorkout
+            // line ~1255. For display we collapse them: each canonical
+            // (lowercase, spaces-not-underscores) key keeps the highest
+            // weight and the more readable name.
+            let sorted = dedupedWorkingWeights(weights).prefix(8)
+            ForEach(Array(sorted), id: \.name) { item in
+                let name = item.name
+                let w = item.weight
                 HStack {
                     Text(name)
                         .font(.system(size: 13, weight: .semibold))
@@ -981,6 +990,55 @@ struct FriendProfilePage: View {
         w.truncatingRemainder(dividingBy: 1) == 0
             ? String(Int(w))
             : String(format: "%.1f", w)
+    }
+
+    /// Collapse working_weights rows that point at the same exercise
+    /// under two different keys ("Chest Press Machine" + the slug
+    /// "chest_press_machine"). For each canonical key, keep the
+    /// highest weight value and the most readable name.
+    ///
+    /// Background: AppState.finishWorkout intentionally writes weights
+    /// under BOTH the display name AND the slug so the Progress tab
+    /// can resolve a lookup via either form. That helps lookups but
+    /// means the friend profile renders duplicate rows for every
+    /// exercise. This helper restores a single row per exercise for
+    /// display while leaving the storage alone.
+    private func dedupedWorkingWeights(
+        _ raw: [String: Double]
+    ) -> [(name: String, weight: Double)] {
+        // Canonical key — lowercase, underscores → spaces, trimmed.
+        // "chest_press_machine" and "Chest Press Machine" both
+        // collapse to "chest press machine".
+        func canonical(_ s: String) -> String {
+            s.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Group all incoming names by their canonical form.
+        var groups: [String: [(name: String, weight: Double)]] = [:]
+        for (name, weight) in raw {
+            groups[canonical(name), default: []].append((name, weight))
+        }
+
+        // For each group: pick the most readable name (preferring
+        // versions WITH spaces over snake_case slugs) and the heaviest
+        // weight any of the duplicates carry.
+        let collapsed = groups.values.map { items -> (name: String, weight: Double) in
+            let bestName = items.max { a, b in
+                let aHasSpace = a.name.contains(" ")
+                let bHasSpace = b.name.contains(" ")
+                if aHasSpace != bHasSpace { return !aHasSpace }
+                // Tie-break: longer string usually means the human name.
+                return a.name.count < b.name.count
+            }?.name ?? items.first!.name
+            let heaviest = items.map(\.weight).max() ?? 0
+            return (name: bestName, weight: heaviest)
+        }
+
+        // Heaviest first — matches the existing UX where the user's
+        // strongest lifts surface at the top of the card.
+        return collapsed.sorted { $0.weight > $1.weight }
     }
 }
 
