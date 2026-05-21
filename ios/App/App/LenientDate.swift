@@ -69,6 +69,23 @@ enum LenientDate {
         let withT = cleaned.replacingOccurrences(of: " ", with: "T")
         if let d = iso.date(from: withT) { return d }
 
+        // 5. Bare date string ("2026-05-19") — Postgres DATE type
+        //    returns this format. Critical for sessions.date: without
+        //    this branch, the parser returned nil and the caller
+        //    fell back to `Date()` = today, which caused every loaded
+        //    session to appear on today's calendar cell instead of
+        //    its real day. We parse at midnight in the LOCAL timezone
+        //    (not UTC) so that Calendar.current extracts the same
+        //    year/month/day the string carries, regardless of where
+        //    the device is — a session "on May 19" should mean
+        //    May 19 on any user's calendar.
+        let dateOnly = DateFormatter()
+        dateOnly.calendar  = Calendar(identifier: .gregorian)
+        dateOnly.locale    = Locale(identifier: "en_US_POSIX")
+        dateOnly.timeZone  = TimeZone.current
+        dateOnly.dateFormat = "yyyy-MM-dd"
+        if let d = dateOnly.date(from: s) { return d }
+
         return nil
     }
 }
