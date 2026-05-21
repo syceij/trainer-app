@@ -8,6 +8,8 @@
 # GitHub Secrets via `gh secret set`.
 .secrets/
 *.p8
+*.mobileprovision
+*.p12
 HEX_distribution.csr
 HEX_distribution.key
 distribution.p12
