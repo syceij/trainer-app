@@ -3,6 +3,17 @@
 .env.local
 .env.production
 
+# Secret files — APNs keys, signing certs, anything that shouldn't
+# ever land in git. Lives in .secrets/ (local-only), uploaded to
+# GitHub Secrets via `gh secret set`.
+.secrets/
+*.p8
+HEX_distribution.csr
+HEX_distribution.key
+distribution.p12
+distribution.p12.base64
+profile.base64
+
 # Logs
 logs
 *.log
